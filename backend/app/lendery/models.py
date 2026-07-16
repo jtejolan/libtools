@@ -53,18 +53,24 @@ class LenderyItem(Base):
 class Component(Base):
     __tablename__ = "components"
 
-    id:Mapped[int] = mapped_column(primary_key=True)
-    item_id: int
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("lendery_items.id")
+    )
 
     name: Mapped[str] = mapped_column(String(200))
-    quantity: Mapped[int | 1] = mapped_column(Integer)
+
+    quantity: Mapped[int] = mapped_column(default=1)
 
     description: Mapped[str | None] = mapped_column(Text())
-    image_url: Mapped[str | None] = mapped_column(
-        String(500))
 
-    optional: int
-    check_in_notes: int
+    image_url: Mapped[str | None] = mapped_column(String(500))
 
-    item: str
-    
+    optional: Mapped[bool] = mapped_column(default=False)
+
+    check_in_notes: Mapped[str | None] = mapped_column(Text())
+
+    item: Mapped["LenderyItem"] = relationship(
+        back_populates="components"
+    )
