@@ -66,4 +66,5 @@ class Component(Base):
     optional: int
     check_in_notes: int
 
-    item: int
+    item: str
+    
