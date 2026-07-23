@@ -1,5 +1,26 @@
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, ConfigDict
 from decimal import Decimal
+
+##Lendery Component Schemas##
+
+class ComponentBase(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    quantity:int = Field(default=1, ge=1)
+
+
+    description: str | None = None
+    image_url: HttpUrl | None = None
+
+    optional: bool = False
+    check_in_notes: str | None = None
+
+class ComponentCreate(ComponentBase):
+    pass
+
+class ComponentResponse(ComponentBase):
+    id: int
+    components: list[ComponentResponse]
+    model_config = ConfigDict(from_attributes=True)
 
 ##Lendery Item Schemas##
 
@@ -7,7 +28,7 @@ class LenderyItemBase(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str | None = None
 
-    barcode: int
+    barcode: str = Field(min_length=1, max_length=50)
 
     notes: str | None = None
 
@@ -30,23 +51,5 @@ class LenderyItemCreate(LenderyItemBase):
 
 class LenderyItemResponse(LenderyItemBase):
     id: int
-
-##Lendery Component Schemas##
-
-class ComponentBase(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    quantity:int = Field(default=1, ge=1)
-
-
-    description: str | None = None
-    image_url: HttpUrl | None = None
-
-    optional: bool = False
-    check_in_notes: str | None = None
-
-class ComponentCreate(ComponentBase):
-    pass
-
-class ComponentResponse(ComponentBase):
-    id: int
-
+    
+    model_config = ConfigDict(from_attributes=True)
