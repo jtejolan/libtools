@@ -14,15 +14,18 @@ class ComponentBase(BaseModel):
     optional: bool = False
     check_in_notes: str | None = None
 
+
 class ComponentCreate(ComponentBase):
     pass
 
+
 class ComponentResponse(ComponentBase):
     id: int
-    components: list[ComponentResponse]
+
     model_config = ConfigDict(from_attributes=True)
 
 ##Lendery Item Schemas##
+
 
 class LenderyItemBase(BaseModel):
     name: str = Field(min_length=1, max_length=200)
@@ -42,14 +45,19 @@ class LenderyItemBase(BaseModel):
 
     manual_url: HttpUrl | None = None
 
+    image_url: HttpUrl | None = None
+
     components: list[ComponentCreate] = Field(default_factory=list)
 
     category: str | None = None
 
+
 class LenderyItemCreate(LenderyItemBase):
     pass
 
+
 class LenderyItemResponse(LenderyItemBase):
     id: int
-    
+    components: list[ComponentResponse] = Field(default_factory=list)
+
     model_config = ConfigDict(from_attributes=True)

@@ -1,9 +1,7 @@
 from decimal import Decimal
-from users import database
 
 from sqlalchemy import (
     ForeignKey,
-    Integer,
     Numeric,
     String,
     Text,
@@ -15,6 +13,7 @@ from sqlalchemy.orm import (
 )
 
 from database import Base
+
 
 class LenderyItem(Base):
     __tablename__ = "lendery_items"
@@ -49,6 +48,12 @@ class LenderyItem(Base):
     category: Mapped[str | None] = mapped_column(
         String(100)
     )
+
+    components: Mapped[list["Component"]] = relationship(
+        back_populates="item",
+        cascade="all, delete-orphan",
+    )
+
 
 class Component(Base):
     __tablename__ = "components"
