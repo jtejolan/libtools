@@ -584,6 +584,99 @@ h1 em {
   background: var(--forest);
 }
 
+.availability-controls {
+  margin: -6px 0 22px;
+  padding: 13px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.availability-filters {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.availability-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.availability-filter {
+  height: 31px;
+  padding: 0 11px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.availability-filter i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.availability-filter[data-availability-filter="available"] i {
+  background: #4c8b5d;
+}
+
+.availability-filter[data-availability-filter="unavailable"] i {
+  background: var(--orange);
+}
+
+.availability-filter[data-availability-filter="not_held"] i {
+  background: var(--gold);
+}
+
+.availability-filter:hover,
+.availability-filter.active {
+  color: var(--paper);
+  border-color: var(--forest);
+  background: var(--forest);
+}
+
+.sort-control {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sort-control select {
+  height: 31px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  outline: 0;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.sort-control select:focus {
+  border-color: var(--forest);
+  box-shadow: 0 0 0 3px rgba(24, 59, 51, 0.07);
+}
+
 .inventory-grid {
   min-height: 260px;
   display: grid;
@@ -698,6 +791,12 @@ h1 em {
 .availability-badge.not-held i,
 .availability-panel.not-held h3 i {
   background: var(--gold);
+}
+
+.availability-badge.checking i,
+.availability-panel.checking h3 i {
+  background: var(--gold);
+  animation: pulse 1s ease-in-out infinite;
 }
 
 .item-card-body {
@@ -1716,6 +1815,19 @@ footer {
 
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .availability-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sort-control {
+    justify-content: space-between;
+  }
+
+  .sort-control select {
+    flex: 1;
   }
 
   .field-wide {

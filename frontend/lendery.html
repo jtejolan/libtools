@@ -146,6 +146,22 @@
               <button class="filter-chip active" type="button" data-category="">All items</button>
             </div>
 
+            <div class="availability-controls">
+              <div
+                class="availability-filters"
+                id="availability-filters"
+                aria-label="Filter by availability"
+              ></div>
+              <label class="sort-control">
+                <span>Sort</span>
+                <select id="availability-sort" aria-label="Sort inventory">
+                  <option value="">Shelf order</option>
+                  <option value="available-first">Available first</option>
+                  <option value="unavailable-first">Unavailable first</option>
+                </select>
+              </label>
+            </div>
+
             <div class="inventory-grid" id="inventory-grid" aria-live="polite">
               <div class="loading-state">
                 <span class="loading-mark"></span>

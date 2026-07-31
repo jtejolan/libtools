@@ -2,12 +2,21 @@ const state = {
   items: [],
   query: "",
   category: "",
+  availabilityFilter: "",
+  availabilitySort: "",
   selectedId: null,
   checkedComponents: new Set(),
+  refreshingIds: new Set(),
+  refreshPromises: new Map(),
 };
+
+const AVAILABILITY_STALE_MS = 30 * 60 * 1000;
+const AUTO_REFRESH_CONCURRENCY = 3;
 
 const grid = document.querySelector("#inventory-grid");
 const filters = document.querySelector("#category-filters");
+const availabilityFilters = document.querySelector("#availability-filters");
+const availabilitySort = document.querySelector("#availability-sort");
 const searchInput = document.querySelector("#search-input");
 const dialog = document.querySelector("#item-dialog");
 const itemForm = document.querySelector("#item-form");
@@ -82,6 +91,15 @@ const availabilityInfo = (item) => {
     };
   }
 
+  if (state.refreshingIds.has(item.id)) {
+    return {
+      status: "checking",
+      shortLabel: "Checking",
+      label: "Checking Pierre Berton availability",
+      description: "Getting the latest copy status from the catalogue.",
+    };
+  }
+
   return {
     available: {
       status: "available",
@@ -127,15 +145,43 @@ const formatCheckedAt = (value) => {
 
 const visibleItems = () => {
   const query = state.query.toLowerCase().trim();
-  return state.items.filter((item) => {
+  const items = state.items.filter((item) => {
     const matchesCategory = !state.category || item.category === state.category;
+    const matchesAvailability =
+      !state.availabilityFilter ||
+      item.availability_status === state.availabilityFilter;
     const matchesQuery =
       !query ||
       [item.name, item.barcode, item.category, item.description]
         .filter(Boolean)
         .some((value) => value.toLowerCase().includes(query));
-    return matchesCategory && matchesQuery;
+    return matchesCategory && matchesAvailability && matchesQuery;
   });
+
+  if (!state.availabilitySort) return items;
+
+  const availableFirst = {
+    available: 0,
+    unavailable: 1,
+    not_held: 2,
+    unknown: 3,
+  };
+  const unavailableFirst = {
+    unavailable: 0,
+    available: 1,
+    not_held: 2,
+    unknown: 3,
+  };
+  const order =
+    state.availabilitySort === "available-first"
+      ? availableFirst
+      : unavailableFirst;
+  return [...items].sort(
+    (left, right) =>
+      (order[left.availability_status] ?? 4) -
+        (order[right.availability_status] ?? 4) ||
+      left.id - right.id,
+  );
 };
 
 const renderStats = () => {
@@ -158,10 +204,39 @@ const renderFilters = () => {
   ].join("");
 };
 
+const renderAvailabilityControls = () => {
+  const definitions = [
+    ["", "All statuses"],
+    ["available", "Available"],
+    ["unavailable", "Unavailable"],
+    ["not_held", "Not held"],
+    ["unknown", "Unknown"],
+  ];
+  availabilityFilters.innerHTML = definitions
+    .map(([status, label]) => {
+      const count = status
+        ? state.items.filter((item) => item.availability_status === status).length
+        : state.items.length;
+      return `
+        <button
+          class="availability-filter ${state.availabilityFilter === status ? "active" : ""}"
+          type="button"
+          data-availability-filter="${status}"
+        >
+          ${status ? "<i aria-hidden=\"true\"></i>" : ""}
+          ${escapeHtml(label)} <span>${count}</span>
+        </button>`;
+    })
+    .join("");
+  availabilitySort.value = state.availabilitySort;
+};
+
 const renderItems = () => {
   const items = visibleItems();
   if (!items.length) {
-    const hasFilters = Boolean(state.query || state.category);
+    const hasFilters = Boolean(
+      state.query || state.category || state.availabilityFilter
+    );
     grid.innerHTML = `
       <div class="empty-state">
         <span class="empty-icon" aria-hidden="true">${hasFilters ? "⌕" : "＋"}</span>
@@ -218,13 +293,86 @@ const renderItems = () => {
 const renderAll = () => {
   renderStats();
   renderFilters();
+  renderAvailabilityControls();
   renderItems();
+};
+
+const replaceItem = (item) => {
+  const index = state.items.findIndex((candidate) => candidate.id === item.id);
+  if (index >= 0) state.items[index] = item;
+};
+
+const refreshAvailabilityForItem = (item, { showErrors = false } = {}) => {
+  if (!item.library_url) return Promise.resolve(item);
+  const existing = state.refreshPromises.get(item.id);
+  if (existing) return existing;
+
+  state.refreshingIds.add(item.id);
+  renderAvailabilityControls();
+  renderItems();
+
+  const refreshPromise = request(
+    `/lendery/items/${item.id}/availability/refresh`,
+    { method: "POST" },
+  )
+    .then((refreshedItem) => {
+      replaceItem(refreshedItem);
+      if (showErrors && refreshedItem.availability_error) {
+        showToast("The catalogue could not be checked.");
+      }
+      return refreshedItem;
+    })
+    .catch((error) => {
+      if (showErrors) showToast(error.message);
+      return {
+        ...item,
+        availability_error: item.availability_error || error.message,
+      };
+    })
+    .finally(() => {
+      state.refreshingIds.delete(item.id);
+      state.refreshPromises.delete(item.id);
+      renderAll();
+    });
+
+  state.refreshPromises.set(item.id, refreshPromise);
+  return refreshPromise;
+};
+
+const availabilityIsStale = (item) => {
+  if (!item.library_url || !item.availability_checked_at) {
+    return Boolean(item.library_url);
+  }
+  const checkedAt = new Date(item.availability_checked_at).getTime();
+  return (
+    Number.isNaN(checkedAt) ||
+    Date.now() - checkedAt >= AVAILABILITY_STALE_MS
+  );
+};
+
+const refreshStaleAvailability = async () => {
+  const queue = state.items.filter(availabilityIsStale);
+  if (!queue.length) return;
+
+  const worker = async () => {
+    while (queue.length) {
+      const item = queue.shift();
+      await refreshAvailabilityForItem(item);
+    }
+  };
+  await Promise.all(
+    Array.from(
+      { length: Math.min(AUTO_REFRESH_CONCURRENCY, queue.length) },
+      worker,
+    ),
+  );
 };
 
 const loadItems = async () => {
   try {
     state.items = await request("/lendery/items?limit=100");
     renderAll();
+    refreshStaleAvailability();
   } catch (error) {
     grid.innerHTML = `
       <div class="error-state">
@@ -450,16 +598,10 @@ const openDrawer = async (itemId) => {
   document.querySelector("#drawer-close").focus();
 
   if (!item.library_url) return;
-  try {
-    const refreshedItem = await request(`/lendery/items/${item.id}`);
-    if (state.selectedId !== item.id) return;
-    const index = state.items.findIndex((candidate) => candidate.id === item.id);
-    if (index >= 0) state.items[index] = refreshedItem;
-    renderAll();
-    renderDrawer(refreshedItem);
-  } catch (error) {
-    showToast(`Availability check failed: ${error.message}`);
-  }
+  const refreshedItem = await refreshAvailabilityForItem(item, {
+    showErrors: true,
+  });
+  if (state.selectedId === item.id) renderDrawer(refreshedItem);
 };
 
 const refreshSelectedItem = async () => {
@@ -492,6 +634,7 @@ itemForm.addEventListener("submit", async (event) => {
     renderAll();
     if (state.selectedId === item.id) renderDrawer(item);
     showToast(id ? "Item updated." : "Item added to the collection.");
+    if (availabilityIsStale(item)) refreshAvailabilityForItem(item);
   } catch (error) {
     formError.textContent = error.message;
   } finally {
@@ -527,8 +670,11 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("#clear-filters")) {
     state.query = "";
     state.category = "";
+    state.availabilityFilter = "";
+    state.availabilitySort = "";
     searchInput.value = "";
     renderFilters();
+    renderAvailabilityControls();
     renderItems();
     return;
   }
@@ -547,6 +693,14 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
+  const availabilityFilter = event.target.closest("[data-availability-filter]");
+  if (availabilityFilter) {
+    state.availabilityFilter = availabilityFilter.dataset.availabilityFilter;
+    renderAvailabilityControls();
+    renderItems();
+    return;
+  }
+
   if (event.target.closest("#edit-item")) {
     const item = state.items.find((candidate) => candidate.id === state.selectedId);
     if (item) openItemDialog(item);
@@ -556,24 +710,15 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("#refresh-availability")) {
     const button = event.target.closest("#refresh-availability");
     button.disabled = true;
-    try {
-      const item = await request(
-        `/lendery/items/${state.selectedId}/availability/refresh`,
-        { method: "POST" },
-      );
-      const index = state.items.findIndex((candidate) => candidate.id === item.id);
-      if (index >= 0) state.items[index] = item;
-      renderAll();
-      renderDrawer(item);
-      showToast(
-        item.availability_error
-          ? "The catalogue could not be checked."
-          : "Availability refreshed.",
-      );
-    } catch (error) {
-      button.disabled = false;
-      showToast(error.message);
-    }
+    const currentItem = state.items.find(
+      (candidate) => candidate.id === state.selectedId,
+    );
+    if (!currentItem) return;
+    const item = await refreshAvailabilityForItem(currentItem, {
+      showErrors: true,
+    });
+    if (state.selectedId === item.id) renderDrawer(item);
+    if (!item.availability_error) showToast("Availability refreshed.");
     return;
   }
 
@@ -664,6 +809,11 @@ drawerContent.addEventListener("change", (event) => {
 
 searchInput.addEventListener("input", (event) => {
   state.query = event.target.value;
+  renderItems();
+});
+
+availabilitySort.addEventListener("change", (event) => {
+  state.availabilitySort = event.target.value;
   renderItems();
 });
 

@@ -24,6 +24,10 @@ GET /lendery/items?availability=unknown
 An availability failure keeps the previous status and records the failed check
 instead of marking the item out.
 
+When the inventory page opens, linked items that have never been checked or
+were last checked more than 30 minutes ago refresh in the background. The page
+also provides status filters and Available first / Unavailable first sorting.
+
 ## Run locally
 
 ```sh
