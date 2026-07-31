@@ -1,5 +1,12 @@
-from pydantic import BaseModel, Field, HttpUrl, ConfigDict
 from decimal import Decimal
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    field_validator,
+)
 
 ##Lendery Component Schemas##
 
@@ -17,6 +24,26 @@ class ComponentBase(BaseModel):
 
 class ComponentCreate(ComponentBase):
     pass
+
+
+class ComponentUpdate(BaseModel):
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=200,
+    )
+    quantity: int | None = Field(default=None, ge=1)
+    description: str | None = None
+    image_url: HttpUrl | None = None
+    optional: bool | None = None
+    check_in_notes: str | None = None
+
+    @field_validator("name", "quantity", "optional")
+    @classmethod
+    def required_values_cannot_be_null(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("field cannot be null")
+        return value
 
 
 class ComponentResponse(ComponentBase):
@@ -54,6 +81,37 @@ class LenderyItemBase(BaseModel):
 
 class LenderyItemCreate(LenderyItemBase):
     pass
+
+
+class LenderyItemUpdate(BaseModel):
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=200,
+    )
+    description: str | None = None
+    barcode: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=50,
+    )
+    notes: str | None = None
+    purchase_price: Decimal | None = Field(
+        default=None,
+        ge=0,
+        decimal_places=2,
+    )
+    purchase_url: HttpUrl | None = None
+    manual_url: HttpUrl | None = None
+    image_url: HttpUrl | None = None
+    category: str | None = None
+
+    @field_validator("name", "barcode")
+    @classmethod
+    def required_values_cannot_be_null(cls, value: str | None) -> str:
+        if value is None:
+            raise ValueError("field cannot be null")
+        return value
 
 
 class LenderyItemResponse(LenderyItemBase):
