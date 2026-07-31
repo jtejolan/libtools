@@ -17,6 +17,19 @@ DATABASE_URL = os.getenv(
     f"sqlite:///{BACKEND_DIR / 'librarytools.db'}",
 )
 
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace(
+        "postgres://",
+        "postgresql+psycopg://",
+        1,
+    )
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace(
+        "postgresql://",
+        "postgresql+psycopg://",
+        1,
+    )
+
 if DATABASE_URL.startswith("sqlite:///./"):
     database_path = DATABASE_URL.removeprefix("sqlite:///./")
     DATABASE_URL = f"sqlite:///{BACKEND_DIR / database_path}"
@@ -33,6 +46,7 @@ if DATABASE_URL.startswith("sqlite"):
 engine = create_engine(
     DATABASE_URL,
     connect_args=connect_args,
+    pool_pre_ping=True,
 )
 
 SessionLocal = sessionmaker(
@@ -51,7 +65,7 @@ class Base(DeclarativeBase):
 
 
 def migrate_existing_database() -> None:
-    """Add Lendery availability columns without replacing local SQLite data."""
+    """Add Lendery availability columns without replacing existing data."""
     inspector = inspect(engine)
     if "lendery_items" not in inspector.get_table_names():
         return
@@ -68,7 +82,7 @@ def migrate_existing_database() -> None:
         "availability_status_version": "INTEGER NOT NULL DEFAULT 1",
         "available_copies": "INTEGER",
         "total_copies_at_branch": "INTEGER",
-        "availability_checked_at": "DATETIME",
+        "availability_checked_at": "TIMESTAMP",
         "availability_error": "TEXT",
     }
     with engine.begin() as connection:

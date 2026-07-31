@@ -28,6 +28,8 @@ body {
   color: var(--ink);
   background: var(--cream);
   font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -151,7 +153,7 @@ a {
 
 .product-name small {
   color: rgba(244, 238, 223, 0.56);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -171,7 +173,7 @@ a {
 .nav-label {
   margin: 18px 12px 7px;
   color: rgba(244, 238, 223, 0.43);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.15em;
   text-transform: uppercase;
@@ -187,7 +189,7 @@ a {
   border-radius: 6px;
   color: rgba(244, 238, 223, 0.68);
   background: transparent;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   text-align: left;
   cursor: pointer;
@@ -222,7 +224,7 @@ a {
 .sidebar-note p {
   margin: 8px 0 0;
   color: rgba(244, 238, 223, 0.56);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.55;
 }
 
@@ -230,7 +232,7 @@ a {
   display: block;
   color: var(--cream);
   font-family: var(--serif);
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 500;
 }
 
@@ -253,7 +255,7 @@ a {
   display: flex;
   gap: 9px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .breadcrumb i {
@@ -272,21 +274,21 @@ a {
 }
 
 .docs-link {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
 }
 
 .primary-button,
 .secondary-button {
-  min-height: 42px;
-  padding: 0 17px;
+  min-height: 46px;
+  padding: 0 19px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
   border: 1px solid var(--forest);
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   transition: transform 160ms ease, background 160ms ease;
@@ -336,7 +338,7 @@ a {
   align-items: center;
   gap: 9px;
   color: var(--orange);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.15em;
   text-transform: uppercase;
@@ -371,7 +373,7 @@ h1 em {
   max-width: 550px;
   margin: 25px 0 0;
   color: var(--muted);
-  font-size: 15px;
+  font-size: 17px;
   line-height: 1.65;
 }
 
@@ -492,7 +494,7 @@ h1 em {
 
 .stats-grid article div span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 14px;
 }
 
 .inventory-panel {
@@ -522,7 +524,7 @@ h1 em {
 
 .search-box {
   width: min(310px, 28vw);
-  height: 42px;
+  height: 46px;
   padding: 0 13px;
   display: flex;
   align-items: center;
@@ -543,7 +545,7 @@ h1 em {
   outline: 0;
   color: var(--ink);
   background: transparent;
-  font-size: 12px;
+  font-size: 15px;
 }
 
 .search-box:focus-within {
@@ -565,14 +567,14 @@ h1 em {
 }
 
 .filter-chip {
-  height: 31px;
-  padding: 0 13px;
+  height: 38px;
+  padding: 0 15px;
   flex: 0 0 auto;
   border: 1px solid var(--line);
   border-radius: 999px;
   color: var(--muted);
   background: transparent;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -607,8 +609,8 @@ h1 em {
 }
 
 .availability-filter {
-  height: 31px;
-  padding: 0 11px;
+  height: 38px;
+  padding: 0 13px;
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -617,7 +619,7 @@ h1 em {
   border-radius: 999px;
   color: var(--muted);
   background: transparent;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -658,21 +660,21 @@ h1 em {
   align-items: center;
   gap: 8px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .sort-control select {
-  height: 31px;
+  height: 38px;
   padding: 0 28px 0 10px;
   border: 1px solid var(--line);
   border-radius: 5px;
   outline: 0;
   color: var(--ink);
   background: var(--paper);
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -748,7 +750,7 @@ h1 em {
   color: var(--ink);
   background: rgba(255, 250, 241, 0.91);
   box-shadow: 0 2px 8px rgba(24, 59, 51, 0.08);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.07em;
   text-overflow: ellipsis;
@@ -768,7 +770,7 @@ h1 em {
   color: var(--ink);
   background: rgba(255, 250, 241, 0.94);
   box-shadow: 0 2px 8px rgba(24, 59, 51, 0.1);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -815,21 +817,23 @@ h1 em {
 .item-card-body h3 {
   margin: 0;
   overflow: hidden;
-  font-size: 25px;
+  font-size: 27px;
   font-weight: 500;
+  line-height: 1.15;
   letter-spacing: -0.025em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .item-card-body > p {
-  height: 39px;
-  margin: 7px 0 18px;
+  min-height: 48px;
+  margin: 10px 0 20px;
   display: -webkit-box;
   overflow: hidden;
   color: var(--muted);
-  font-size: 11px;
-  line-height: 1.55;
+  font-size: 14px;
+  line-height: 1.6;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -848,7 +852,7 @@ h1 em {
   overflow: hidden;
   color: var(--muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 9px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -857,7 +861,7 @@ h1 em {
 .parts-count {
   flex: 0 0 auto;
   color: var(--forest);
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -929,7 +933,7 @@ h1 em {
 .error-state p {
   max-width: 390px;
   margin: 0 0 18px;
-  font-size: 12px;
+  font-size: 15px;
   line-height: 1.6;
 }
 
@@ -941,7 +945,7 @@ footer {
   justify-content: space-between;
   border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .item-dialog {
@@ -1012,7 +1016,7 @@ footer {
 }
 
 .field > span {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1031,12 +1035,12 @@ footer {
   outline: 0;
   color: var(--ink);
   background: rgba(244, 238, 223, 0.38);
-  font-size: 12px;
+  font-size: 15px;
 }
 
 .field input {
-  height: 43px;
-  padding: 0 12px;
+  height: 47px;
+  padding: 0 14px;
 }
 
 .field textarea {
@@ -1074,7 +1078,7 @@ footer {
   min-height: 18px;
   margin: 13px 0 0;
   color: var(--danger);
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .dialog-actions {
@@ -1089,7 +1093,7 @@ footer {
 .text-button {
   border: 0;
   background: transparent;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -1173,7 +1177,7 @@ footer {
 .drawer-category {
   margin: 0 0 8px;
   color: var(--orange);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -1203,8 +1207,8 @@ footer {
 .drawer-description {
   margin: 15px 0 23px;
   color: var(--muted);
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 16px;
+  line-height: 1.7;
 }
 
 .availability-panel {
@@ -1250,22 +1254,23 @@ footer {
   align-items: center;
   gap: 8px;
   font-family: var(--sans);
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .availability-panel > p {
   margin: 10px 0 14px;
   color: var(--muted);
-  font-size: 11px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .availability-panel button {
-  padding: 7px 10px;
+  min-height: 38px;
+  padding: 7px 12px;
   border: 1px solid var(--line);
   border-radius: 5px;
   background: transparent;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -1277,7 +1282,7 @@ footer {
 
 .availability-footer {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .availability-footer a {
@@ -1289,7 +1294,7 @@ footer {
   margin-top: 10px;
   display: block;
   color: var(--danger);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .detail-list {
@@ -1304,7 +1309,7 @@ footer {
 }
 
 .detail-list div {
-  padding: 12px;
+  padding: 15px;
   display: grid;
   gap: 3px;
   background: var(--paper);
@@ -1312,7 +1317,7 @@ footer {
 
 .detail-list dt {
   color: var(--muted);
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.11em;
   text-transform: uppercase;
@@ -1321,7 +1326,7 @@ footer {
 .detail-list dd {
   margin: 0;
   overflow-wrap: anywhere;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -1359,7 +1364,7 @@ footer {
   border: 0;
   color: var(--muted);
   background: transparent;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   cursor: pointer;
@@ -1378,12 +1383,12 @@ footer {
 }
 
 .checklist-status strong {
-  font-size: 11px;
+  font-size: 14px;
 }
 
 .checklist-status span {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .checklist-status > b {
@@ -1492,8 +1497,8 @@ footer {
 }
 
 .component-info {
-  min-height: 72px;
-  padding: 11px;
+  min-height: 82px;
+  padding: 13px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
@@ -1507,22 +1512,22 @@ footer {
 
 .component-info strong {
   overflow: hidden;
-  font-size: 11px;
+  font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .component-info small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .component-info p {
   margin: 3px 0 0;
   grid-column: 1 / -1;
   color: var(--muted);
-  font-size: 9px;
-  line-height: 1.45;
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .remove-component {
@@ -1541,7 +1546,7 @@ footer {
   border: 1px dashed var(--line);
   border-radius: 5px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 13px;
   text-align: center;
 }
 
@@ -1555,7 +1560,7 @@ footer {
 
 .component-form > p {
   margin: 0 0 9px;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -1567,13 +1572,13 @@ footer {
 
 .component-form-grid > input {
   min-width: 0;
-  height: 38px;
-  padding: 0 10px;
+  height: 43px;
+  padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: 5px;
   outline: 0;
   background: rgba(244, 238, 223, 0.43);
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .component-form-grid > input:focus {
@@ -1590,7 +1595,7 @@ footer {
   align-items: center;
   gap: 6px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .optional-check input {
@@ -1603,7 +1608,7 @@ footer {
   border-radius: 5px;
   color: var(--paper);
   background: var(--forest);
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -1617,11 +1622,12 @@ footer {
 }
 
 .drawer-actions button {
-  padding: 9px 12px;
+  min-height: 42px;
+  padding: 10px 14px;
   border: 0;
   border-radius: 5px;
   background: transparent;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -1646,7 +1652,7 @@ footer {
   color: var(--paper);
   background: var(--forest);
   box-shadow: 0 8px 30px rgba(14, 42, 35, 0.25);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   opacity: 0;
   pointer-events: none;

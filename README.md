@@ -35,3 +35,21 @@ also provides status filters and Available first / Unavailable first sorting.
 cd backend/app
 uvicorn main:app --reload
 ```
+
+## Deploy to Railway
+
+The repository includes a production Dockerfile and Railway health-check
+configuration. To preserve the existing SQLite inventory:
+
+1. Create a Railway project from this GitHub repository.
+2. Attach a volume to the web service with the mount path `/data`.
+3. Deploy the service.
+4. Under **Settings → Networking**, generate a public domain.
+
+On the first start, the current `backend/librarytools.db` is copied into the
+empty volume. Later deploys reuse the volume database and do not overwrite it.
+Keep the service at one replica while it uses SQLite.
+
+PostgreSQL is also supported. Add a Railway PostgreSQL service and set the web
+service's `DATABASE_URL` to its connection URL. A PostgreSQL deployment starts
+with an empty database; the local SQLite records are not imported automatically.
