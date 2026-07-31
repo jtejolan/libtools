@@ -1,0 +1,6 @@
+fastapi==0.139.0
+httpx==0.28.1
+pydantic==2.13.4
+python-dotenv
+sqlalchemy==2.0.51
+uvicorn

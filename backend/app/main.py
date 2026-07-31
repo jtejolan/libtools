@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from database import Base, engine
+from database import Base, engine, migrate_existing_database
 from lendery import models
 from lendery.routes import router as lendery_router
 
@@ -16,6 +16,7 @@ FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     Base.metadata.create_all(bind=engine)
+    migrate_existing_database()
     yield
 
 

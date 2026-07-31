@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 # ------------------------
@@ -48,3 +48,34 @@ SessionLocal = sessionmaker(
 
 class Base(DeclarativeBase):
     pass
+
+
+def migrate_existing_database() -> None:
+    """Add Lendery availability columns without replacing local SQLite data."""
+    inspector = inspect(engine)
+    if "lendery_items" not in inspector.get_table_names():
+        return
+
+    existing = {
+        column["name"]
+        for column in inspector.get_columns("lendery_items")
+    }
+    columns = {
+        "library_url": "VARCHAR(500)",
+        "availability_status": (
+            "VARCHAR(20) NOT NULL DEFAULT 'unknown'"
+        ),
+        "available_copies": "INTEGER",
+        "total_copies_at_branch": "INTEGER",
+        "availability_checked_at": "DATETIME",
+        "availability_error": "TEXT",
+    }
+    with engine.begin() as connection:
+        for name, definition in columns.items():
+            if name not in existing:
+                connection.execute(
+                    text(
+                        f"ALTER TABLE lendery_items "
+                        f"ADD COLUMN {name} {definition}"
+                    )
+                )

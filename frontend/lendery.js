@@ -72,6 +72,59 @@ const itemInitials = (name) =>
     .join("")
     .toUpperCase();
 
+const availabilityInfo = (item) => {
+  if (!item.library_url) {
+    return {
+      status: "not-linked",
+      shortLabel: "Not linked",
+      label: "No catalogue record",
+      description: "Add a Vaughan library catalogue URL to track this item.",
+    };
+  }
+
+  return {
+    available: {
+      status: "available",
+      shortLabel: "In",
+      label: "Available at Pierre Berton",
+      description:
+        item.available_copies === null
+          ? "At least one copy is available."
+          : `${item.available_copies} of ${item.total_copies_at_branch} ${
+              item.total_copies_at_branch === 1 ? "copy is" : "copies are"
+            } currently available.`,
+    },
+    unavailable: {
+      status: "unavailable",
+      shortLabel: "Out",
+      label: "All Pierre Berton copies are out",
+      description: `${item.total_copies_at_branch ?? "All"} ${
+        item.total_copies_at_branch === 1 ? "copy is" : "copies are"
+      } currently in use.`,
+    },
+    not_held: {
+      status: "not-held",
+      shortLabel: "Not held",
+      label: "Not held at Pierre Berton",
+      description: "No Pierre Berton copies appear on this catalogue record.",
+    },
+    unknown: {
+      status: "unknown",
+      shortLabel: "Unknown",
+      label: "Availability unknown",
+      description: "Open or refresh this item to check the catalogue.",
+    },
+  }[item.availability_status || "unknown"];
+};
+
+const formatCheckedAt = (value) => {
+  if (!value) return "Not checked yet";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "Check time unavailable"
+    : `Checked ${date.toLocaleString()}`;
+};
+
 const visibleItems = () => {
   const query = state.query.toLowerCase().trim();
   return state.items.filter((item) => {
@@ -130,6 +183,7 @@ const renderItems = () => {
   grid.innerHTML = items
     .map((item) => {
       const imageUrl = safeUrl(item.image_url);
+      const availability = availabilityInfo(item);
       const componentLabel =
         item.components.length === 1 ? "1 part" : `${item.components.length} parts`;
       return `
@@ -141,6 +195,11 @@ const renderItems = () => {
                 : `<span class="item-placeholder" aria-hidden="true">${escapeHtml(itemInitials(item.name))}</span>`
             }
             <span class="category-badge">${escapeHtml(item.category || "Uncategorized")}</span>
+            ${
+              item.library_url
+                ? `<span class="availability-badge ${availability.status}"><i></i>${escapeHtml(availability.shortLabel)}</span>`
+                : ""
+            }
           </div>
           <div class="item-card-body">
             <h3>${escapeHtml(item.name)}</h3>
@@ -194,6 +253,7 @@ const openItemDialog = (item = null) => {
       "image_url",
       "manual_url",
       "purchase_url",
+      "library_url",
       "notes",
     ]) {
       itemForm.elements[field].value = item[field] ?? "";
@@ -232,6 +292,8 @@ const renderDrawer = (item) => {
   const imageUrl = safeUrl(item.image_url);
   const manualUrl = safeUrl(item.manual_url);
   const purchaseUrl = safeUrl(item.purchase_url);
+  const libraryUrl = safeUrl(item.library_url);
+  const availability = availabilityInfo(item);
   const components = item.components || [];
   const checkedCount = components.filter((component) =>
     state.checkedComponents.has(component.id),
@@ -256,6 +318,34 @@ const renderDrawer = (item) => {
         ${item.purchase_price ? `<span class="drawer-price">$${Number(item.purchase_price).toFixed(2)}</span>` : ""}
       </div>
       <p class="drawer-description">${escapeHtml(item.description || "No description has been added yet.")}</p>
+
+      <section class="availability-panel ${availability.status}" aria-label="Pierre Berton availability">
+        <div class="availability-heading">
+          <div>
+            <p class="drawer-category">Pierre Berton Resource Library</p>
+            <h3><i aria-hidden="true"></i>${escapeHtml(availability.label)}</h3>
+          </div>
+          ${
+            libraryUrl
+              ? `<button id="refresh-availability" type="button">Refresh</button>`
+              : ""
+          }
+        </div>
+        <p>${escapeHtml(availability.description)}</p>
+        <div class="availability-footer">
+          <span>${escapeHtml(formatCheckedAt(item.availability_checked_at))}</span>
+          ${
+            libraryUrl
+              ? `<a href="${escapeHtml(libraryUrl)}" target="_blank" rel="noreferrer">Open catalogue ↗</a>`
+              : ""
+          }
+        </div>
+        ${
+          item.availability_error
+            ? `<small>Latest check failed; the last known status is shown.</small>`
+            : ""
+        }
+      </section>
 
       <dl class="detail-list">
         <div><dt>Barcode</dt><dd>${escapeHtml(item.barcode)}</dd></div>
@@ -347,7 +437,7 @@ const renderDrawer = (item) => {
     </div>`;
 };
 
-const openDrawer = (itemId) => {
+const openDrawer = async (itemId) => {
   const item = state.items.find((candidate) => candidate.id === Number(itemId));
   if (!item) return;
   state.selectedId = item.id;
@@ -358,6 +448,18 @@ const openDrawer = (itemId) => {
   drawer.classList.add("open");
   drawer.setAttribute("aria-hidden", "false");
   document.querySelector("#drawer-close").focus();
+
+  if (!item.library_url) return;
+  try {
+    const refreshedItem = await request(`/lendery/items/${item.id}`);
+    if (state.selectedId !== item.id) return;
+    const index = state.items.findIndex((candidate) => candidate.id === item.id);
+    if (index >= 0) state.items[index] = refreshedItem;
+    renderAll();
+    renderDrawer(refreshedItem);
+  } catch (error) {
+    showToast(`Availability check failed: ${error.message}`);
+  }
 };
 
 const refreshSelectedItem = async () => {
@@ -448,6 +550,30 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("#edit-item")) {
     const item = state.items.find((candidate) => candidate.id === state.selectedId);
     if (item) openItemDialog(item);
+    return;
+  }
+
+  if (event.target.closest("#refresh-availability")) {
+    const button = event.target.closest("#refresh-availability");
+    button.disabled = true;
+    try {
+      const item = await request(
+        `/lendery/items/${state.selectedId}/availability/refresh`,
+        { method: "POST" },
+      );
+      const index = state.items.findIndex((candidate) => candidate.id === item.id);
+      if (index >= 0) state.items[index] = item;
+      renderAll();
+      renderDrawer(item);
+      showToast(
+        item.availability_error
+          ? "The catalogue could not be checked."
+          : "Availability refreshed.",
+      );
+    } catch (error) {
+      button.disabled = false;
+      showToast(error.message);
+    }
     return;
   }
 

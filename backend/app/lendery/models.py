@@ -1,7 +1,10 @@
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    DateTime,
     ForeignKey,
+    Integer,
     Numeric,
     String,
     Text,
@@ -48,6 +51,26 @@ class LenderyItem(Base):
     category: Mapped[str | None] = mapped_column(
         String(100)
     )
+
+    library_url: Mapped[str | None] = mapped_column(
+        String(500)
+    )
+
+    availability_status: Mapped[str] = mapped_column(
+        String(20),
+        default="unknown",
+        server_default="unknown",
+    )
+
+    available_copies: Mapped[int | None] = mapped_column(Integer())
+
+    total_copies_at_branch: Mapped[int | None] = mapped_column(Integer())
+
+    availability_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+
+    availability_error: Mapped[str | None] = mapped_column(Text())
 
     components: Mapped[list["Component"]] = relationship(
         back_populates="item",

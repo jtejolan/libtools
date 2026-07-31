@@ -659,6 +659,47 @@ h1 em {
   white-space: nowrap;
 }
 
+.availability-badge {
+  padding: 6px 9px;
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: rgba(255, 250, 241, 0.94);
+  box-shadow: 0 2px 8px rgba(24, 59, 51, 0.1);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.availability-badge i,
+.availability-panel h3 i {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.availability-badge.available i,
+.availability-panel.available h3 i {
+  background: #4c8b5d;
+}
+
+.availability-badge.unavailable i,
+.availability-panel.unavailable h3 i {
+  background: var(--orange);
+}
+
+.availability-badge.not-held i,
+.availability-panel.not-held h3 i {
+  background: var(--gold);
+}
+
 .item-card-body {
   padding: 18px;
 }
@@ -1056,6 +1097,87 @@ footer {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.65;
+}
+
+.availability-panel {
+  margin: 0 0 22px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--muted);
+  border-radius: 7px;
+  background: rgba(255, 250, 241, 0.72);
+}
+
+.availability-panel.available {
+  border-left-color: #4c8b5d;
+}
+
+.availability-panel.unavailable {
+  border-left-color: var(--orange);
+}
+
+.availability-panel.not-held {
+  border-left-color: var(--gold);
+}
+
+.availability-heading,
+.availability-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.availability-panel .drawer-category {
+  margin-bottom: 5px;
+}
+
+.availability-panel h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--sans);
+  font-size: 14px;
+}
+
+.availability-panel > p {
+  margin: 10px 0 14px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.availability-panel button {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: transparent;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.availability-panel button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.availability-footer {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.availability-footer a {
+  color: var(--orange);
+  font-weight: 700;
+}
+
+.availability-panel small {
+  margin-top: 10px;
+  display: block;
+  color: var(--danger);
+  font-size: 9px;
 }
 
 .detail-list {

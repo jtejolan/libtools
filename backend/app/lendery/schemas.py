@@ -1,4 +1,8 @@
+import re
+from datetime import datetime
 from decimal import Decimal
+from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import (
     BaseModel,
@@ -7,6 +11,34 @@ from pydantic import (
     HttpUrl,
     field_validator,
 )
+
+AvailabilityStatus = Literal[
+    "available",
+    "unavailable",
+    "not_held",
+    "unknown",
+]
+
+
+def validate_library_url(value: HttpUrl | None) -> HttpUrl | None:
+    if value is None:
+        return None
+
+    parsed = urlsplit(str(value))
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname != "vaughanpl.bibliocommons.com"
+    ):
+        raise ValueError(
+            "library_url must be an HTTPS Vaughan Public Libraries "
+            "BiblioCommons record URL"
+        )
+    if not re.fullmatch(r"/v2/record/S130C\d+/?", parsed.path):
+        raise ValueError(
+            "library_url must point to a Vaughan BiblioCommons record"
+        )
+    return value
+
 
 ##Lendery Component Schemas##
 
@@ -78,6 +110,16 @@ class LenderyItemBase(BaseModel):
 
     category: str | None = None
 
+    library_url: HttpUrl | None = None
+
+    @field_validator("library_url")
+    @classmethod
+    def library_url_must_be_a_vaughan_record(
+        cls,
+        value: HttpUrl | None,
+    ) -> HttpUrl | None:
+        return validate_library_url(value)
+
 
 class LenderyItemCreate(LenderyItemBase):
     pass
@@ -105,6 +147,7 @@ class LenderyItemUpdate(BaseModel):
     manual_url: HttpUrl | None = None
     image_url: HttpUrl | None = None
     category: str | None = None
+    library_url: HttpUrl | None = None
 
     @field_validator("name", "barcode")
     @classmethod
@@ -113,9 +156,22 @@ class LenderyItemUpdate(BaseModel):
             raise ValueError("field cannot be null")
         return value
 
+    @field_validator("library_url")
+    @classmethod
+    def library_url_must_be_a_vaughan_record(
+        cls,
+        value: HttpUrl | None,
+    ) -> HttpUrl | None:
+        return validate_library_url(value)
+
 
 class LenderyItemResponse(LenderyItemBase):
     id: int
     components: list[ComponentResponse] = Field(default_factory=list)
+    availability_status: AvailabilityStatus = "unknown"
+    available_copies: int | None = None
+    total_copies_at_branch: int | None = None
+    availability_checked_at: datetime | None = None
+    availability_error: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

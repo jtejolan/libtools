@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import BaseModel
@@ -6,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from lendery import models, schemas
+from lendery import availability, models, schemas
 
 
 def _model_data(
@@ -54,9 +55,15 @@ def list_items(
     *,
     offset: int = 0,
     limit: int = 100,
+    availability_status: str | None = None,
 ) -> list[models.LenderyItem]:
+    statement = select(models.LenderyItem)
+    if availability_status is not None:
+        statement = statement.where(
+            models.LenderyItem.availability_status == availability_status
+        )
     statement = (
-        select(models.LenderyItem)
+        statement
         .order_by(models.LenderyItem.id)
         .offset(offset)
         .limit(limit)
@@ -94,6 +101,10 @@ def update_item(
 
     update_data = _model_data(changes, exclude_unset=True)
     update_data.pop("components", None)
+    library_url_changed = (
+        "library_url" in update_data
+        and update_data["library_url"] != db_item.library_url
+    )
     for field in (
         "name",
         "description",
@@ -104,10 +115,40 @@ def update_item(
         "manual_url",
         "image_url",
         "category",
+        "library_url",
     ):
         if field in update_data:
             setattr(db_item, field, update_data[field])
 
+    if library_url_changed:
+        db_item.availability_status = "unknown"
+        db_item.available_copies = None
+        db_item.total_copies_at_branch = None
+        db_item.availability_checked_at = None
+        db_item.availability_error = None
+
+    return _commit(db, db_item)
+
+
+def refresh_item_availability(
+    db: Session,
+    db_item: models.LenderyItem,
+) -> models.LenderyItem:
+    if not db_item.library_url:
+        return db_item
+
+    checked_at = datetime.now(timezone.utc)
+    try:
+        result = availability.check_availability(db_item.library_url)
+    except availability.AvailabilityCheckError as exc:
+        db_item.availability_checked_at = checked_at
+        db_item.availability_error = str(exc)
+    else:
+        db_item.availability_status = result.status
+        db_item.available_copies = result.available_copies
+        db_item.total_copies_at_branch = result.total_copies_at_branch
+        db_item.availability_checked_at = checked_at
+        db_item.availability_error = None
     return _commit(db, db_item)
 
 

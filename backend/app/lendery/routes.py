@@ -1,5 +1,5 @@
 from collections.abc import Generator
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import (
     APIRouter,
@@ -33,6 +33,14 @@ def get_db() -> Generator[Session, None, None]:
 DatabaseSession = Annotated[Session, Depends(get_db)]
 Offset = Annotated[int, Query(ge=0)]
 Limit = Annotated[int, Query(ge=1, le=100)]
+AvailabilityFilter = Literal[
+    "in",
+    "out",
+    "available",
+    "unavailable",
+    "not_held",
+    "unknown",
+]
 
 
 @router.post(
@@ -61,8 +69,18 @@ def list_items(
     db: DatabaseSession,
     offset: Offset = 0,
     limit: Limit = 100,
+    availability: AvailabilityFilter | None = None,
 ):
-    return crud.list_items(db, offset=offset, limit=limit)
+    status_filter = {
+        "in": "available",
+        "out": "unavailable",
+    }.get(availability, availability)
+    return crud.list_items(
+        db,
+        offset=offset,
+        limit=limit,
+        availability_status=status_filter,
+    )
 
 
 @router.get(
@@ -79,7 +97,7 @@ def get_item_by_barcode(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Item not found",
         )
-    return item
+    return crud.refresh_item_availability(db, item)
 
 
 @router.get(
@@ -96,7 +114,24 @@ def get_item(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Item not found",
         )
-    return item
+    return crud.refresh_item_availability(db, item)
+
+
+@router.post(
+    "/items/{item_id}/availability/refresh",
+    response_model=schemas.LenderyItemResponse,
+)
+def refresh_item_availability(
+    item_id: int,
+    db: DatabaseSession,
+):
+    item = crud.get_item(db, item_id)
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item not found",
+        )
+    return crud.refresh_item_availability(db, item)
 
 
 @router.patch(
