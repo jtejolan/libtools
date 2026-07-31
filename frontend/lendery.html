@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Lendery makes it simple to organize the useful things your community can borrow."
+    />
+    <meta name="theme-color" content="#173f35" />
+    <title>Lendery — Library Tools</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/lendery.css" />
+    <script src="/static/lendery.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="/" aria-label="Library Tools home">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </span>
+          <span>Library Tools</span>
+        </a>
+
+        <div class="product-name">
+          <span class="product-icon" aria-hidden="true">⌁</span>
+          <div>
+            <small>Library inventory</small>
+            <strong>Lendery</strong>
+          </div>
+        </div>
+
+        <nav aria-label="Lendery navigation">
+          <p class="nav-label">Workspace</p>
+          <a class="nav-item active" href="/lendery">
+            <span aria-hidden="true">▦</span>
+            <span>Inventory</span>
+          </a>
+          <button class="nav-item" id="nav-add-item" type="button">
+            <span aria-hidden="true">＋</span>
+            <span>Add an item</span>
+          </button>
+          <p class="nav-label">Library Tools</p>
+          <a class="nav-item" href="/">
+            <span aria-hidden="true">⌂</span>
+            <span>All tools</span>
+          </a>
+          <a class="nav-item" href="/docs#/lendery">
+            <span aria-hidden="true">↗</span>
+            <span>API docs</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-note">
+          <span aria-hidden="true">✦</span>
+          <p><strong>A place for everything.</strong> Keep kits complete and ready to lend.</p>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div class="breadcrumb">
+            <span>Lendery</span>
+            <i>/</i>
+            <strong>Inventory</strong>
+          </div>
+          <div class="topbar-actions">
+            <a class="docs-link" href="/docs#/lendery">API docs <span aria-hidden="true">↗</span></a>
+            <button class="primary-button" id="header-add-item" type="button">
+              <span aria-hidden="true">＋</span> Add item
+            </button>
+          </div>
+        </header>
+
+        <section class="content">
+          <div class="welcome-row">
+            <div>
+              <p class="eyebrow"><span></span> Your lending collection</p>
+              <h1>Good things,<br /><em>ready to share.</em></h1>
+              <p class="intro">
+                Keep track of every useful thing your library lends—from power
+                tools to picnic kits and everything in between.
+              </p>
+            </div>
+            <div class="welcome-art" aria-hidden="true">
+              <span class="art-tag"><i></i><b>LT</b></span>
+              <span class="art-spark">✦</span>
+              <span class="art-line"></span>
+            </div>
+          </div>
+
+          <section class="stats-grid" aria-label="Inventory overview">
+            <article>
+              <span class="stat-icon orange" aria-hidden="true">▤</span>
+              <div>
+                <strong id="total-stat">—</strong>
+                <span>Total items</span>
+              </div>
+            </article>
+            <article>
+              <span class="stat-icon gold" aria-hidden="true">⌘</span>
+              <div>
+                <strong id="kit-stat">—</strong>
+                <span>Kits with parts</span>
+              </div>
+            </article>
+            <article>
+              <span class="stat-icon green" aria-hidden="true">⌁</span>
+              <div>
+                <strong id="category-stat">—</strong>
+                <span>Categories</span>
+              </div>
+            </article>
+          </section>
+
+          <section class="inventory-panel" aria-labelledby="inventory-title">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow"><span></span> Browse the shelves</p>
+                <h2 id="inventory-title">Inventory</h2>
+              </div>
+              <div class="panel-controls">
+                <label class="search-box">
+                  <span aria-hidden="true">⌕</span>
+                  <span class="sr-only">Search inventory</span>
+                  <input
+                    id="search-input"
+                    type="search"
+                    placeholder="Search items or barcodes…"
+                    autocomplete="off"
+                  />
+                </label>
+                <button class="secondary-button" id="panel-add-item" type="button">
+                  <span aria-hidden="true">＋</span> Add item
+                </button>
+              </div>
+            </div>
+
+            <div class="category-filters" id="category-filters" aria-label="Filter by category">
+              <button class="filter-chip active" type="button" data-category="">All items</button>
+            </div>
+
+            <div class="inventory-grid" id="inventory-grid" aria-live="polite">
+              <div class="loading-state">
+                <span class="loading-mark"></span>
+                <p>Checking the shelves…</p>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <footer>
+          <span>Lendery by Library Tools</span>
+          <span>Made for the people who keep useful things moving.</span>
+        </footer>
+      </main>
+    </div>
+
+    <dialog class="item-dialog" id="item-dialog">
+      <form id="item-form">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow"><span></span> Inventory record</p>
+            <h2 id="dialog-title">Add a new item</h2>
+          </div>
+          <button class="icon-button" type="button" data-close-dialog aria-label="Close">×</button>
+        </div>
+
+        <input id="item-id" name="id" type="hidden" />
+        <div class="form-grid">
+          <label class="field field-wide">
+            <span>Item name <b>*</b></span>
+            <input name="name" required maxlength="200" placeholder="e.g. Cordless drill kit" />
+          </label>
+          <label class="field">
+            <span>Barcode <b>*</b></span>
+            <input name="barcode" required maxlength="50" placeholder="e.g. TOOL-0042" />
+          </label>
+          <label class="field">
+            <span>Category</span>
+            <input name="category" maxlength="100" placeholder="e.g. Tools" />
+          </label>
+          <label class="field field-wide">
+            <span>Description</span>
+            <textarea name="description" rows="3" placeholder="What is it, and what is it useful for?"></textarea>
+          </label>
+          <label class="field">
+            <span>Purchase price</span>
+            <div class="input-prefix"><span>$</span><input name="purchase_price" type="number" min="0" step="0.01" placeholder="0.00" /></div>
+          </label>
+          <label class="field">
+            <span>Image URL</span>
+            <input name="image_url" type="url" placeholder="https://…" />
+          </label>
+          <label class="field">
+            <span>Manual URL</span>
+            <input name="manual_url" type="url" placeholder="https://…" />
+          </label>
+          <label class="field">
+            <span>Purchase URL</span>
+            <input name="purchase_url" type="url" placeholder="https://…" />
+          </label>
+          <label class="field field-wide">
+            <span>Staff notes</span>
+            <textarea name="notes" rows="2" placeholder="Private handling or circulation notes"></textarea>
+          </label>
+        </div>
+
+        <p class="form-error" id="form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="text-button" type="button" data-close-dialog>Cancel</button>
+          <button class="primary-button" id="save-item" type="submit">Save item</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+    <aside class="item-drawer" id="item-drawer" aria-hidden="true" aria-labelledby="drawer-title">
+      <div class="drawer-inner" id="drawer-content"></div>
+    </aside>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

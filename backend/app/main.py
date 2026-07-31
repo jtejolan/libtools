@@ -38,6 +38,11 @@ def homepage() -> FileResponse:
     return FileResponse(FRONTEND_DIR / "index.html")
 
 
+@app.get("/lendery", include_in_schema=False)
+def lendery_app() -> FileResponse:
+    return FileResponse(FRONTEND_DIR / "lendery.html")
+
+
 @app.get("/health", tags=["system"])
 def health() -> dict[str, str]:
     return {"status": "ok"}
