@@ -12,21 +12,37 @@ from lendery.availability import (
 from lendery.schemas import LenderyItemCreate
 
 
-def payload_with_items(*items: dict) -> dict:
+def payload_with_items(
+    *items: dict,
+    metadata_id: str = "S130C603511",
+    overall_status: str = "AVAILABLE",
+) -> dict:
     return {
         "availability": {
+            "metadataId": metadata_id,
             "errorClassification": None,
         },
         "entities": {
             "bibItems": {
                 str(index): item
                 for index, item in enumerate(items)
-            }
+            },
+            "availabilities": {
+                metadata_id: {
+                    "statusType": overall_status,
+                }
+            },
         }
     }
 
 
-def item(branch_code: str, status: str) -> dict:
+def item(
+    branch_code: str,
+    status_type: str,
+    *,
+    status: str | None = None,
+    library_status: str | None = None,
+) -> dict:
     return {
         "branch": {
             "code": branch_code,
@@ -37,7 +53,9 @@ def item(branch_code: str, status: str) -> dict:
             ),
         },
         "availability": {
-            "statusType": status,
+            "status": status or status_type,
+            "statusType": status_type,
+            "libraryStatus": library_status,
         },
     }
 
@@ -56,17 +74,47 @@ class AvailabilityParserTests(unittest.TestCase):
         self.assertEqual(result.available_copies, 1)
         self.assertEqual(result.total_copies_at_branch, 2)
 
-    def test_ignores_available_copies_at_other_branches(self) -> None:
+    def test_checked_out_is_distinct_from_unavailable(self) -> None:
         result = parse_availability(
             payload_with_items(
-                item("9", "UNAVAILABLE"),
+                item(
+                    "9",
+                    "UNAVAILABLE",
+                    status="CHECKED_OUT",
+                    library_status="Out",
+                ),
                 item("4", "AVAILABLE"),
             )
         )
 
-        self.assertEqual(result.status, "unavailable")
+        self.assertEqual(result.status, "checked_out")
         self.assertEqual(result.available_copies, 0)
         self.assertEqual(result.total_copies_at_branch, 1)
+
+    def test_non_checkout_copy_status_is_unavailable(self) -> None:
+        result = parse_availability(
+            payload_with_items(
+                item(
+                    "9",
+                    "UNAVAILABLE",
+                    status="DAMAGED",
+                    library_status="Unavailable",
+                )
+            )
+        )
+
+        self.assertEqual(result.status, "unavailable")
+
+    def test_empty_damaged_record_is_unavailable(self) -> None:
+        result = parse_availability(
+            payload_with_items(
+                metadata_id="S130C538496",
+                overall_status="UNAVAILABLE",
+            )
+        )
+
+        self.assertEqual(result.status, "unavailable")
+        self.assertEqual(result.total_copies_at_branch, 0)
 
     def test_not_held_when_pierre_berton_has_no_copies(self) -> None:
         result = parse_availability(

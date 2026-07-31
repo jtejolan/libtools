@@ -122,6 +122,9 @@ def update_item(
 
     if library_url_changed:
         db_item.availability_status = "unknown"
+        db_item.availability_status_version = (
+            availability.AVAILABILITY_STATUS_VERSION
+        )
         db_item.available_copies = None
         db_item.total_copies_at_branch = None
         db_item.availability_checked_at = None
@@ -145,6 +148,9 @@ def refresh_item_availability(
         db_item.availability_error = str(exc)
     else:
         db_item.availability_status = result.status
+        db_item.availability_status_version = (
+            availability.AVAILABILITY_STATUS_VERSION
+        )
         db_item.available_copies = result.available_copies
         db_item.total_copies_at_branch = result.total_copies_at_branch
         db_item.availability_checked_at = checked_at

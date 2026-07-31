@@ -14,6 +14,7 @@ from pydantic import (
 
 AvailabilityStatus = Literal[
     "available",
+    "checked_out",
     "unavailable",
     "not_held",
     "unknown",
@@ -169,6 +170,7 @@ class LenderyItemResponse(LenderyItemBase):
     id: int
     components: list[ComponentResponse] = Field(default_factory=list)
     availability_status: AvailabilityStatus = "unknown"
+    availability_status_version: int = 2
     available_copies: int | None = None
     total_copies_at_branch: int | None = None
     availability_checked_at: datetime | None = None

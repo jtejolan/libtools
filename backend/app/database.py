@@ -65,6 +65,7 @@ def migrate_existing_database() -> None:
         "availability_status": (
             "VARCHAR(20) NOT NULL DEFAULT 'unknown'"
         ),
+        "availability_status_version": "INTEGER NOT NULL DEFAULT 1",
         "available_copies": "INTEGER",
         "total_copies_at_branch": "INTEGER",
         "availability_checked_at": "DATETIME",

@@ -80,6 +80,7 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertEqual(body["availability_status"], "available")
+        self.assertEqual(body["availability_status_version"], 2)
         self.assertEqual(body["available_copies"], 1)
         self.assertEqual(body["total_copies_at_branch"], 2)
         self.assertIsNotNone(body["availability_checked_at"])
@@ -91,14 +92,23 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
         self.client.get(f"/lendery/items/{created_in['id']}")
 
         created_out = self.create_linked_item("OUT-1")
-        check.return_value = AvailabilityResult("unavailable", 0, 1)
+        check.return_value = AvailabilityResult("checked_out", 0, 1)
         self.client.get(f"/lendery/items/{created_out['id']}")
+
+        created_unavailable = self.create_linked_item("UNAVAILABLE-1")
+        check.return_value = AvailabilityResult("unavailable", 0, 0)
+        self.client.get(
+            f"/lendery/items/{created_unavailable['id']}"
+        )
 
         in_items = self.client.get(
             "/lendery/items?availability=in"
         ).json()
         out_items = self.client.get(
             "/lendery/items?availability=out"
+        ).json()
+        unavailable_items = self.client.get(
+            "/lendery/items?availability=unavailable"
         ).json()
 
         self.assertEqual(
@@ -108,6 +118,10 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
         self.assertEqual(
             [entry["barcode"] for entry in out_items],
             ["OUT-1"],
+        )
+        self.assertEqual(
+            [entry["barcode"] for entry in unavailable_items],
+            ["UNAVAILABLE-1"],
         )
 
 

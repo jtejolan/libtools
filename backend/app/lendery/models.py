@@ -62,6 +62,12 @@ class LenderyItem(Base):
         server_default="unknown",
     )
 
+    availability_status_version: Mapped[int] = mapped_column(
+        Integer(),
+        default=2,
+        server_default="2",
+    )
+
     available_copies: Mapped[int | None] = mapped_column(Integer())
 
     total_copies_at_branch: Mapped[int | None] = mapped_column(Integer())

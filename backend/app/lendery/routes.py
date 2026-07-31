@@ -37,6 +37,7 @@ AvailabilityFilter = Literal[
     "in",
     "out",
     "available",
+    "checked_out",
     "unavailable",
     "not_held",
     "unknown",
@@ -73,7 +74,7 @@ def list_items(
 ):
     status_filter = {
         "in": "available",
-        "out": "unavailable",
+        "out": "checked_out",
     }.get(availability, availability)
     return crud.list_items(
         db,

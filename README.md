@@ -10,13 +10,14 @@ same `/lendery` namespace.
 Add a Vaughan BiblioCommons record URL to an item's `library_url` field. Opening
 that item refreshes its status using only copies at Pierre Berton Resource
 Library; copies at every other branch are ignored. The saved status is one of
-`available`, `unavailable`, `not_held`, or `unknown`.
+`available`, `checked_out`, `unavailable`, `not_held`, or `unknown`.
 
 Filter saved statuses through the list API:
 
 ```text
 GET /lendery/items?availability=in
 GET /lendery/items?availability=out
+GET /lendery/items?availability=unavailable
 GET /lendery/items?availability=not_held
 GET /lendery/items?availability=unknown
 ```

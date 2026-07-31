@@ -12,6 +12,7 @@ const state = {
 
 const AVAILABILITY_STALE_MS = 30 * 60 * 1000;
 const AUTO_REFRESH_CONCURRENCY = 3;
+const AVAILABILITY_STATUS_VERSION = 2;
 
 const grid = document.querySelector("#inventory-grid");
 const filters = document.querySelector("#category-filters");
@@ -112,13 +113,20 @@ const availabilityInfo = (item) => {
               item.total_copies_at_branch === 1 ? "copy is" : "copies are"
             } currently available.`,
     },
-    unavailable: {
-      status: "unavailable",
+    checked_out: {
+      status: "checked-out",
       shortLabel: "Out",
       label: "All Pierre Berton copies are out",
       description: `${item.total_copies_at_branch ?? "All"} ${
         item.total_copies_at_branch === 1 ? "copy is" : "copies are"
       } currently in use.`,
+    },
+    unavailable: {
+      status: "unavailable",
+      shortLabel: "Unavailable",
+      label: "Unavailable at Pierre Berton",
+      description:
+        "The catalogue does not list a borrowable copy. It may be damaged, under repair, or otherwise unavailable.",
     },
     not_held: {
       status: "not-held",
@@ -162,20 +170,30 @@ const visibleItems = () => {
 
   const availableFirst = {
     available: 0,
-    unavailable: 1,
-    not_held: 2,
-    unknown: 3,
+    checked_out: 1,
+    unavailable: 2,
+    not_held: 3,
+    unknown: 4,
+  };
+  const checkedOutFirst = {
+    checked_out: 0,
+    available: 1,
+    unavailable: 2,
+    not_held: 3,
+    unknown: 4,
   };
   const unavailableFirst = {
     unavailable: 0,
     available: 1,
-    not_held: 2,
-    unknown: 3,
+    checked_out: 2,
+    not_held: 3,
+    unknown: 4,
   };
-  const order =
-    state.availabilitySort === "available-first"
-      ? availableFirst
-      : unavailableFirst;
+  const order = {
+    "available-first": availableFirst,
+    "checked-out-first": checkedOutFirst,
+    "unavailable-first": unavailableFirst,
+  }[state.availabilitySort];
   return [...items].sort(
     (left, right) =>
       (order[left.availability_status] ?? 4) -
@@ -208,6 +226,7 @@ const renderAvailabilityControls = () => {
   const definitions = [
     ["", "All statuses"],
     ["available", "Available"],
+    ["checked_out", "Checked out"],
     ["unavailable", "Unavailable"],
     ["not_held", "Not held"],
     ["unknown", "Unknown"],
@@ -342,6 +361,12 @@ const refreshAvailabilityForItem = (item, { showErrors = false } = {}) => {
 const availabilityIsStale = (item) => {
   if (!item.library_url || !item.availability_checked_at) {
     return Boolean(item.library_url);
+  }
+  if (
+    (item.availability_status_version ?? 1) <
+    AVAILABILITY_STATUS_VERSION
+  ) {
+    return true;
   }
   const checkedAt = new Date(item.availability_checked_at).getTime();
   return (

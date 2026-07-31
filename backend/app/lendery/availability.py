@@ -8,6 +8,7 @@ import httpx
 
 TRACKED_BRANCH_CODE = "9"
 TRACKED_BRANCH_NAME = "Pierre Berton Resource Library"
+AVAILABILITY_STATUS_VERSION = 2
 CATALOG_HOST = "vaughanpl.bibliocommons.com"
 AVAILABILITY_ENDPOINT = (
     "https://gateway.bibliocommons.com/v2/libraries/"
@@ -17,6 +18,7 @@ RECORD_PATH = re.compile(r"/v2/record/(S130C\d+)/?")
 
 AvailabilityStatus = Literal[
     "available",
+    "checked_out",
     "unavailable",
     "not_held",
     "unknown",
@@ -50,8 +52,10 @@ def metadata_id_from_url(library_url: str) -> str:
 
 def parse_availability(payload: Any) -> AvailabilityResult:
     try:
-        error_classification = payload["availability"]["errorClassification"]
-        bib_items = payload["entities"]["bibItems"]
+        availability_summary = payload["availability"]
+        error_classification = availability_summary["errorClassification"]
+        entities = payload["entities"]
+        bib_items = entities["bibItems"]
     except (KeyError, TypeError) as exc:
         raise AvailabilityCheckError(
             "BiblioCommons returned an unexpected availability response"
@@ -74,6 +78,20 @@ def parse_availability(payload: Any) -> AvailabilityResult:
         and str(item.get("branch", {}).get("code")) == TRACKED_BRANCH_CODE
     ]
     if not branch_items:
+        metadata_id = availability_summary.get("metadataId")
+        overall_availability = entities.get("availabilities", {}).get(
+            metadata_id,
+            {},
+        )
+        if (
+            not bib_items
+            and overall_availability.get("statusType") == "UNAVAILABLE"
+        ):
+            return AvailabilityResult(
+                status="unavailable",
+                available_copies=0,
+                total_copies_at_branch=0,
+            )
         return AvailabilityResult(
             status="not_held",
             available_copies=0,
@@ -85,8 +103,18 @@ def parse_availability(payload: Any) -> AvailabilityResult:
         for item in branch_items
         if item.get("availability", {}).get("statusType") == "AVAILABLE"
     )
+    if available_copies:
+        status: AvailabilityStatus = "available"
+    elif all(
+        item.get("availability", {}).get("status") == "CHECKED_OUT"
+        for item in branch_items
+    ):
+        status = "checked_out"
+    else:
+        status = "unavailable"
+
     return AvailabilityResult(
-        status="available" if available_copies else "unavailable",
+        status=status,
         available_copies=available_copies,
         total_copies_at_branch=len(branch_items),
     )

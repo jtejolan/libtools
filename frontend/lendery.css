@@ -634,6 +634,10 @@ h1 em {
 }
 
 .availability-filter[data-availability-filter="unavailable"] i {
+  background: var(--danger);
+}
+
+.availability-filter[data-availability-filter="checked_out"] i {
   background: var(--orange);
 }
 
@@ -783,9 +787,14 @@ h1 em {
   background: #4c8b5d;
 }
 
+.availability-badge.checked-out i,
+.availability-panel.checked-out h3 i {
+  background: var(--orange);
+}
+
 .availability-badge.unavailable i,
 .availability-panel.unavailable h3 i {
-  background: var(--orange);
+  background: var(--danger);
 }
 
 .availability-badge.not-held i,
@@ -1212,6 +1221,10 @@ footer {
 }
 
 .availability-panel.unavailable {
+  border-left-color: var(--danger);
+}
+
+.availability-panel.checked-out {
   border-left-color: var(--orange);
 }
 
