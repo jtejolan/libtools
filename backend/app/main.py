@@ -1,11 +1,16 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from database import Base, engine
 from lendery import models
 from lendery.routes import router as lendery_router
+
+FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
 
 
 @asynccontextmanager
@@ -21,14 +26,16 @@ app = FastAPI(
 )
 
 app.include_router(lendery_router)
+app.mount(
+    "/static",
+    StaticFiles(directory=FRONTEND_DIR),
+    name="static",
+)
 
 
-@app.get("/", tags=["system"])
-def root() -> dict[str, str]:
-    return {
-        "message": "Library Tools API",
-        "docs": "/docs",
-    }
+@app.get("/", include_in_schema=False)
+def homepage() -> FileResponse:
+    return FileResponse(FRONTEND_DIR / "index.html")
 
 
 @app.get("/health", tags=["system"])
