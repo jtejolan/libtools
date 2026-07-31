@@ -949,7 +949,8 @@ footer {
   position: fixed;
   z-index: 30;
   inset: 0;
-  background: rgba(10, 29, 24, 0.48);
+  background: rgba(10, 29, 24, 0.72);
+  backdrop-filter: blur(5px);
   opacity: 0;
   transition: opacity 220ms ease;
 }
@@ -959,30 +960,39 @@ footer {
 }
 
 .item-drawer {
-  width: min(520px, 100%);
-  height: 100vh;
+  width: min(980px, calc(100% - 56px));
+  height: min(760px, calc(100vh - 56px));
   position: fixed;
   z-index: 31;
-  top: 0;
-  right: 0;
-  overflow-y: auto;
+  left: 50%;
+  top: 50%;
+  overflow: hidden;
+  border: 1px solid rgba(255, 250, 241, 0.35);
+  border-radius: 12px;
   color: var(--ink);
   background: var(--paper);
-  box-shadow: -18px 0 55px rgba(14, 42, 35, 0.2);
-  transform: translateX(102%);
-  transition: transform 240ms ease;
+  box-shadow: 0 30px 90px rgba(8, 28, 22, 0.42);
+  opacity: 0;
+  transform: translate(-50%, calc(-50% + 25px)) scale(0.98);
+  pointer-events: none;
+  transition: transform 240ms ease, opacity 200ms ease;
 }
 
 .item-drawer.open {
-  transform: translateX(0);
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  pointer-events: auto;
 }
 
 .drawer-inner {
   min-height: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 335px minmax(0, 1fr);
 }
 
 .drawer-hero {
-  height: 260px;
+  height: 100%;
   position: relative;
   display: grid;
   place-items: center;
@@ -1007,7 +1017,8 @@ footer {
 }
 
 .drawer-body {
-  padding: 30px;
+  padding: 35px 37px;
+  overflow-y: auto;
 }
 
 .drawer-category {
@@ -1085,7 +1096,7 @@ footer {
 }
 
 .components-section {
-  padding-top: 24px;
+  padding-top: 26px;
   border-top: 1px solid var(--line);
 }
 
@@ -1096,60 +1107,188 @@ footer {
   gap: 15px;
 }
 
+.section-title-row > div {
+  display: grid;
+}
+
+.section-title-row .drawer-category {
+  margin-bottom: 4px;
+}
+
 .section-title-row h3 {
   margin: 0;
   font-size: 25px;
   font-weight: 500;
 }
 
-.section-title-row span {
+.reset-checklist {
+  border: 0;
   color: var(--muted);
-  font-size: 10px;
+  background: transparent;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.checklist-status {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.checklist-status div {
+  display: grid;
+  gap: 2px;
+}
+
+.checklist-status strong {
+  font-size: 11px;
+}
+
+.checklist-status span {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.checklist-status > b {
+  color: var(--orange);
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.checklist-track {
+  height: 5px;
+  margin-top: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(24, 59, 51, 0.1);
+}
+
+.checklist-track span {
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: var(--moss);
+  transition: width 180ms ease;
 }
 
 .component-list {
-  margin: 14px 0;
+  margin: 17px 0;
   display: grid;
-  gap: 7px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
-.component-row {
-  padding: 11px 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.component-card {
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: rgba(244, 238, 223, 0.27);
+  transition: border-color 160ms ease, opacity 160ms ease, transform 160ms ease;
+}
+
+.component-card.checked {
+  border-color: var(--moss);
+  background: rgba(131, 157, 107, 0.1);
+}
+
+.component-visual {
+  height: 120px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(227, 178, 92, 0.17), rgba(131, 157, 107, 0.15)),
+    var(--paper-deep);
+  cursor: pointer;
+}
+
+.component-visual img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.component-placeholder {
+  width: 52px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--ink);
+  border-radius: 5px 5px 13px 5px;
+  background: var(--gold);
+  box-shadow: 4px 4px 0 rgba(24, 59, 51, 0.1);
+  font-family: var(--serif);
+  font-size: 17px;
+  transform: rotate(5deg);
+}
+
+.component-visual input {
+  width: 1px;
+  height: 1px;
+  position: absolute;
+  opacity: 0;
 }
 
 .component-check {
-  width: 21px;
-  height: 21px;
-  flex: 0 0 auto;
+  width: 31px;
+  height: 31px;
+  position: absolute;
+  right: 9px;
+  top: 9px;
   display: grid;
   place-items: center;
+  border: 2px solid rgba(255, 250, 241, 0.9);
   border-radius: 50%;
-  color: var(--forest);
-  background: rgba(131, 157, 107, 0.23);
-  font-size: 10px;
+  color: transparent;
+  background: rgba(24, 59, 51, 0.44);
+  box-shadow: 0 2px 10px rgba(24, 59, 51, 0.18);
+  font-size: 13px;
+  transition: color 160ms ease, background 160ms ease, transform 160ms ease;
 }
 
-.component-row div {
+.component-card.checked .component-check {
+  color: var(--paper);
+  background: var(--moss);
+  transform: scale(1.05);
+}
+
+.component-info {
+  min-height: 72px;
+  padding: 11px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 7px;
+}
+
+.component-info > div {
   min-width: 0;
-  flex: 1;
   display: grid;
 }
 
-.component-row strong {
+.component-info strong {
   overflow: hidden;
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.component-row small {
+.component-info small {
   color: var(--muted);
   font-size: 9px;
+}
+
+.component-info p {
+  margin: 3px 0 0;
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
 }
 
 .remove-component {
@@ -1174,11 +1313,25 @@ footer {
 
 .component-form {
   display: grid;
-  grid-template-columns: 1fr 65px auto;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(244, 238, 223, 0.3);
+}
+
+.component-form > p {
+  margin: 0 0 9px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.component-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 70px;
   gap: 7px;
 }
 
-.component-form input {
+.component-form-grid > input {
   min-width: 0;
   height: 38px;
   padding: 0 10px;
@@ -1189,11 +1342,28 @@ footer {
   font-size: 10px;
 }
 
-.component-form input:focus {
+.component-form-grid > input:focus {
   border-color: var(--forest);
 }
 
-.component-form button {
+.component-form-grid .component-url-input,
+.component-form-grid .component-note-input {
+  grid-column: 1 / -1;
+}
+
+.optional-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.optional-check input {
+  accent-color: var(--forest);
+}
+
+.component-form-grid button {
   padding: 0 12px;
   border: 1px solid var(--forest);
   border-radius: 5px;
@@ -1436,6 +1606,29 @@ footer {
 
   .dialog-heading h2 {
     font-size: 32px;
+  }
+
+  .item-drawer {
+    width: calc(100% - 18px);
+    height: calc(100vh - 18px);
+  }
+
+  .drawer-inner {
+    display: block;
+    overflow-y: auto;
+  }
+
+  .drawer-hero {
+    height: 220px;
+  }
+
+  .drawer-body {
+    padding: 25px 20px;
+    overflow: visible;
+  }
+
+  .component-list {
+    grid-template-columns: 1fr;
   }
 }
 

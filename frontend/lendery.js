@@ -3,6 +3,7 @@ const state = {
   query: "",
   category: "",
   selectedId: null,
+  checkedComponents: new Set(),
 };
 
 const grid = document.querySelector("#inventory-grid");
@@ -224,6 +225,7 @@ const closeDrawer = () => {
     drawerBackdrop.hidden = true;
   }, 220);
   state.selectedId = null;
+  state.checkedComponents.clear();
 };
 
 const renderDrawer = (item) => {
@@ -231,6 +233,12 @@ const renderDrawer = (item) => {
   const manualUrl = safeUrl(item.manual_url);
   const purchaseUrl = safeUrl(item.purchase_url);
   const components = item.components || [];
+  const checkedCount = components.filter((component) =>
+    state.checkedComponents.has(component.id),
+  ).length;
+  const checklistPercent = components.length
+    ? Math.round((checkedCount / components.length) * 100)
+    : 0;
 
   drawerContent.innerHTML = `
     <div class="drawer-hero">
@@ -260,32 +268,75 @@ const renderDrawer = (item) => {
 
       <section class="components-section">
         <div class="section-title-row">
-          <h3>Kit components</h3>
-          <span>${components.length} ${components.length === 1 ? "part" : "parts"}</span>
+          <div>
+            <p class="drawer-category">Return checklist</p>
+            <h3>Check every piece</h3>
+          </div>
+          ${
+            components.length
+              ? `<button class="reset-checklist" id="reset-checklist" type="button">Reset</button>`
+              : ""
+          }
         </div>
+        ${
+          components.length
+            ? `<div class="checklist-status">
+                <div>
+                  <strong id="checklist-count">${checkedCount} of ${components.length} checked</strong>
+                  <span id="checklist-message">${checkedCount === components.length ? "Kit complete and ready to return" : "Tap each part as you find it"}</span>
+                </div>
+                <b id="checklist-percent">${checklistPercent}%</b>
+              </div>
+              <div class="checklist-track"><span id="checklist-bar" style="width: ${checklistPercent}%"></span></div>`
+            : ""
+        }
         <div class="component-list">
           ${
             components.length
               ? components
-                  .map(
-                    (component) => `
-                      <div class="component-row">
-                        <span class="component-check" aria-hidden="true">✓</span>
-                        <div>
-                          <strong>${escapeHtml(component.name)}</strong>
-                          <small>Quantity: ${component.quantity}${component.optional ? " · Optional" : ""}</small>
+                  .map((component) => {
+                    const componentImage = safeUrl(component.image_url);
+                    const isChecked = state.checkedComponents.has(component.id);
+                    return `
+                      <article class="component-card ${isChecked ? "checked" : ""}" data-component-card="${component.id}">
+                        <label class="component-visual">
+                          <input
+                            type="checkbox"
+                            data-check-component="${component.id}"
+                            ${isChecked ? "checked" : ""}
+                            aria-label="Mark ${escapeHtml(component.name)} as present"
+                          />
+                          ${
+                            componentImage
+                              ? `<img src="${escapeHtml(componentImage)}" alt="${escapeHtml(component.name)}" loading="lazy" />`
+                              : `<span class="component-placeholder" aria-hidden="true">${escapeHtml(itemInitials(component.name))}</span>`
+                          }
+                          <span class="component-check" aria-hidden="true">✓</span>
+                        </label>
+                        <div class="component-info">
+                          <div>
+                            <strong>${escapeHtml(component.name)}</strong>
+                            <small>Quantity: ${component.quantity}${component.optional ? " · Optional" : ""}</small>
+                          </div>
+                          <button class="remove-component" type="button" data-component-id="${component.id}" aria-label="Remove ${escapeHtml(component.name)}">×</button>
+                          ${component.check_in_notes ? `<p>${escapeHtml(component.check_in_notes)}</p>` : ""}
                         </div>
-                        <button class="remove-component" type="button" data-component-id="${component.id}" aria-label="Remove ${escapeHtml(component.name)}">×</button>
-                      </div>`,
-                  )
+                      </article>`;
+                  })
                   .join("")
               : `<div class="component-empty">No components yet. Add the parts staff should check at return.</div>`
           }
         </div>
         <form class="component-form" id="component-form">
-          <input name="name" required maxlength="200" placeholder="Component name" aria-label="Component name" />
-          <input name="quantity" required type="number" min="1" value="1" aria-label="Quantity" />
-          <button type="submit">Add part</button>
+          <p>Add a checklist component</p>
+          <div class="component-form-grid">
+            <input name="name" required maxlength="200" placeholder="Component name" aria-label="Component name" />
+            <input name="quantity" required type="number" min="1" value="1" aria-label="Quantity" />
+            <input class="component-url-input" name="image_url" type="url" placeholder="Image URL (recommended)" aria-label="Component image URL" />
+            <input class="component-note-input" name="check_in_notes" maxlength="500" placeholder="Return note, e.g. check for charger" aria-label="Check-in note" />
+            <label class="optional-check"><input name="optional" type="checkbox" /> Optional part</label>
+            <button type="submit">＋ Add part</button>
+          </div>
         </form>
       </section>
 
@@ -300,6 +351,7 @@ const openDrawer = (itemId) => {
   const item = state.items.find((candidate) => candidate.id === Number(itemId));
   if (!item) return;
   state.selectedId = item.id;
+  state.checkedComponents.clear();
   renderDrawer(item);
   drawerBackdrop.hidden = false;
   requestAnimationFrame(() => drawerBackdrop.classList.add("open"));
@@ -399,6 +451,13 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
+  if (event.target.closest("#reset-checklist")) {
+    state.checkedComponents.clear();
+    const item = state.items.find((candidate) => candidate.id === state.selectedId);
+    if (item) renderDrawer(item);
+    return;
+  }
+
   if (event.target.closest("#delete-item")) {
     const item = state.items.find((candidate) => candidate.id === state.selectedId);
     if (!item || !window.confirm(`Delete “${item.name}”? This cannot be undone.`)) return;
@@ -438,7 +497,9 @@ drawerContent.addEventListener("submit", async (event) => {
       body: JSON.stringify({
         name: String(data.get("name")).trim(),
         quantity: Number(data.get("quantity")),
-        optional: false,
+        image_url: String(data.get("image_url")).trim() || null,
+        check_in_notes: String(data.get("check_in_notes")).trim() || null,
+        optional: data.get("optional") === "on",
       }),
     });
     await refreshSelectedItem();
@@ -446,6 +507,33 @@ drawerContent.addEventListener("submit", async (event) => {
   } catch (error) {
     showToast(error.message);
   }
+});
+
+drawerContent.addEventListener("change", (event) => {
+  const checkbox = event.target.closest("[data-check-component]");
+  if (!checkbox) return;
+  const componentId = Number(checkbox.dataset.checkComponent);
+  if (checkbox.checked) state.checkedComponents.add(componentId);
+  else state.checkedComponents.delete(componentId);
+
+  const item = state.items.find((candidate) => candidate.id === state.selectedId);
+  if (!item) return;
+  const checkedCount = item.components.filter((component) =>
+    state.checkedComponents.has(component.id),
+  ).length;
+  const percent = item.components.length
+    ? Math.round((checkedCount / item.components.length) * 100)
+    : 0;
+  const card = drawerContent.querySelector(`[data-component-card="${componentId}"]`);
+  card?.classList.toggle("checked", checkbox.checked);
+  document.querySelector("#checklist-count").textContent =
+    `${checkedCount} of ${item.components.length} checked`;
+  document.querySelector("#checklist-message").textContent =
+    checkedCount === item.components.length
+      ? "Kit complete and ready to return"
+      : "Tap each part as you find it";
+  document.querySelector("#checklist-percent").textContent = `${percent}%`;
+  document.querySelector("#checklist-bar").style.width = `${percent}%`;
 });
 
 searchInput.addEventListener("input", (event) => {
