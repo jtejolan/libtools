@@ -11,6 +11,7 @@
   --muted: #746f62;
   --danger: #a84432;
   --line: rgba(24, 59, 51, 0.14);
+  --lendery-mark: url("/static/assets/lendery-mark-v2.png");
   --serif: "Newsreader", Georgia, serif;
   --sans: "DM Sans", Arial, sans-serif;
 }
@@ -144,10 +145,10 @@ a {
   place-items: center;
   border: 1px solid rgba(244, 238, 223, 0.4);
   border-radius: 8px;
-  color: var(--forest);
-  background: var(--gold);
-  font-size: 23px;
-  font-weight: 700;
+  overflow: hidden;
+  color: transparent;
+  background: var(--paper) var(--lendery-mark) center / cover no-repeat;
+  font-size: 0;
 }
 
 .product-name div {
@@ -1113,11 +1114,12 @@ footer {
   height: 50px;
   display: grid;
   place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
   border-radius: 9px;
-  color: var(--forest);
-  background: var(--gold);
-  font-size: 29px;
-  font-weight: 700;
+  color: transparent;
+  background: var(--paper) var(--lendery-mark) center / cover no-repeat;
+  font-size: 0;
 }
 
 .auth-intro {

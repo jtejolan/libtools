@@ -9,6 +9,7 @@
   --gold: #e0ad56;
   --muted: #746f62;
   --line: rgba(24, 59, 51, 0.16);
+  --lendery-mark: url("/static/assets/lendery-mark-v2.png");
   --serif: "Newsreader", Georgia, serif;
   --sans: "DM Sans", Arial, sans-serif;
 }
@@ -555,31 +556,15 @@ blockquote em {
 }
 
 .lendery-icon {
-  border: 3px solid var(--ink);
-  border-radius: 12px 12px 35px 12px;
-  background: rgba(255, 250, 240, 0.13);
-  clip-path: polygon(0 0, 72% 0, 100% 28%, 100% 100%, 0 100%);
+  border: 1px solid rgba(24, 59, 51, 0.16);
+  border-radius: 18px;
+  background: var(--paper) var(--lendery-mark) center / cover no-repeat;
+  box-shadow: 0 12px 28px rgba(24, 59, 51, 0.12);
+  transform: none;
 }
 
-.tag-hole {
-  width: 22px;
-  height: 22px;
-  position: absolute;
-  right: 32px;
-  top: 30px;
-  border: 3px solid var(--ink);
-  border-radius: 50%;
-  background: var(--gold);
-}
-
-.tag-line {
-  width: 86px;
-  height: 48px;
-  position: absolute;
-  left: 35px;
-  bottom: 32px;
-  border-top: 3px solid var(--ink);
-  border-bottom: 3px solid var(--ink);
+.lendery-icon > span {
+  display: none;
 }
 
 .book-icon {
@@ -847,6 +832,10 @@ footer > a:last-child {
     right: 20px;
     transform: scale(0.85) rotate(9deg);
     transform-origin: right top;
+  }
+
+  .lendery-icon {
+    transform: scale(0.85);
   }
 
   .card-copy {
