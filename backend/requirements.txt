@@ -4,4 +4,5 @@ pydantic==2.13.4
 psycopg[binary]>=3.2,<4
 python-dotenv
 sqlalchemy==2.0.51
+itsdangerous>=2.2,<3
 uvicorn

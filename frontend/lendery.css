@@ -19,6 +19,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   min-width: 320px;
 }
@@ -271,6 +275,37 @@ a {
   display: flex;
   align-items: center;
   gap: 20px;
+}
+
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.role-badge {
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: var(--forest);
+  background: rgba(131, 157, 107, 0.2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.account-button {
+  padding: 6px 8px;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.account-button:hover {
+  color: var(--ink);
 }
 
 .docs-link {
@@ -1028,6 +1063,7 @@ footer {
 
 .field input,
 .field textarea,
+.field select,
 .input-prefix {
   width: 100%;
   border: 1px solid var(--line);
@@ -1043,6 +1079,11 @@ footer {
   padding: 0 14px;
 }
 
+.field select {
+  height: 47px;
+  padding: 0 14px;
+}
+
 .field textarea {
   padding: 11px 12px;
   resize: vertical;
@@ -1050,6 +1091,7 @@ footer {
 
 .field input:focus,
 .field textarea:focus,
+.field select:focus,
 .input-prefix:focus-within {
   border-color: var(--forest);
   box-shadow: 0 0 0 3px rgba(24, 59, 51, 0.07);
@@ -1096,6 +1138,70 @@ footer {
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.auth-dialog {
+  width: min(430px, calc(100% - 30px));
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  color: var(--ink);
+  background: var(--paper);
+  box-shadow: 0 24px 80px rgba(14, 42, 35, 0.36);
+}
+
+.auth-dialog::backdrop {
+  background: rgba(10, 29, 24, 0.78);
+  backdrop-filter: blur(5px);
+}
+
+.auth-dialog form {
+  padding: 34px;
+  display: grid;
+  gap: 17px;
+}
+
+.auth-dialog .dialog-heading {
+  margin-bottom: 0;
+}
+
+.auth-dialog h2 {
+  margin: -6px 0 0;
+  font-size: 38px;
+  font-weight: 500;
+  line-height: 1.05;
+}
+
+.auth-dialog .dialog-heading h2 {
+  margin: 0;
+  font-size: 34px;
+}
+
+.auth-mark {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--forest);
+  background: var(--gold);
+  font-size: 29px;
+  font-weight: 700;
+}
+
+.auth-intro {
+  margin: -7px 0 2px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.auth-dialog .form-error {
+  margin: -3px 0;
+}
+
+.auth-submit {
+  width: 100%;
 }
 
 .drawer-backdrop {

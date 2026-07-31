@@ -42,7 +42,7 @@
             <span aria-hidden="true">▦</span>
             <span>Inventory</span>
           </a>
-          <button class="nav-item" id="nav-add-item" type="button">
+          <button class="nav-item" id="nav-add-item" type="button" data-admin-only hidden>
             <span aria-hidden="true">＋</span>
             <span>Add an item</span>
           </button>
@@ -51,7 +51,7 @@
             <span aria-hidden="true">⌂</span>
             <span>All tools</span>
           </a>
-          <a class="nav-item" href="/docs#/lendery">
+          <a class="nav-item" href="/docs#/lendery" data-admin-only hidden>
             <span aria-hidden="true">↗</span>
             <span>API docs</span>
           </a>
@@ -71,8 +71,15 @@
             <strong>Inventory</strong>
           </div>
           <div class="topbar-actions">
-            <a class="docs-link" href="/docs#/lendery">API docs <span aria-hidden="true">↗</span></a>
-            <button class="primary-button" id="header-add-item" type="button">
+            <div class="account-actions" id="account-actions" hidden>
+              <span class="role-badge" id="role-badge"></span>
+              <button class="account-button" id="change-passwords" type="button" data-admin-only hidden>
+                Passwords
+              </button>
+              <button class="account-button" id="logout-button" type="button">Log out</button>
+            </div>
+            <a class="docs-link" href="/docs#/lendery" data-admin-only hidden>API docs <span aria-hidden="true">↗</span></a>
+            <button class="primary-button" id="header-add-item" type="button" data-admin-only hidden>
               <span aria-hidden="true">＋</span> Add item
             </button>
           </div>
@@ -123,7 +130,7 @@
             <div class="panel-heading">
               <div>
                 <p class="eyebrow"><span></span> Browse the shelves</p>
-                <h2 id="inventory-title">Inventory</h2>
+                <h2 id="inventory-title">Lendery Items</h2>
               </div>
               <div class="panel-controls">
                 <label class="search-box">
@@ -136,7 +143,7 @@
                     autocomplete="off"
                   />
                 </label>
-                <button class="secondary-button" id="panel-add-item" type="button">
+                <button class="secondary-button" id="panel-add-item" type="button" data-admin-only hidden>
                   <span aria-hidden="true">＋</span> Add item
                 </button>
               </div>
@@ -241,6 +248,89 @@
         <div class="dialog-actions">
           <button class="text-button" type="button" data-close-dialog>Cancel</button>
           <button class="primary-button" id="save-item" type="submit">Save item</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="auth-dialog" id="login-dialog">
+      <form id="login-form">
+        <div class="auth-mark" aria-hidden="true">⌁</div>
+        <p class="eyebrow"><span></span> Library inventory</p>
+        <h2>Welcome to Lendery</h2>
+        <p class="auth-intro">Sign in as an administrator or clerk to continue.</p>
+        <label class="field">
+          <span>Username</span>
+          <input
+            name="username"
+            required
+            maxlength="50"
+            autocomplete="username"
+            autofocus
+          />
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input
+            name="password"
+            type="password"
+            required
+            maxlength="200"
+            autocomplete="current-password"
+          />
+        </label>
+        <p class="form-error" id="login-error" role="alert"></p>
+        <button class="primary-button auth-submit" type="submit">Sign in</button>
+      </form>
+    </dialog>
+
+    <dialog class="auth-dialog" id="password-dialog">
+      <form id="password-form">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow"><span></span> Administrator settings</p>
+            <h2>Change a password</h2>
+          </div>
+          <button
+            class="icon-button"
+            type="button"
+            data-close-password-dialog
+            aria-label="Close"
+          >×</button>
+        </div>
+        <p class="auth-intro">Choose which shared account to update.</p>
+        <label class="field">
+          <span>Account</span>
+          <select name="username">
+            <option value="clerk">Clerk</option>
+            <option value="admin">Administrator</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>New password</span>
+          <input
+            name="new_password"
+            type="password"
+            required
+            minlength="8"
+            maxlength="200"
+            autocomplete="new-password"
+          />
+        </label>
+        <label class="field">
+          <span>Confirm password</span>
+          <input
+            name="confirm_password"
+            type="password"
+            required
+            minlength="8"
+            maxlength="200"
+            autocomplete="new-password"
+          />
+        </label>
+        <p class="form-error" id="password-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="text-button" type="button" data-close-password-dialog>Cancel</button>
+          <button class="primary-button" type="submit">Save password</button>
         </div>
       </form>
     </dialog>

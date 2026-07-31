@@ -8,6 +8,8 @@ from sqlalchemy.pool import StaticPool
 
 from database import Base
 from lendery.availability import AvailabilityResult
+from lendery.auth import hash_password
+from lendery.models import User
 from lendery.routes import get_db
 from main import app
 
@@ -48,6 +50,23 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
         with self.engine.begin() as connection:
             for table in reversed(Base.metadata.sorted_tables):
                 connection.execute(table.delete())
+        with self.sessions() as db:
+            db.add(
+                User(
+                    username="admin",
+                    password_hash=hash_password("admin-password"),
+                    role="admin",
+                )
+            )
+            db.commit()
+        response = self.client.post(
+            "/lendery/auth/login",
+            json={
+                "username": "admin",
+                "password": "admin-password",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
 
     def create_linked_item(self, barcode: str = "LENDERY-1") -> dict:
         response = self.client.post(

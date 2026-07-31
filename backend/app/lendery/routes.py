@@ -1,4 +1,3 @@
-from collections.abc import Generator
 from typing import Annotated, Literal
 
 from fastapi import (
@@ -10,27 +9,18 @@ from fastapi import (
     status,
 )
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 
-from database import SessionLocal
+from dependencies import DatabaseSession, get_db
+from lendery.auth import require_admin, require_authenticated
 from lendery import crud, schemas
 
 
 router = APIRouter(
     prefix="/lendery",
     tags=["lendery"],
+    dependencies=[Depends(require_authenticated)],
 )
 
-
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-DatabaseSession = Annotated[Session, Depends(get_db)]
 Offset = Annotated[int, Query(ge=0)]
 Limit = Annotated[int, Query(ge=1, le=100)]
 AvailabilityFilter = Literal[
@@ -52,6 +42,7 @@ AvailabilityFilter = Literal[
 def create_item(
     item: schemas.LenderyItemCreate,
     db: DatabaseSession,
+    _admin=Depends(require_admin),
 ):
     try:
         return crud.create_item(db, item)
@@ -143,6 +134,7 @@ def update_item(
     item_id: int,
     changes: schemas.LenderyItemUpdate,
     db: DatabaseSession,
+    _admin=Depends(require_admin),
 ):
     try:
         item = crud.update_item(db, item_id, changes)
@@ -166,6 +158,7 @@ def update_item(
 def delete_item(
     item_id: int,
     db: DatabaseSession,
+    _admin=Depends(require_admin),
 ) -> Response:
     if not crud.delete_item(db, item_id):
         raise HTTPException(
@@ -184,6 +177,7 @@ def create_component(
     item_id: int,
     component: schemas.ComponentCreate,
     db: DatabaseSession,
+    _admin=Depends(require_admin),
 ):
     db_component = crud.create_component(db, item_id, component)
     if db_component is None:
@@ -254,6 +248,7 @@ def update_component(
     component_id: int,
     changes: schemas.ComponentUpdate,
     db: DatabaseSession,
+    _admin=Depends(require_admin),
 ):
     component = crud.update_component(db, component_id, changes)
     if component is None:
@@ -271,6 +266,7 @@ def update_component(
 def delete_component(
     component_id: int,
     db: DatabaseSession,
+    _admin=Depends(require_admin),
 ) -> Response:
     if not crud.delete_component(db, component_id):
         raise HTTPException(

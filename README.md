@@ -31,10 +31,22 @@ also provides status filters and Available first / Unavailable first sorting.
 
 ## Run locally
 
+Lendery has two fixed accounts: `admin` can change inventory and checklist
+definitions, while `clerk` has read-only inventory access and can operate
+checklists. Set their initial passwords before the first start:
+
 ```sh
 cd backend/app
+export LENDERY_ADMIN_PASSWORD="choose-an-admin-password"
+export LENDERY_CLERK_PASSWORD="choose-a-clerk-password"
+export LENDERY_SESSION_SECRET="choose-a-long-random-value"
 uvicorn main:app --reload
 ```
+
+Passwords must be at least eight characters. The initial password variables
+only create missing accounts; later password changes made in Lendery are not
+overwritten when the service restarts. `LENDERY_SESSION_SECRET` is optional,
+but setting it keeps existing logins valid across restarts.
 
 ## Deploy to Railway
 
@@ -44,7 +56,9 @@ configuration. To preserve the existing SQLite inventory:
 1. Create a Railway project from this GitHub repository.
 2. Attach a volume to the web service with the mount path `/data`.
 3. Deploy the service.
-4. Under **Settings → Networking**, generate a public domain.
+4. Add `LENDERY_ADMIN_PASSWORD`, `LENDERY_CLERK_PASSWORD`, and a long random
+   `LENDERY_SESSION_SECRET` under the service variables.
+5. Under **Settings → Networking**, generate a public domain.
 
 On the first start, the current `backend/librarytools.db` is copied into the
 empty volume. Later deploys reuse the volume database and do not overwrite it.
