@@ -41,7 +41,7 @@ def initialize_platform_accounts(db: Session) -> None:
             ["bookclub", "storytime", "lendery_manage"],
         )
 
-    if user.role == "admin":
+    elif user.role == "admin":
         existing_tools = set(
             db.scalars(
                 select(ToolAccess.tool_key).where(ToolAccess.user_id == user.id)

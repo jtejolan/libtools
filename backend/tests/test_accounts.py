@@ -1,11 +1,13 @@
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from accounts.models import LibtoolsUser, ToolAccess
+from accounts.bootstrap import initialize_platform_accounts
 from database import Base
 from dependencies import get_db
 from main import app
@@ -114,6 +116,36 @@ class PlatformAccountTests(unittest.TestCase):
             )
         finally:
             user.close()
+
+    def test_initial_admin_bootstrap_assigns_each_tool_once(self) -> None:
+        with self.engine.begin() as connection:
+            for table in reversed(Base.metadata.sorted_tables):
+                connection.execute(table.delete())
+
+        with patch.dict(
+            "os.environ",
+            {
+                "LIBTOOLS_ADMIN_NAME": "admin",
+                "LIBTOOLS_ADMIN_PASSWORD": "bootstrap-password",
+            },
+        ):
+            with self.sessions() as db:
+                initialize_platform_accounts(db)
+                admin = db.scalar(
+                    select(LibtoolsUser).where(LibtoolsUser.username == "admin")
+                )
+                assigned_tools = list(
+                    db.scalars(
+                        select(ToolAccess.tool_key)
+                        .where(ToolAccess.user_id == admin.id)
+                        .order_by(ToolAccess.tool_key)
+                    )
+                )
+
+        self.assertEqual(
+            assigned_tools,
+            ["bookclub", "lendery_manage", "storytime"],
+        )
 
     def test_lendery_access_is_a_personal_account_permission(self) -> None:
         created = self.admin.post(
