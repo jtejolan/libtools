@@ -5,37 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Library Tools provides applications and APIs for library inventory, book clubs, and storytime planning."
+      content="Library Tools provides practical tools for library inventory, book clubs, and storytime planning."
     />
     <meta name="theme-color" content="#173f35" />
-    <title>Library Tools — Applications and APIs for library work</title>
+    <title>Library Tools — Practical tools for library work</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/styles.css?v=7" />
+    <link rel="stylesheet" href="/static/styles.css?v=8" />
+    <script src="/static/home.js?v=1" defer></script>
   </head>
   <body>
     <div class="page-shell">
       <header class="site-header">
         <a class="brand" href="/" aria-label="Library Tools home">
-          <img class="brand-mark" src="/static/assets/library-tools-logo-mark.svg?v=1" alt="" />
+          <img class="brand-mark" src="/static/assets/library-tools-logo-mark.png?v=2" alt="" />
           <span>Library Tools</span>
         </a>
         <nav aria-label="Primary navigation">
           <a href="#tools">Tools</a>
-          <a class="nav-docs" href="/docs">API docs <span aria-hidden="true">↗</span></a>
+          <a class="nav-docs" href="/lendery">Open Lendery <span aria-hidden="true">↗</span></a>
         </nav>
       </header>
 
       <main>
         <section class="hero" aria-labelledby="hero-title">
           <div class="hero-identity" aria-hidden="true">
-            <img class="hero-logo-mark" src="/static/assets/library-tools-logo-mark.svg?v=1" alt="" />
+            <img class="hero-logo-mark" src="/static/assets/library-tools-logo-mark.png?v=2" alt="" />
             <p class="hero-brand-name">Library Tools</p>
-            <p class="hero-brand-note">Applications and APIs for public libraries</p>
+            <p class="hero-brand-note">Practical tools for public libraries</p>
           </div>
 
           <div class="hero-copy">
@@ -46,9 +47,9 @@
             </h1>
             <p class="hero-intro">
               Use Library Tools to manage lending inventory and, as additional
-              tools become available, book clubs and storytime resources. Open
-              a tool for day-to-day work or use the API documentation for
-              endpoint and schema details.
+              tools become available, book clubs and storytime resources. Each
+              tool provides a focused workspace for a specific part of library
+              work.
             </p>
             <a class="primary-action" href="#tools">
               View the tools
@@ -84,8 +85,8 @@
                 <h3>Lendery</h3>
                 <p>
                   Manage lendable items, kits, and their components. The
-                  inventory workspace supports searching and filtering, while
-                  the API provides direct access to item and component records.
+                  inventory workspace supports searching, filtering, and
+                  maintaining item and component records.
                 </p>
                 <span class="card-cta">Open inventory <b aria-hidden="true">→</b></span>
               </div>
@@ -118,11 +119,11 @@
               </div>
               <div class="card-copy">
                 <p class="card-number">TOOL 03</p>
-                <h3 id="storytime-title">Storytime Studio API</h3>
+                <h3 id="storytime-title">Storytime Studio</h3>
                 <p>
-                  A planned API for storing books, songs, rhymes, activities,
-                  themes, props, and transitions, then using those records to
-                  assemble reusable storytime outlines.
+                  A planned workspace for storing books, songs, rhymes,
+                  activities, themes, props, and transitions, then using those
+                  resources to assemble reusable storytime outlines.
                 </p>
                 <ul class="storytime-features" aria-label="Planned features">
                   <li>Resource database</li>
@@ -134,22 +135,29 @@
           </div>
         </section>
 
-        <section class="manifesto" aria-label="How to use Library Tools">
+        <section class="manifesto" aria-label="Book quotation">
           <span class="quote-mark" aria-hidden="true">“</span>
-          <blockquote>
-            Use the interface for routine work.<br />
-            <em>Use the API when you need direct access.</em>
-          </blockquote>
+          <figure>
+            <blockquote id="book-quote-text">
+              It is a truth universally acknowledged, that a single man in
+              possession of a good fortune, must be in want of a wife.
+            </blockquote>
+            <figcaption class="quote-attribution">
+              <cite id="book-quote-title">Pride and Prejudice</cite>
+              <span aria-hidden="true">—</span>
+              <span id="book-quote-author">Jane Austen</span>
+            </figcaption>
+          </figure>
         </section>
       </main>
 
       <footer>
         <a class="brand footer-brand" href="/">
-          <img class="brand-mark" src="/static/assets/library-tools-logo-mark.svg?v=1" alt="" />
+          <img class="brand-mark" src="/static/assets/library-tools-logo-mark.png?v=2" alt="" />
           <span>Library Tools</span>
         </a>
         <p>Library inventory, book club, and storytime tools.</p>
-        <a href="/docs">API documentation <span aria-hidden="true">↗</span></a>
+        <a href="/lendery">Open Lendery <span aria-hidden="true">↗</span></a>
       </footer>
     </div>
   </body>

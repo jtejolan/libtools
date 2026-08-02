@@ -494,12 +494,36 @@ blockquote em {
   opacity: 0.65;
 }
 
+.manifesto figure {
+  margin: 0;
+}
+
 blockquote {
+  max-width: 1050px;
   margin: 18px auto 0;
   font-size: clamp(33px, 4.4vw, 58px);
   font-weight: 500;
   line-height: 1.15;
   letter-spacing: -0.035em;
+}
+
+.quote-attribution {
+  margin-top: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  color: var(--muted);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+.quote-attribution cite {
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 600;
 }
 
 footer {

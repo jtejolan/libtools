@@ -102,29 +102,8 @@ a {
 .brand-mark {
   width: 27px;
   height: 29px;
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 2px;
-}
-
-.brand-mark span {
-  width: 7px;
-  height: 23px;
-  border-radius: 1px 1px 0 0;
-  background: var(--orange);
-  transform: rotate(-4deg);
-}
-
-.brand-mark span:nth-child(2) {
-  height: 27px;
-  background: var(--gold);
-  transform: rotate(2deg);
-}
-
-.brand-mark span:nth-child(3) {
-  height: 21px;
-  background: var(--moss);
-  transform: rotate(6deg);
+  display: block;
+  object-fit: contain;
 }
 
 .product-name {
