@@ -264,10 +264,15 @@ blockquote em {
 .lendery-card {
   color: var(--ink);
   background: var(--gold);
+}
+
+.lendery-card,
+.bookclub-card {
   transition: transform 220ms ease, box-shadow 220ms ease;
 }
 
-.lendery-card:hover {
+.lendery-card:hover,
+.bookclub-card:hover {
   transform: translateY(-7px);
   box-shadow: 0 22px 50px rgba(0, 0, 0, 0.2);
 }
@@ -279,6 +284,15 @@ blockquote em {
     linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px),
     var(--forest-soft);
   background-size: 30px 30px;
+}
+
+.bookclub-card .bookclub-available {
+  border-color: rgba(244, 238, 223, 0.3);
+}
+
+.bookclub-card .bookclub-available i {
+  background: var(--gold);
+  box-shadow: 0 0 0 4px rgba(224, 173, 86, 0.12);
 }
 
 .storytime-card {
@@ -333,7 +347,8 @@ blockquote em {
   transition: transform 180ms ease;
 }
 
-.lendery-card:hover .card-arrow {
+.lendery-card:hover .card-arrow,
+.bookclub-card:hover .card-arrow {
   transform: translate(3px, -3px);
 }
 

@@ -1124,6 +1124,7 @@ footer {
 .auth-submit {
   width: 100%;
 }
+.auth-account-link { margin-top: 10px; display: block; text-align: center; }
 
 .drawer-backdrop {
   position: fixed;

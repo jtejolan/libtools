@@ -92,16 +92,28 @@ def _commit(db: Session, instance: Any) -> Any:
     return instance
 
 
+def _club_id(db: Session) -> int:
+    club_id = db.info.get("bookclub_id")
+    if not isinstance(club_id, int):
+        raise RuntimeError("A book club must be selected")
+    return club_id
+
+
 def create_member(
     db: Session, value: schemas.MemberCreate
 ) -> models.BookClubMember:
-    member = models.BookClubMember(**value.model_dump())
+    member = models.BookClubMember(club_id=_club_id(db), **value.model_dump())
     db.add(member)
     return _commit(db, member)
 
 
 def get_member(db: Session, member_id: int) -> models.BookClubMember | None:
-    return db.get(models.BookClubMember, member_id)
+    return db.scalar(
+        select(models.BookClubMember).where(
+            models.BookClubMember.id == member_id,
+            models.BookClubMember.club_id == _club_id(db),
+        )
+    )
 
 
 def list_members(
@@ -112,7 +124,9 @@ def list_members(
     offset: int = 0,
     limit: int = 100,
 ) -> list[models.BookClubMember]:
-    statement = select(models.BookClubMember)
+    statement = select(models.BookClubMember).where(
+        models.BookClubMember.club_id == _club_id(db)
+    )
     if active is not None:
         statement = statement.where(models.BookClubMember.active == active)
     if search:
@@ -142,15 +156,119 @@ def update_member(
     return _commit(db, member)
 
 
+def create_book(
+    db: Session, value: schemas.BookCreate
+) -> models.BookClubBook:
+    data = value.model_dump()
+    for field in ("cover_image_url", "catalogue_url"):
+        if data[field] is not None:
+            data[field] = str(data[field])
+    book = models.BookClubBook(club_id=_club_id(db), **data)
+    db.add(book)
+    return _commit(db, book)
+
+
+def get_book(db: Session, book_id: int) -> models.BookClubBook | None:
+    return db.scalar(
+        select(models.BookClubBook).where(
+            models.BookClubBook.id == book_id,
+            models.BookClubBook.club_id == _club_id(db),
+        )
+    )
+
+
+def list_books(
+    db: Session,
+    *,
+    search: str | None = None,
+    offset: int = 0,
+    limit: int = 100,
+) -> list[models.BookClubBook]:
+    statement = select(models.BookClubBook).where(
+        models.BookClubBook.club_id == _club_id(db)
+    )
+    if search:
+        pattern = f"%{search.strip()}%"
+        statement = statement.where(
+            or_(
+                models.BookClubBook.title.ilike(pattern),
+                models.BookClubBook.author.ilike(pattern),
+                models.BookClubBook.isbn.ilike(pattern),
+                models.BookClubBook.genres.ilike(pattern),
+            )
+        )
+    statement = (
+        statement.order_by(
+            models.BookClubBook.title,
+            models.BookClubBook.author,
+            models.BookClubBook.id,
+        )
+        .offset(offset)
+        .limit(limit)
+    )
+    return list(db.scalars(statement))
+
+
+def update_book(
+    db: Session, book_id: int, changes: schemas.BookUpdate
+) -> models.BookClubBook | None:
+    book = get_book(db, book_id)
+    if book is None:
+        return None
+    data = changes.model_dump(exclude_unset=True)
+    for field in ("cover_image_url", "catalogue_url"):
+        if field in data and data[field] is not None:
+            data[field] = str(data[field])
+    for field, value in data.items():
+        setattr(book, field, value)
+    if "title" in data or "author" in data:
+        for meeting in book.meetings:
+            meeting.book_title = book.title
+            meeting.book_author = book.author
+    return _commit(db, book)
+
+
+def delete_book(db: Session, book_id: int) -> str:
+    book = get_book(db, book_id)
+    if book is None:
+        return "not_found"
+    meeting_count = db.scalar(
+        select(func.count(models.BookClubMeeting.id)).where(
+            models.BookClubMeeting.book_id == book_id,
+            models.BookClubMeeting.club_id == _club_id(db),
+        )
+    )
+    if meeting_count:
+        return "in_use"
+    try:
+        db.delete(book)
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    return "deleted"
+
+
 def create_meeting(
-    db: Session, value: schemas.MeetingCreate
+    db: Session,
+    value: schemas.MeetingCreate,
+    book: models.BookClubBook,
 ) -> models.BookClubMeeting:
-    data = value.model_dump(exclude={"add_active_members"})
-    meeting = models.BookClubMeeting(**data)
+    data = value.model_dump(exclude={"add_active_members", "book_id"})
+    meeting = models.BookClubMeeting(
+        **data,
+        club_id=_club_id(db),
+        book=book,
+        book_title=book.title,
+        book_author=book.author,
+    )
     if value.add_active_members:
         members = db.scalars(
             select(models.BookClubMember)
-            .where(models.BookClubMember.active.is_(True))
+            .where(
+                models.BookClubMember.active.is_(True),
+                models.BookClubMember.club_id == _club_id(db),
+            )
             .order_by(models.BookClubMember.id)
         )
         meeting.participants = [
@@ -163,7 +281,12 @@ def create_meeting(
 def get_meeting(
     db: Session, meeting_id: int
 ) -> models.BookClubMeeting | None:
-    return db.get(models.BookClubMeeting, meeting_id)
+    return db.scalar(
+        select(models.BookClubMeeting)
+        .options(selectinload(models.BookClubMeeting.book))
+        .where(models.BookClubMeeting.id == meeting_id)
+        .where(models.BookClubMeeting.club_id == _club_id(db))
+    )
 
 
 def list_meetings(
@@ -173,7 +296,9 @@ def list_meetings(
     offset: int = 0,
     limit: int = 100,
 ) -> list[models.BookClubMeeting]:
-    statement = select(models.BookClubMeeting)
+    statement = select(models.BookClubMeeting).options(
+        selectinload(models.BookClubMeeting.book)
+    ).where(models.BookClubMeeting.club_id == _club_id(db))
     if from_date is not None:
         statement = statement.where(
             models.BookClubMeeting.meeting_date >= from_date
@@ -195,7 +320,16 @@ def update_meeting(
     meeting = get_meeting(db, meeting_id)
     if meeting is None:
         return None
-    for field, value in _data(changes, exclude_unset=True).items():
+    data = _data(changes, exclude_unset=True)
+    book_id = data.pop("book_id", None)
+    if book_id is not None:
+        book = get_book(db, book_id)
+        if book is None:
+            raise LookupError("Book not found")
+        meeting.book = book
+        meeting.book_title = book.title
+        meeting.book_author = book.author
+    for field, value in data.items():
         setattr(meeting, field, value)
     return _commit(db, meeting)
 
@@ -272,6 +406,7 @@ def sync_roster(db: Session, meeting_id: int) -> tuple[int, int] | None:
         db.scalars(
             select(models.BookClubMember).where(
                 models.BookClubMember.active.is_(True),
+                models.BookClubMember.club_id == _club_id(db),
                 models.BookClubMember.id.not_in(existing_ids),
             )
         )
@@ -326,7 +461,11 @@ def member_history(
 ) -> list[models.BookClubParticipation]:
     statement = (
         select(models.BookClubParticipation)
-        .options(selectinload(models.BookClubParticipation.meeting))
+        .options(
+            selectinload(models.BookClubParticipation.meeting).selectinload(
+                models.BookClubMeeting.book
+            )
+        )
         .where(models.BookClubParticipation.member_id == member_id)
         .join(models.BookClubMeeting)
         .order_by(
@@ -363,9 +502,16 @@ def draw_giveaway_winner(
 
 
 def ensure_default_templates(db: Session) -> None:
-    existing = set(db.scalars(select(models.BookClubTemplate.key)))
+    club_id = _club_id(db)
+    existing = set(
+        db.scalars(
+            select(models.BookClubTemplate.key).where(
+                models.BookClubTemplate.club_id == club_id
+            )
+        )
+    )
     additions = [
-        models.BookClubTemplate(**value)
+        models.BookClubTemplate(club_id=club_id, **value)
         for value in DEFAULT_TEMPLATES
         if value["key"] not in existing
     ]
@@ -380,7 +526,7 @@ def list_templates(db: Session) -> list[models.BookClubTemplate]:
         db.scalars(
             select(models.BookClubTemplate).order_by(
                 models.BookClubTemplate.kind, models.BookClubTemplate.name
-            )
+            ).where(models.BookClubTemplate.club_id == _club_id(db))
         )
     )
 
@@ -391,7 +537,8 @@ def get_template(
     ensure_default_templates(db)
     return db.scalar(
         select(models.BookClubTemplate).where(
-            models.BookClubTemplate.key == key
+            models.BookClubTemplate.key == key,
+            models.BookClubTemplate.club_id == _club_id(db),
         )
     )
 
@@ -399,7 +546,9 @@ def get_template(
 def create_template(
     db: Session, value: schemas.TemplateCreate
 ) -> models.BookClubTemplate:
-    template = models.BookClubTemplate(**value.model_dump())
+    template = models.BookClubTemplate(
+        club_id=_club_id(db), **value.model_dump()
+    )
     db.add(template)
     return _commit(db, template)
 
@@ -425,7 +574,7 @@ def restore_template(
         return None
     template = get_template(db, key)
     if template is None:
-        template = models.BookClubTemplate(**default)
+        template = models.BookClubTemplate(club_id=_club_id(db), **default)
         db.add(template)
     else:
         for field in ("name", "kind", "subject", "body"):
@@ -477,104 +626,24 @@ def template_context(
     meeting: models.BookClubMeeting,
     participation: models.BookClubParticipation,
     *,
-    organizer_name: str = "Josh",
-    organizer_branch: str = "PBRL",
+    organizer_name: str | None = None,
+    organizer_branch: str | None = None,
 ) -> dict[str, Any]:
     member = participation.member
+    club = meeting.club
     return {
         "first_name": member.name.split()[0],
         "member_name": member.name,
         "email": member.email,
-        "book_title": meeting.book_title,
-        "book_author": meeting.book_author,
+        "book_title": meeting.book.title,
+        "book_author": meeting.book.author,
         "meeting_date": meeting.meeting_date.isoformat(),
         "meeting_time": meeting.meeting_time,
         "meeting_location": meeting.location,
         "destination_branch": participation.destination_branch,
-        "organizer_name": organizer_name,
-        "organizer_branch": organizer_branch,
+        "organizer_name": organizer_name or club.organizer_name or "Facilitator",
+        "organizer_branch": organizer_branch or club.organizer_branch or "the library",
     }
-
-
-QUESTION_POOLS = {
-    "balanced": [
-        "What was your overall reaction to {title}?",
-        "Which moment or idea from {title} stayed with you most?",
-        "Which character changed the most, and what drove that change?",
-        "Which relationship was most important to the story?",
-        "What central themes did you see in the book?",
-        "Did the ending change how you understood the rest of the story?",
-        "What do you think {author} wanted readers to question?",
-        "How did the setting shape the choices available to the characters?",
-        "Was there a decision you would have made differently?",
-        "Who would you recommend this book to, and why?",
-    ],
-    "themes": [
-        "What is the strongest theme in {title}, and where does it emerge?",
-        "Did the book complicate or confirm your views on its main ideas?",
-        "Which competing values create the story's central tension?",
-        "How does the ending reinforce or challenge the book's themes?",
-        "What real-world questions does {title} invite us to consider?",
-    ],
-    "characters": [
-        "Which character in {title} did you understand best, and why?",
-        "Whose motivation was hardest to accept or understand?",
-        "How did the characters change one another?",
-        "Which character made the most consequential choice?",
-        "Did your opinion of any character change while reading?",
-    ],
-    "science_fiction": [
-        "What speculative idea in {title} felt most plausible?",
-        "How does the imagined technology or society affect everyday life?",
-        "What present-day concern is the speculative setting examining?",
-        "Which rule of the book's world mattered most to the story?",
-        "Did the science-fiction elements deepen the human story?",
-    ],
-    "style": [
-        "How would you describe {author}'s writing style in {title}?",
-        "How did the point of view shape what you knew or believed?",
-        "What effect did the book's pacing have on your experience?",
-        "Was there an image, motif, or structural choice that stood out?",
-        "How well did the style suit the story being told?",
-    ],
-}
-
-
-def build_question_texts(
-    meeting: models.BookClubMeeting, request: schemas.GenerateQuestionsRequest
-) -> list[str]:
-    selected = list(QUESTION_POOLS[request.focus])
-    if request.focus != "balanced":
-        selected.extend(QUESTION_POOLS["balanced"])
-    if request.spoiler_free:
-        selected = [
-            question
-            for question in selected
-            if "ending" not in question.lower()
-        ]
-        selected.insert(
-            1,
-            "Without sharing spoilers, what early element of {title} drew you in?",
-        )
-    if request.tone == "in_depth":
-        selected.insert(
-            1,
-            "What assumptions does {title} ask the reader to examine?",
-        )
-    fallback = [
-        "What question would you most like to ask {author} about {title}?",
-        "What part of {title} produced the most disagreement for you?",
-        "What would you want to discuss that the group has not raised yet?",
-    ]
-    selected.extend(fallback)
-    while len(selected) < request.count:
-        selected.extend(QUESTION_POOLS["balanced"])
-    return [
-        question.format(
-            title=meeting.book_title, author=meeting.book_author
-        )
-        for question in selected[: request.count]
-    ]
 
 
 def create_question(
@@ -609,40 +678,17 @@ def list_questions(
     )
 
 
-def generate_questions(
-    db: Session,
-    meeting: models.BookClubMeeting,
-    request: schemas.GenerateQuestionsRequest,
-) -> list[models.BookClubDiscussionQuestion]:
-    if request.replace_existing:
-        for question in list_questions(db, meeting.id):
-            db.delete(question)
-        db.flush()
-        start = 1
-    else:
-        highest = db.scalar(
-            select(func.max(models.BookClubDiscussionQuestion.position)).where(
-                models.BookClubDiscussionQuestion.meeting_id == meeting.id
-            )
-        )
-        start = int(highest or 0) + 1
-    questions = [
-        models.BookClubDiscussionQuestion(
-            meeting=meeting, position=start + index, text=text
-        )
-        for index, text in enumerate(build_question_texts(meeting, request))
-    ]
-    db.add_all(questions)
-    db.commit()
-    for question in questions:
-        db.refresh(question)
-    return questions
-
-
 def update_question(
     db: Session, question_id: int, changes: schemas.DiscussionQuestionUpdate
 ) -> models.BookClubDiscussionQuestion | None:
-    question = db.get(models.BookClubDiscussionQuestion, question_id)
+    question = db.scalar(
+        select(models.BookClubDiscussionQuestion)
+        .join(models.BookClubMeeting)
+        .where(
+            models.BookClubDiscussionQuestion.id == question_id,
+            models.BookClubMeeting.club_id == _club_id(db),
+        )
+    )
     if question is None:
         return None
     data = changes.model_dump(exclude_unset=True)
@@ -668,7 +714,14 @@ def update_question(
 
 
 def delete_question(db: Session, question_id: int) -> bool:
-    question = db.get(models.BookClubDiscussionQuestion, question_id)
+    question = db.scalar(
+        select(models.BookClubDiscussionQuestion)
+        .join(models.BookClubMeeting)
+        .where(
+            models.BookClubDiscussionQuestion.id == question_id,
+            models.BookClubMeeting.club_id == _club_id(db),
+        )
+    )
     if question is None:
         return False
     try:

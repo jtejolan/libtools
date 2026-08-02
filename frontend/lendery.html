@@ -20,8 +20,8 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/lendery.css?v=4" />
-    <script src="/static/lendery.js" defer></script>
+    <link rel="stylesheet" href="/static/lendery.css?v=5" />
+    <script src="/static/lendery.js?v=2" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -60,7 +60,7 @@
             <span aria-hidden="true">⌂</span>
             <span>All tools</span>
           </a>
-          <a class="nav-item" href="/docs#/lendery" data-admin-only hidden>
+          <a class="nav-item" href="/docs#/lendery" data-platform-admin-only hidden>
             <span aria-hidden="true">↗</span>
             <span>API docs</span>
           </a>
@@ -82,12 +82,10 @@
           <div class="topbar-actions">
             <div class="account-actions" id="account-actions" hidden>
               <span class="role-badge" id="role-badge"></span>
-              <button class="account-button" id="change-passwords" type="button" data-admin-only hidden>
-                Passwords
-              </button>
+              <a class="account-button" href="/account">My account</a>
               <button class="account-button" id="logout-button" type="button">Log out</button>
             </div>
-            <a class="docs-link" href="/docs#/lendery" data-admin-only hidden>API docs <span aria-hidden="true">↗</span></a>
+            <a class="docs-link" href="/docs#/lendery" data-platform-admin-only hidden>API docs <span aria-hidden="true">↗</span></a>
             <button class="primary-button" id="header-add-item" type="button" data-admin-only hidden>
               <span aria-hidden="true">＋</span> Add item
             </button>
@@ -262,9 +260,9 @@
         </div>
         <p class="eyebrow"><span></span> Library inventory</p>
         <h2>Welcome to Lendery</h2>
-        <p class="auth-intro">Sign in as an administrator or clerk to continue.</p>
+        <p class="auth-intro">Sign in with a personal Libtools account that has Lendery access.</p>
         <label class="field">
-          <span>Username</span>
+          <span>Name</span>
           <input
             name="username"
             required
@@ -285,58 +283,7 @@
         </label>
         <p class="form-error" id="login-error" role="alert"></p>
         <button class="primary-button auth-submit" type="submit">Sign in</button>
-      </form>
-    </dialog>
-
-    <dialog class="auth-dialog" id="password-dialog">
-      <form id="password-form">
-        <div class="dialog-heading">
-          <div>
-            <p class="eyebrow"><span></span> Administrator settings</p>
-            <h2>Change a password</h2>
-          </div>
-          <button
-            class="icon-button"
-            type="button"
-            data-close-password-dialog
-            aria-label="Close"
-          >×</button>
-        </div>
-        <p class="auth-intro">Choose which shared account to update.</p>
-        <label class="field">
-          <span>Account</span>
-          <select name="username">
-            <option value="clerk">Clerk</option>
-            <option value="admin">Administrator</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>New password</span>
-          <input
-            name="new_password"
-            type="password"
-            required
-            minlength="8"
-            maxlength="200"
-            autocomplete="new-password"
-          />
-        </label>
-        <label class="field">
-          <span>Confirm password</span>
-          <input
-            name="confirm_password"
-            type="password"
-            required
-            minlength="8"
-            maxlength="200"
-            autocomplete="new-password"
-          />
-        </label>
-        <p class="form-error" id="password-error" role="alert"></p>
-        <div class="dialog-actions">
-          <button class="text-button" type="button" data-close-password-dialog>Cancel</button>
-          <button class="primary-button" type="submit">Save password</button>
-        </div>
+        <a class="text-button auth-account-link" href="/account">Open my Libtools account</a>
       </form>
     </dialog>
 

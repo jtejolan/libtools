@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Manage Sci-Fi Book Club members, meetings, books, messages, and attendance." />
+    <meta name="theme-color" content="#173f35" />
+    <title>Book Club Manager — Library Tools</title>
+    <link rel="icon" type="image/png" href="/static/assets/library-tools-logo-mark.png?v=2" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/bookclub.css?v=5" />
+    <script src="/static/bookclub.js?v=5" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="/" aria-label="Library Tools home">
+          <img src="/static/assets/library-tools-logo-mark.png?v=2" alt="" />
+          <span>Library Tools</span>
+        </a>
+
+        <div class="product-name">
+          <span class="product-icon"><img src="/static/assets/book-club-manager-logo-v2.png?v=1" alt="" /></span>
+          <div><small id="sidebar-club-name">Choose a club</small><strong>Book Club Manager</strong></div>
+        </div>
+
+        <nav aria-label="Book Club Manager navigation">
+          <p class="nav-label">Manage</p>
+          <button class="nav-item active" type="button" data-view="meetings"><span>◫</span><span>Meetings</span></button>
+          <button class="nav-item" type="button" data-view="books"><span>▥</span><span>Books</span></button>
+          <button class="nav-item" type="button" data-view="members"><span>◎</span><span>Members</span></button>
+          <button class="nav-item" type="button" data-view="messages"><span>✉</span><span>Messages &amp; labels</span></button>
+          <button class="nav-item" type="button" data-view="templates"><span>▤</span><span>Templates</span></button>
+          <p class="nav-label">Library Tools</p>
+          <a class="nav-item" href="/"><span>⌂</span><span>All tools</span></a>
+          <a class="nav-item" href="/docs#/book%20club"><span>↗</span><span>API docs</span></a>
+        </nav>
+
+        <div class="sidebar-note">
+          <span>✦</span>
+          <p><strong>One month at a time.</strong> Keep the people, books, and conversation together.</p>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div class="breadcrumb"><span>Book Club Manager</span><i>/</i><strong id="breadcrumb-page">Meetings</strong></div>
+          <div class="topbar-actions">
+            <a class="account-button" id="public-club-link" href="#" target="_blank" hidden>Public page ↗</a>
+            <button class="club-switcher" id="switch-club" type="button">Choose club</button>
+            <a class="account-button" href="/account">My account</a>
+            <span class="role-badge" id="user-badge">User</span>
+            <button class="account-button" id="logout-button" type="button">Log out</button>
+          </div>
+        </header>
+
+        <section class="view active" id="view-meetings">
+          <div class="content">
+            <header class="page-heading">
+              <div><p class="eyebrow"><span></span> Every monthly gathering</p><h1>Meetings</h1><p class="intro">Open an upcoming meeting or revisit the complete history of books, attendance, and giveaways.</p></div>
+              <button class="primary-button" data-add-meeting type="button"><span>＋</span> Add meeting</button>
+            </header>
+            <section class="collection-toolbar">
+              <label class="search-box"><span>⌕</span><span class="sr-only">Search meetings</span><input id="meeting-search" type="search" placeholder="Search book, author, or date…" /></label>
+            </section>
+            <div class="meeting-list" id="meeting-list"></div>
+          </div>
+        </section>
+
+        <section class="view" id="view-meeting">
+          <div class="content">
+            <header class="page-heading">
+              <div class="meeting-identity">
+                <div class="meeting-detail-cover" id="meeting-cover" aria-hidden="true"></div>
+                <div>
+                  <p class="eyebrow"><span></span> Monthly workspace</p>
+                  <h1 id="meeting-heading">Your next meeting</h1>
+                  <p class="intro" id="meeting-intro">Add a meeting to begin tracking the next book.</p>
+                </div>
+              </div>
+              <div class="heading-actions">
+                <button class="secondary-button" id="edit-meeting" type="button">Edit meeting</button>
+              </div>
+            </header>
+
+            <section class="stats-grid" aria-label="Meeting overview">
+              <article><span class="stat-icon green">◎</span><div><strong id="roster-stat">—</strong><span>Members</span></div></article>
+              <article><span class="stat-icon gold">✓</span><div><strong id="checkout-stat">—</strong><span>Books checked out</span></div></article>
+              <article><span class="stat-icon orange">◫</span><div><strong id="attendance-stat">—</strong><span>Attended</span></div></article>
+              <article><span class="stat-icon blue">→</span><div><strong id="transfer-stat">—</strong><span>Branch transfers</span></div></article>
+            </section>
+
+            <section class="panel roster-panel">
+              <div class="panel-heading">
+                <div><p class="eyebrow"><span></span> Monthly checklist</p><h2>Members &amp; books</h2></div>
+                <div class="panel-actions">
+                  <label class="search-box"><span>⌕</span><span class="sr-only">Search members</span><input id="roster-search" type="search" placeholder="Find a member…" /></label>
+                  <button class="quiet-button" id="sync-roster" type="button">Sync members</button>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Member</th><th>Book request</th><th>Destination</th><th>Checked out</th><th>Attended</th></tr></thead>
+                  <tbody id="roster-table"><tr><td colspan="5" class="loading-cell">Loading the member list…</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+
+            <div class="meeting-lower-grid">
+              <section class="panel giveaway-panel">
+                <div class="panel-heading compact"><div><p class="eyebrow"><span></span> Monthly giveaway</p><h2>Pick a winner</h2></div></div>
+                <div id="giveaway-content" class="giveaway-content">
+                  <div class="giveaway-orbit" aria-hidden="true"><span>★</span></div>
+                  <p>Draw one name at random from everyone marked as attended.</p>
+                  <button class="primary-button" id="draw-winner" type="button">Draw a name</button>
+                </div>
+              </section>
+
+              <section class="panel questions-panel">
+                <div class="panel-heading compact">
+                  <div><p class="eyebrow"><span></span> Conversation starter</p><h2>Discussion questions</h2></div>
+                </div>
+                <ol class="question-list" id="question-list"><li class="empty-inline">No questions added yet.</li></ol>
+                <button class="text-button" id="add-question" type="button">＋ Add your own question</button>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-books">
+          <div class="content">
+            <header class="page-heading">
+              <div><p class="eyebrow"><span></span> Reading history</p><h1>Books</h1><p class="intro">Keep cover art, publication details, descriptions, and discussion notes together for every selection.</p></div>
+              <button class="primary-button" id="add-book" type="button"><span>＋</span> Add book</button>
+            </header>
+            <section class="collection-toolbar">
+              <label class="search-box"><span>⌕</span><span class="sr-only">Search books</span><input id="book-search" type="search" placeholder="Search title, author, ISBN, or genre…" /></label>
+              <p id="book-count">—</p>
+            </section>
+            <div class="book-list" id="book-list"></div>
+          </div>
+        </section>
+
+        <section class="view" id="view-members">
+          <div class="content">
+            <header class="page-heading">
+              <div><p class="eyebrow"><span></span> Your regulars</p><h1>Members</h1><p class="intro">Everyone who has joined, whether or not they register each month.</p></div>
+              <button class="primary-button" id="add-member" type="button"><span>＋</span> Add member</button>
+            </header>
+            <section class="panel">
+              <div class="panel-heading">
+                <div><h2>Master member list</h2><p class="panel-description" id="member-count">—</p></div>
+                <label class="search-box"><span>⌕</span><span class="sr-only">Search all members</span><input id="member-search" type="search" placeholder="Search name or email…" /></label>
+              </div>
+              <div class="table-wrap">
+                <table><thead><tr><th>Member</th><th>Joined</th><th>Status</th><th>History</th><th></th></tr></thead><tbody id="members-table"></tbody></table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="view-messages">
+          <div class="content">
+            <header class="page-heading"><div><p class="eyebrow"><span></span> Keep everyone informed</p><h1>Messages &amp; labels</h1><p class="intro" id="message-meeting-context">Prepare personalized onboarding messages, reminders, and book transit slips.</p></div></header>
+            <div class="message-grid">
+              <section class="panel compose-panel">
+                <div class="panel-heading compact"><div><h2>Prepare email</h2><p class="panel-description">Preview before copying or sending elsewhere.</p></div></div>
+                <div class="form-grid">
+                  <label class="field"><span>Email type</span><select id="email-type"><option value="monthly_reminder">Monthly reminder</option><option value="onboarding">New member onboarding</option></select></label>
+                  <label class="field"><span>Recipients</span><select id="recipient-filter"><option value="all">All active members</option><option value="checked_out">Checked out the book</option><option value="not_checked_out">Have not checked out</option><option value="pickup">Pickup at PBRL</option><option value="transfer">Transfer to another branch</option><option value="no_copy">No copy requested</option></select></label>
+                </div>
+                <button class="primary-button full-button" id="preview-email" type="button">Preview personalized emails</button>
+                <div id="email-previews" class="email-previews"><div class="empty-card"><span>✉</span><p>Your previews will appear here.</p></div></div>
+              </section>
+
+              <section class="panel label-panel">
+                <div class="panel-heading compact"><div><h2>Transit labels</h2><p class="panel-description">For books being sent to another branch.</p></div></div>
+                <div class="label-example"><strong>SCI-FI BOOK CLUB BOOK</strong><p>Please hold for <em>member name</em> at <em>destination branch</em>.</p><small>Please contact Josh at PBRL when this book arrives.</small></div>
+                <button class="secondary-button full-button" id="print-labels" type="button">Preview &amp; print transfer labels</button>
+                <p class="helper-text">The wording can be changed at any time under Templates.</p>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-templates">
+          <div class="content">
+            <header class="page-heading"><div><p class="eyebrow"><span></span> Reusable wording</p><h1>Editable templates</h1><p class="intro">Change the defaults once, or adjust an individual preview without overwriting them.</p></div></header>
+            <div class="template-layout">
+              <aside class="template-list" id="template-list"></aside>
+              <section class="panel template-editor">
+                <form id="template-form">
+                  <div class="panel-heading compact"><div><p class="eyebrow"><span></span> Template editor</p><h2 id="template-editor-title">Choose a template</h2></div></div>
+                  <label class="field"><span>Template name</span><input name="name" required /></label>
+                  <label class="field" id="template-subject-field"><span>Subject</span><input name="subject" /></label>
+                  <label class="field"><span>Message</span><textarea name="body" rows="13" required></textarea></label>
+                  <div class="variable-row"><span>Insert:</span><button type="button" data-variable="first_name">First name</button><button type="button" data-variable="member_name">Full name</button><button type="button" data-variable="book_title">Book title</button><button type="button" data-variable="book_author">Author</button><button type="button" data-variable="meeting_date">Meeting date</button><button type="button" data-variable="meeting_time">Time</button><button type="button" data-variable="meeting_location">Location</button><button type="button" data-variable="destination_branch">Destination branch</button><button type="button" data-variable="organizer_name">Organizer</button><button type="button" data-variable="organizer_branch">Organizer branch</button></div>
+                  <p class="form-error" id="template-error"></p>
+                  <div class="dialog-actions"><button class="text-button danger-text" id="restore-template" type="button">Restore default</button><button class="primary-button" type="submit">Save template</button></div>
+                </form>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <footer><span>Book Club Manager by Library Tools</span><span>Made for the regulars who always come back for the next chapter.</span></footer>
+      </main>
+    </div>
+
+    <dialog class="form-dialog" id="member-dialog">
+      <form id="member-form">
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Member record</p><h2 id="member-dialog-title">Add member</h2></div><button class="icon-button" type="button" data-close="member-dialog">×</button></div>
+        <input name="id" type="hidden" />
+        <div class="form-grid">
+          <label class="field"><span>Name <b>*</b></span><input name="name" required maxlength="200" /></label>
+          <label class="field"><span>Email <b>*</b></span><input name="email" type="email" required maxlength="320" /></label>
+          <label class="field"><span>Date joined <b>*</b></span><input name="joined_on" type="date" required /></label>
+          <label class="field"><span>Status</span><select name="active"><option value="true">Active</option><option value="false">Inactive</option></select></label>
+          <label class="field field-wide"><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
+        </div>
+        <p class="form-error" id="member-error"></p>
+        <div class="dialog-actions"><button class="text-button" type="button" data-close="member-dialog">Cancel</button><button class="primary-button" type="submit">Save member</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="form-dialog" id="meeting-dialog">
+      <form id="meeting-form">
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Monthly meeting</p><h2 id="meeting-dialog-title">Add meeting</h2></div><button class="icon-button" type="button" data-close="meeting-dialog">×</button></div>
+        <input name="id" type="hidden" />
+        <div class="form-grid">
+          <label class="field field-wide"><span>Book <b>*</b></span><select name="book_id" required></select><small class="field-help">Add new titles from the Books section first.</small></label>
+          <label class="field"><span>Meeting date <b>*</b></span><input name="meeting_date" type="date" required /></label>
+          <label class="field"><span>Time</span><input name="meeting_time" placeholder="7:00 PM" /></label>
+          <label class="field field-wide"><span>Location</span><input name="location" placeholder="Pierre Berton Resource Library" /></label>
+          <label class="field field-wide"><span>Notes</span><textarea name="notes" rows="2"></textarea></label>
+        </div>
+        <p class="form-error" id="meeting-error"></p>
+        <div class="dialog-actions"><button class="text-button danger-text" id="delete-meeting" type="button" hidden>Delete meeting</button><div class="dialog-action-group"><button class="text-button" type="button" data-close="meeting-dialog">Cancel</button><button class="primary-button" type="submit">Save meeting</button></div></div>
+      </form>
+    </dialog>
+
+    <dialog class="form-dialog book-dialog" id="book-dialog">
+      <form id="book-form">
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Book record</p><h2 id="book-dialog-title">Add book</h2></div><button class="icon-button" type="button" data-close="book-dialog">×</button></div>
+        <input name="id" type="hidden" />
+        <div class="form-grid">
+          <label class="field"><span>Title <b>*</b></span><input name="title" required maxlength="300" /></label>
+          <label class="field"><span>Author <b>*</b></span><input name="author" required maxlength="200" /></label>
+          <label class="field field-wide"><span>Cover image URL</span><input name="cover_image_url" type="url" placeholder="https://…" /></label>
+          <label class="field field-wide"><span>Description</span><textarea name="description" rows="4" placeholder="Publisher description or a short summary"></textarea></label>
+          <label class="field"><span>Publication date</span><input name="publication_date" type="date" /></label>
+          <label class="field"><span>Publisher</span><input name="publisher" maxlength="200" /></label>
+          <label class="field"><span>ISBN</span><input name="isbn" maxlength="20" placeholder="978…" /></label>
+          <label class="field"><span>Page count</span><input name="page_count" type="number" min="1" /></label>
+          <label class="field"><span>Genres or subjects</span><input name="genres" maxlength="500" placeholder="Science fiction, space opera" /></label>
+          <label class="field"><span>Series</span><input name="series" maxlength="300" /></label>
+          <label class="field field-wide"><span>Library catalogue URL</span><input name="catalogue_url" type="url" placeholder="https://…" /></label>
+          <label class="field field-wide"><span>Book-club notes</span><textarea name="discussion_notes" rows="3" placeholder="Themes, context, or ideas worth returning to"></textarea></label>
+        </div>
+        <p class="form-error" id="book-error"></p>
+        <div class="dialog-actions"><button class="text-button" type="button" data-close="book-dialog">Cancel</button><button class="primary-button" type="submit">Save book</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="form-dialog compact-dialog" id="question-dialog">
+      <form id="question-form">
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Discussion guide</p><h2 id="question-dialog-title">Add question</h2></div><button class="icon-button" type="button" data-close="question-dialog">×</button></div>
+        <input name="id" type="hidden" />
+        <label class="field"><span>Question</span><textarea name="text" rows="4" required></textarea></label>
+        <p class="form-error" id="question-error"></p>
+        <div class="dialog-actions"><button class="text-button" type="button" data-close="question-dialog">Cancel</button><button class="primary-button" type="submit">Save question</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="form-dialog history-dialog" id="history-dialog">
+      <div class="dialog-heading"><div><p class="eyebrow"><span></span> Member history</p><h2 id="history-title">Attendance history</h2></div><button class="icon-button" type="button" data-close="history-dialog">×</button></div>
+      <div id="history-content"></div>
+    </dialog>
+
+    <dialog class="auth-dialog" id="login-dialog">
+      <form id="login-form">
+        <div class="auth-mark"><img src="/static/assets/book-club-manager-logo-v2.png?v=1" alt="" /></div>
+        <p class="eyebrow"><span></span> Library Tools account</p><h2>Welcome back</h2><p class="auth-intro">Sign in with your personal Libtools account to manage your book clubs.</p>
+        <label class="field"><span>Name</span><input name="username" required autocomplete="username" autofocus /></label>
+        <label class="field"><span>Password</span><input name="password" type="password" required autocomplete="current-password" /></label>
+        <p class="form-error" id="login-error"></p><button class="primary-button full-button" type="submit">Sign in</button>
+        <a class="auth-help" href="/login#recover">Use a recovery code</a>
+      </form>
+    </dialog>
+
+    <dialog class="form-dialog club-dialog" id="club-dialog">
+      <div class="dialog-heading"><div><p class="eyebrow"><span></span> Your workspaces</p><h2>Choose a book club</h2></div></div>
+      <p class="auth-intro">Select the club you are running, or create a new workspace.</p>
+      <div class="club-choice-list" id="club-choice-list"></div>
+      <form id="club-form" class="club-create-form">
+        <h3>Create a book club</h3>
+        <label class="field"><span>Club name</span><input name="name" required maxlength="200" placeholder="e.g. Science Fiction Book Club" /></label>
+        <div class="form-grid">
+          <label class="field"><span>Facilitator name</span><input name="organizer_name" maxlength="200" /></label>
+          <label class="field"><span>Home branch</span><input name="organizer_branch" maxlength="200" /></label>
+        </div>
+        <p class="form-error" id="club-error"></p>
+        <button class="primary-button" type="submit">Create club</button>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status"></div>
+    <section class="print-sheet" id="print-sheet"></section>
+  </body>
+</html>

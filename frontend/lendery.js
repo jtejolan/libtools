@@ -30,9 +30,6 @@ const toast = document.querySelector("#toast");
 const loginDialog = document.querySelector("#login-dialog");
 const loginForm = document.querySelector("#login-form");
 const loginError = document.querySelector("#login-error");
-const passwordDialog = document.querySelector("#password-dialog");
-const passwordForm = document.querySelector("#password-form");
-const passwordError = document.querySelector("#password-error");
 const accountActions = document.querySelector("#account-actions");
 const roleBadge = document.querySelector("#role-badge");
 
@@ -80,14 +77,23 @@ const request = async (url, options = {}) => {
   return body;
 };
 
-const isAdmin = () => state.user?.role === "admin";
+const canManage = () =>
+  state.user?.role === "admin" || state.user?.tools?.includes("lendery_manage");
+
+const canView = (user) =>
+  user.role === "admin" ||
+  user.tools.includes("lendery_view") ||
+  user.tools.includes("lendery_manage");
 
 const applyUser = (user) => {
   state.user = user;
   accountActions.hidden = false;
-  roleBadge.textContent = user.role === "admin" ? "Administrator" : "Clerk";
+  roleBadge.textContent = canManage() ? "Lendery manager" : "Lendery viewer";
   document.querySelectorAll("[data-admin-only]").forEach((element) => {
-    element.hidden = !isAdmin();
+    element.hidden = !canManage();
+  });
+  document.querySelectorAll("[data-platform-admin-only]").forEach((element) => {
+    element.hidden = user.role !== "admin";
   });
 };
 
@@ -96,7 +102,6 @@ const showLogin = () => {
   accountActions.hidden = true;
   closeDrawer();
   if (dialog.open) dialog.close();
-  if (passwordDialog.open) passwordDialog.close();
   if (!loginDialog.open) loginDialog.showModal();
 };
 
@@ -297,14 +302,14 @@ const renderItems = () => {
         <p>${
           hasFilters
             ? "Try a different search or category to find what you’re looking for."
-            : isAdmin()
+            : canManage()
               ? "Add your first lendable item and begin building a collection your community can share."
               : "There are no inventory items to display yet."
         }</p>
         ${
           hasFilters
             ? `<button class="secondary-button" id="clear-filters" type="button">Clear filters</button>`
-            : isAdmin()
+            : canManage()
               ? `<button class="primary-button" id="empty-add-item" type="button">＋ Add your first item</button>`
               : ""
         }
@@ -620,7 +625,7 @@ const renderDrawer = (item) => {
                             <small>Quantity: ${component.quantity}${component.optional ? " · Optional" : ""}</small>
                           </div>
                           ${
-                            isAdmin()
+                            canManage()
                               ? `<button class="remove-component" type="button" data-component-id="${component.id}" aria-label="Remove ${escapeHtml(component.name)}">×</button>`
                               : ""
                           }
@@ -633,7 +638,7 @@ const renderDrawer = (item) => {
           }
         </div>
         ${
-          isAdmin()
+          canManage()
             ? `<form class="component-form" id="component-form">
           <p>Add a checklist component</p>
           <div class="component-form-grid">
@@ -650,7 +655,7 @@ const renderDrawer = (item) => {
       </section>
 
       ${
-        isAdmin()
+        canManage()
           ? `<div class="drawer-actions">
         <button class="delete-item" id="delete-item" type="button">Delete item</button>
         <button class="edit-item" id="edit-item" type="button">Edit item</button>
@@ -690,7 +695,7 @@ const refreshSelectedItem = async () => {
 
 itemForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (!isAdmin()) return;
+  if (!canManage()) return;
   formError.textContent = "";
   const saveButton = document.querySelector("#save-item");
   saveButton.disabled = true;
@@ -723,7 +728,7 @@ document.addEventListener("click", async (event) => {
     "#nav-add-item, #header-add-item, #panel-add-item, #empty-add-item",
   );
   if (addTrigger) {
-    if (!isAdmin()) return;
+    if (!canManage()) return;
     openItemDialog();
     return;
   }
@@ -779,7 +784,7 @@ document.addEventListener("click", async (event) => {
   }
 
   if (event.target.closest("#edit-item")) {
-    if (!isAdmin()) return;
+    if (!canManage()) return;
     const item = state.items.find((candidate) => candidate.id === state.selectedId);
     if (item) openItemDialog(item);
     return;
@@ -808,7 +813,7 @@ document.addEventListener("click", async (event) => {
   }
 
   if (event.target.closest("#delete-item")) {
-    if (!isAdmin()) return;
+    if (!canManage()) return;
     const item = state.items.find((candidate) => candidate.id === state.selectedId);
     if (!item || !window.confirm(`Delete “${item.name}”? This cannot be undone.`)) return;
     try {
@@ -825,7 +830,7 @@ document.addEventListener("click", async (event) => {
 
   const removeComponent = event.target.closest("[data-component-id]");
   if (removeComponent) {
-    if (!isAdmin()) return;
+    if (!canManage()) return;
     try {
       await request(`/lendery/components/${removeComponent.dataset.componentId}`, {
         method: "DELETE",
@@ -841,7 +846,7 @@ document.addEventListener("click", async (event) => {
 drawerContent.addEventListener("submit", async (event) => {
   if (event.target.id !== "component-form") return;
   event.preventDefault();
-  if (!isAdmin()) return;
+  if (!canManage()) return;
   const data = new FormData(event.target);
   try {
     await request(`/lendery/items/${state.selectedId}/components`, {
@@ -911,13 +916,17 @@ loginForm.addEventListener("submit", async (event) => {
   const data = new FormData(event.target);
   button.disabled = true;
   try {
-    const user = await request("/lendery/auth/login", {
+    const user = await request("/auth/login", {
       method: "POST",
       body: JSON.stringify({
         username: String(data.get("username")).trim(),
         password: String(data.get("password")),
       }),
     });
+    if (!canView(user)) {
+      loginError.textContent = "Lendery access has not been assigned to this account.";
+      return;
+    }
     applyUser(user);
     event.target.reset();
     loginDialog.close();
@@ -931,7 +940,7 @@ loginForm.addEventListener("submit", async (event) => {
 
 document.querySelector("#logout-button").addEventListener("click", async () => {
   try {
-    await request("/lendery/auth/logout", { method: "POST" });
+    await request("/auth/logout", { method: "POST" });
   } finally {
     state.items = [];
     showLogin();
@@ -939,48 +948,15 @@ document.querySelector("#logout-button").addEventListener("click", async () => {
   }
 });
 
-document.querySelector("#change-passwords").addEventListener("click", () => {
-  if (!isAdmin()) return;
-  passwordForm.reset();
-  passwordError.textContent = "";
-  passwordDialog.showModal();
-});
-
-document.querySelectorAll("[data-close-password-dialog]").forEach((button) => {
-  button.addEventListener("click", () => passwordDialog.close());
-});
-
-passwordForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  passwordError.textContent = "";
-  const data = new FormData(event.target);
-  const newPassword = String(data.get("new_password"));
-  if (newPassword !== String(data.get("confirm_password"))) {
-    passwordError.textContent = "The passwords do not match.";
-    return;
-  }
-  const button = event.target.querySelector("button[type='submit']");
-  button.disabled = true;
-  try {
-    await request("/lendery/auth/password", {
-      method: "PUT",
-      body: JSON.stringify({
-        username: String(data.get("username")),
-        new_password: newPassword,
-      }),
-    });
-    passwordDialog.close();
-    showToast("Password updated.");
-  } catch (error) {
-    passwordError.textContent = error.message;
-  } finally {
-    button.disabled = false;
-  }
-});
-
 const initialize = async () => {
   try {
-    const user = await request("/lendery/auth/me");
+    const user = await request("/auth/me");
+    if (!canView(user)) {
+      throw Object.assign(
+        new Error("Lendery access has not been assigned to this account."),
+        { status: 403 },
+      );
+    }
     applyUser(user);
     await loadItems();
   } catch (error) {

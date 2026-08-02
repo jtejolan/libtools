@@ -7,11 +7,11 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from database import Base
+from accounts.models import LibtoolsUser
 from lendery.availability import AvailabilityResult
-from lendery.auth import hash_password
-from lendery.models import User
 from lendery.routes import get_db
 from main import app
+from security import hash_password
 
 
 class LenderyAvailabilityApiTests(unittest.TestCase):
@@ -51,16 +51,15 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
             for table in reversed(Base.metadata.sorted_tables):
                 connection.execute(table.delete())
         with self.sessions() as db:
-            db.add(
-                User(
+            user = LibtoolsUser(
                     username="admin",
                     password_hash=hash_password("admin-password"),
                     role="admin",
-                )
             )
+            db.add(user)
             db.commit()
         response = self.client.post(
-            "/lendery/auth/login",
+            "/auth/login",
             json={
                 "username": "admin",
                 "password": "admin-password",

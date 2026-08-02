@@ -20,18 +20,24 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/styles.css?v=12" />
+    <link rel="stylesheet" href="/static/styles.css?v=13" />
     <script src="/static/home.js?v=1" defer></script>
   </head>
   <body>
     <div class="page-shell">
       <header class="site-header">
         <a class="brand" href="/" aria-label="Library Tools home">
-          <img class="brand-mark" src="/static/assets/library-tools-logo-mark.png?v=2" alt="" />
+          <img
+            class="brand-mark"
+            src="/static/assets/library-tools-logo-mark.png?v=2"
+            alt=""
+            title="Business as usual."
+          />
           <span>Library Tools</span>
         </a>
         <nav aria-label="Primary navigation">
           <a href="#tools">Tools</a>
+          <a href="/account">My account</a>
           <a class="nav-docs" href="/lendery">Open Lendery <span aria-hidden="true">↗</span></a>
         </nav>
       </header>
@@ -43,7 +49,6 @@
               class="hero-logo-mark"
               src="/static/assets/library-tools-logo-mark.png?v=2"
               alt=""
-              title="Business as usual."
             />
             <p class="hero-brand-name">Library Tools</p>
             <p class="hero-brand-note">Practical tools for public libraries</p>
@@ -75,9 +80,9 @@
               <h2 id="tools-title">Available tools and<br />planned projects.</h2>
             </div>
             <p>
-              Lendery is available now. Book Club Manager and Storytime Studio
-              are still in development. Each project covers a specific library
-              workflow.
+              Lendery and Book Club Manager are available now.
+              Storytime Studio is still in development. Each project covers a
+              specific library workflow.
             </p>
           </div>
 
@@ -102,9 +107,10 @@
               </div>
             </a>
 
-            <div class="tool-card bookclub-card" aria-labelledby="bookclub-title">
+            <a class="tool-card bookclub-card" href="/bookclub" aria-labelledby="bookclub-title">
               <div class="card-topline">
-                <span class="availability soon">Coming soon</span>
+                <span class="availability bookclub-available"><i></i> Available now</span>
+                <span class="card-arrow" aria-hidden="true">↗</span>
               </div>
               <div class="card-icon book-icon" aria-hidden="true">
                 <img src="/static/assets/book-club-manager-logo-v2.png?v=1" alt="" />
@@ -113,12 +119,12 @@
                 <p class="card-number">TOOL 02</p>
                 <h3 id="bookclub-title">Book Club Manager</h3>
                 <p>
-                  A planned workspace for recording book selections, meetings,
-                  and the information used to organize a library book club.
+                  Manage regular members, monthly books, attendance, editable
+                  messages, transit labels, giveaways, and discussion questions.
                 </p>
-                <span class="card-cta muted">In development</span>
+                <span class="card-cta">Open manager <b aria-hidden="true">→</b></span>
               </div>
-            </div>
+            </a>
 
             <div class="tool-card storytime-card" aria-labelledby="storytime-title">
               <div class="card-topline">

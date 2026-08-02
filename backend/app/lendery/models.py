@@ -109,17 +109,3 @@ class Component(Base):
     item: Mapped["LenderyItem"] = relationship(
         back_populates="components"
     )
-
-
-class User(Base):
-    __tablename__ = "lendery_users"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    username: Mapped[str] = mapped_column(String(50), unique=True)
-    password_hash: Mapped[str] = mapped_column(String(500))
-    role: Mapped[str] = mapped_column(String(20))
-    active: Mapped[bool] = mapped_column(
-        Boolean(),
-        default=True,
-        server_default="1",
-    )

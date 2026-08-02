@@ -5,14 +5,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from accounts.models import LibtoolsUser, ToolAccess
 from database import Base
-from lendery.auth import hash_password
-from lendery.models import User
-from lendery.routes import get_db
+from dependencies import get_db
 from main import app
+from security import hash_password
 
 
-class LenderyAuthenticationTests(unittest.TestCase):
+class LenderyAuthorizationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.engine = create_engine(
@@ -22,9 +22,7 @@ class LenderyAuthenticationTests(unittest.TestCase):
         )
         Base.metadata.create_all(cls.engine)
         cls.sessions = sessionmaker(
-            bind=cls.engine,
-            autoflush=False,
-            expire_on_commit=False,
+            bind=cls.engine, autoflush=False, expire_on_commit=False
         )
 
         def override_get_db():
@@ -47,161 +45,138 @@ class LenderyAuthenticationTests(unittest.TestCase):
             for table in reversed(Base.metadata.sorted_tables):
                 connection.execute(table.delete())
         with self.sessions() as db:
+            users = {
+                "admin": LibtoolsUser(
+                    username="admin",
+                    password_hash=hash_password("admin-password"),
+                    role="admin",
+                ),
+                "manager": LibtoolsUser(
+                    username="manager",
+                    password_hash=hash_password("manager-password"),
+                    role="user",
+                ),
+                "viewer": LibtoolsUser(
+                    username="viewer",
+                    password_hash=hash_password("viewer-password"),
+                    role="user",
+                ),
+                "other": LibtoolsUser(
+                    username="other",
+                    password_hash=hash_password("other-password"),
+                    role="user",
+                ),
+            }
+            db.add_all(users.values())
+            db.flush()
             db.add_all(
                 [
-                    User(
-                        username="admin",
-                        password_hash=hash_password("admin-password"),
-                        role="admin",
+                    ToolAccess(
+                        user_id=users["manager"].id,
+                        tool_key="lendery_manage",
                     ),
-                    User(
-                        username="clerk",
-                        password_hash=hash_password("clerk-password"),
-                        role="clerk",
+                    ToolAccess(
+                        user_id=users["viewer"].id,
+                        tool_key="lendery_view",
                     ),
                 ]
             )
             db.commit()
         self.anonymous = TestClient(app)
-        self.admin = TestClient(app)
-        self.clerk = TestClient(app)
-        self.login(self.admin, "admin", "admin-password")
-        self.login(self.clerk, "clerk", "clerk-password")
+        self.admin = self.logged_in("admin", "admin-password")
+        self.manager = self.logged_in("manager", "manager-password")
+        self.viewer = self.logged_in("viewer", "viewer-password")
+        self.other = self.logged_in("other", "other-password")
 
     def tearDown(self) -> None:
-        self.anonymous.close()
-        self.admin.close()
-        self.clerk.close()
+        for client in (
+            self.anonymous,
+            self.admin,
+            self.manager,
+            self.viewer,
+            self.other,
+        ):
+            client.close()
 
-    def login(
-        self,
-        client: TestClient,
-        username: str,
-        password: str,
-    ) -> None:
+    def logged_in(self, username: str, password: str) -> TestClient:
+        client = TestClient(app)
         response = client.post(
-            "/lendery/auth/login",
+            "/auth/login",
             json={"username": username, "password": password},
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 200, response.text)
+        return client
 
     def create_item(self) -> dict:
-        response = self.admin.post(
+        response = self.manager.post(
             "/lendery/items",
             json={
                 "name": "Projector kit",
                 "barcode": "KIT-1",
-                "components": [
-                    {
-                        "name": "Remote",
-                        "quantity": 1,
-                    }
-                ],
+                "components": [{"name": "Remote", "quantity": 1}],
             },
         )
-        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.status_code, 201, response.text)
         return response.json()
 
-    def test_login_me_and_logout(self) -> None:
-        failed = self.anonymous.post(
-            "/lendery/auth/login",
-            json={"username": "clerk", "password": "wrong-password"},
-        )
-        self.assertEqual(failed.status_code, 401)
+    def test_inventory_requires_personal_account_and_permission(self) -> None:
+        self.assertEqual(self.anonymous.get("/lendery/items").status_code, 401)
+        self.assertEqual(self.other.get("/lendery/items").status_code, 403)
 
-        self.login(self.anonymous, "clerk", "clerk-password")
-        me = self.anonymous.get("/lendery/auth/me")
-        self.assertEqual(
-            me.json(),
-            {"username": "clerk", "role": "clerk"},
-        )
-
-        self.assertEqual(
-            self.anonymous.post("/lendery/auth/logout").status_code,
-            204,
-        )
-        self.assertEqual(
-            self.anonymous.get("/lendery/auth/me").status_code,
-            401,
-        )
-
-    def test_inventory_requires_login(self) -> None:
-        self.assertEqual(
-            self.anonymous.get("/lendery/items").status_code,
-            401,
-        )
-
-    def test_clerk_can_view_and_refresh(self) -> None:
+    def test_viewer_can_view_and_refresh(self) -> None:
         item = self.create_item()
-
-        self.assertEqual(self.clerk.get("/lendery/items").status_code, 200)
+        self.assertEqual(self.viewer.get("/lendery/items").status_code, 200)
         self.assertEqual(
-            self.clerk.get(f"/lendery/items/{item['id']}").status_code,
+            self.viewer.get(f"/lendery/items/{item['id']}").status_code,
             200,
         )
         self.assertEqual(
-            self.clerk.post(
+            self.viewer.post(
                 f"/lendery/items/{item['id']}/availability/refresh"
             ).status_code,
             200,
         )
 
-    def test_clerk_cannot_modify_inventory_or_components(self) -> None:
+    def test_viewer_cannot_change_inventory(self) -> None:
         item = self.create_item()
         component_id = item["components"][0]["id"]
-
         attempts = [
-            self.clerk.post(
+            self.viewer.post(
                 "/lendery/items",
                 json={"name": "New item", "barcode": "NEW-1"},
             ),
-            self.clerk.patch(
-                f"/lendery/items/{item['id']}",
-                json={"name": "Changed"},
+            self.viewer.patch(
+                f"/lendery/items/{item['id']}", json={"name": "Changed"}
             ),
-            self.clerk.delete(f"/lendery/items/{item['id']}"),
-            self.clerk.post(
+            self.viewer.delete(f"/lendery/items/{item['id']}"),
+            self.viewer.post(
                 f"/lendery/items/{item['id']}/components",
                 json={"name": "Cable", "quantity": 1},
             ),
-            self.clerk.patch(
-                f"/lendery/components/{component_id}",
-                json={"name": "Changed"},
+            self.viewer.patch(
+                f"/lendery/components/{component_id}", json={"name": "Changed"}
             ),
-            self.clerk.delete(f"/lendery/components/{component_id}"),
+            self.viewer.delete(f"/lendery/components/{component_id}"),
         ]
+        self.assertTrue(all(response.status_code == 403 for response in attempts))
 
-        self.assertTrue(
-            all(response.status_code == 403 for response in attempts)
+    def test_manager_can_change_inventory_but_docs_need_platform_admin(self) -> None:
+        item = self.create_item()
+        changed = self.manager.patch(
+            f"/lendery/items/{item['id']}", json={"name": "Updated kit"}
         )
-
-    def test_admin_can_change_shared_passwords(self) -> None:
-        response = self.admin.put(
-            "/lendery/auth/password",
-            json={
-                "username": "clerk",
-                "new_password": "new-clerk-password",
-            },
-        )
-        self.assertEqual(response.status_code, 204)
-
-        new_client = TestClient(app)
-        try:
-            self.login(new_client, "clerk", "new-clerk-password")
-        finally:
-            new_client.close()
-
-    def test_clerk_cannot_change_passwords_or_open_docs(self) -> None:
-        password_response = self.clerk.put(
-            "/lendery/auth/password",
-            json={
-                "username": "clerk",
-                "new_password": "another-password",
-            },
-        )
-        self.assertEqual(password_response.status_code, 403)
-        self.assertEqual(self.clerk.get("/docs").status_code, 403)
+        self.assertEqual(changed.status_code, 200, changed.text)
+        self.assertEqual(self.manager.get("/docs").status_code, 403)
         self.assertEqual(self.admin.get("/docs").status_code, 200)
+
+    def test_shared_lendery_login_endpoints_are_removed(self) -> None:
+        self.assertEqual(
+            self.anonymous.post(
+                "/lendery/auth/login",
+                json={"username": "clerk", "password": "old-password"},
+            ).status_code,
+            404,
+        )
 
 
 if __name__ == "__main__":

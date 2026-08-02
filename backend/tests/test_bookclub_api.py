@@ -2,15 +2,17 @@ import unittest
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from database import Base
-from lendery.auth import hash_password
-from lendery.models import User
+from database import migrate_existing_database
+from accounts.models import LibtoolsUser, ToolAccess
+from bookclub.models import BookClub, BookClubAccess
 from lendery.routes import get_db
 from main import app
+from security import hash_password
 
 
 class BookClubApiTests(unittest.TestCase):
@@ -50,19 +52,33 @@ class BookClubApiTests(unittest.TestCase):
             for table in reversed(Base.metadata.sorted_tables):
                 connection.execute(table.delete())
         with self.sessions() as db:
-            db.add(
-                User(
-                    username="admin",
-                    password_hash=hash_password("admin-password"),
-                    role="admin",
-                )
+            user = LibtoolsUser(
+                username="admin",
+                password_hash=hash_password("admin-password"),
+                role="admin",
+            )
+            club = BookClub(
+                name="Science Fiction Book Club",
+                slug="science-fiction-book-club",
+                organizer_name="Josh",
+                organizer_branch="PBRL",
+            )
+            db.add_all([user, club])
+            db.flush()
+            db.add_all(
+                [
+                    ToolAccess(user_id=user.id, tool_key="bookclub"),
+                    BookClubAccess(club_id=club.id, user_id=user.id, role="owner"),
+                ]
             )
             db.commit()
         response = self.client.post(
-            "/lendery/auth/login",
+            "/auth/login",
             json={"username": "admin", "password": "admin-password"},
         )
         self.assertEqual(response.status_code, 200)
+        selected = self.client.post("/bookclub/clubs/1/select")
+        self.assertEqual(selected.status_code, 200, selected.text)
 
     def create_member(self, name: str, email: str) -> dict:
         response = self.client.post(
@@ -76,19 +92,130 @@ class BookClubApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
 
+    def create_book(self, title: str = "The Left Hand of Darkness") -> dict:
+        response = self.client.post(
+            "/bookclub/books",
+            json={
+                "title": title,
+                "author": "Ursula K. Le Guin",
+                "description": "A science-fiction novel.",
+                "publication_date": "1969-03-01",
+                "publisher": "Ace Books",
+                "page_count": 304,
+                "genres": "Science fiction, speculative fiction",
+            },
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        return response.json()
+
     def create_meeting(self) -> dict:
+        book = self.create_book()
         response = self.client.post(
             "/bookclub/meetings",
             json={
                 "meeting_date": "2026-09-10",
                 "meeting_time": "7:00 PM",
                 "location": "PBRL",
-                "book_title": "The Left Hand of Darkness",
-                "book_author": "Ursula K. Le Guin",
+                "book_id": book["id"],
             },
         )
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
+
+    def test_homepage_links_to_bookclub_api(self) -> None:
+        homepage = self.client.get("/")
+        self.assertEqual(homepage.status_code, 200)
+        self.assertIn('href="/bookclub"', homepage.text)
+        self.assertIn("Available now", homepage.text)
+
+        entrypoint = self.client.get("/bookclub")
+        self.assertEqual(entrypoint.status_code, 200)
+        self.assertIn("Book Club Manager", entrypoint.text)
+
+    def test_books_are_reusable_and_protected_while_in_use(self) -> None:
+        book = self.create_book("A Wizard of Earthsea")
+        updated = self.client.patch(
+            f"/bookclub/books/{book['id']}",
+            json={
+                "cover_image_url": "https://example.com/earthsea.jpg",
+                "discussion_notes": "Talk about balance and responsibility.",
+            },
+        )
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertEqual(
+            updated.json()["discussion_notes"],
+            "Talk about balance and responsibility.",
+        )
+
+        meeting = self.client.post(
+            "/bookclub/meetings",
+            json={
+                "meeting_date": "2026-10-08",
+                "book_id": book["id"],
+            },
+        )
+        self.assertEqual(meeting.status_code, 201, meeting.text)
+        self.assertEqual(meeting.json()["book"]["id"], book["id"])
+
+        in_use = self.client.delete(f"/bookclub/books/{book['id']}")
+        self.assertEqual(in_use.status_code, 409)
+
+        deleted_meeting = self.client.delete(
+            f"/bookclub/meetings/{meeting.json()['id']}"
+        )
+        self.assertEqual(deleted_meeting.status_code, 204)
+        deleted_book = self.client.delete(f"/bookclub/books/{book['id']}")
+        self.assertEqual(deleted_book.status_code, 204)
+
+    def test_existing_meetings_are_migrated_to_book_records(self) -> None:
+        legacy_engine = create_engine("sqlite://", poolclass=StaticPool)
+        try:
+            with legacy_engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "CREATE TABLE bookclub_books ("
+                        "id INTEGER PRIMARY KEY, title VARCHAR(300) NOT NULL, "
+                        "author VARCHAR(200) NOT NULL)"
+                    )
+                )
+                connection.execute(
+                    text(
+                        "CREATE TABLE bookclub_meetings ("
+                        "id INTEGER PRIMARY KEY, "
+                        "book_title VARCHAR(300) NOT NULL, "
+                        "book_author VARCHAR(200) NOT NULL)"
+                    )
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO bookclub_meetings "
+                        "(id, book_title, book_author) VALUES "
+                        "(1, 'Kindred', 'Octavia E. Butler')"
+                    )
+                )
+
+            with patch("database.engine", legacy_engine):
+                migrate_existing_database()
+
+            columns = {
+                column["name"]
+                for column in inspect(legacy_engine).get_columns(
+                    "bookclub_meetings"
+                )
+            }
+            self.assertIn("book_id", columns)
+            with legacy_engine.connect() as connection:
+                row = connection.execute(
+                    text(
+                        "SELECT m.book_id, b.title, b.author "
+                        "FROM bookclub_meetings m "
+                        "JOIN bookclub_books b ON b.id = m.book_id"
+                    )
+                ).one()
+            self.assertEqual(row.title, "Kindred")
+            self.assertEqual(row.author, "Octavia E. Butler")
+        finally:
+            legacy_engine.dispose()
 
     def test_member_roster_filters_attendance_and_giveaway(self) -> None:
         alex = self.create_member("Alex Reader", "ALEX@example.com")
@@ -218,39 +345,45 @@ class BookClubApiTests(unittest.TestCase):
         self.assertIn("Maple Library", previews.json()[0]["body"])
         self.assertEqual(previews.json()[0]["missing_variables"], [])
 
-    def test_questions_can_be_generated_edited_and_replaced(self) -> None:
+        empty_previews = self.client.post(
+            f"/bookclub/meetings/{meeting['id']}/emails/preview",
+            json={"email_type": "onboarding", "member_ids": []},
+        )
+        self.assertEqual(empty_previews.json(), [])
+
+    def test_questions_start_blank_and_can_be_managed_manually(self) -> None:
         meeting = self.create_meeting()
-        generated = self.client.post(
-            f"/bookclub/meetings/{meeting['id']}/questions/generate",
-            json={
-                "count": 4,
-                "focus": "science_fiction",
-                "spoiler_free": True,
-            },
-        )
-        self.assertEqual(generated.status_code, 201, generated.text)
-        self.assertEqual(len(generated.json()), 4)
-        self.assertTrue(
-            all("ending" not in item["text"].lower() for item in generated.json())
-        )
-
-        question_id = generated.json()[0]["id"]
-        edited = self.client.patch(
-            f"/bookclub/questions/{question_id}",
-            json={"text": "What surprised the group most?"},
-        )
-        self.assertEqual(edited.status_code, 200)
-
-        replaced = self.client.post(
-            f"/bookclub/meetings/{meeting['id']}/questions/generate",
-            json={"count": 2, "replace_existing": True},
-        )
-        self.assertEqual(replaced.status_code, 201)
-        self.assertEqual(len(replaced.json()), 2)
         saved = self.client.get(
             f"/bookclub/meetings/{meeting['id']}/questions"
         )
-        self.assertEqual(len(saved.json()), 2)
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(saved.json(), [])
+
+        created = self.client.post(
+            f"/bookclub/meetings/{meeting['id']}/questions",
+            json={"text": "What surprised the group most?"},
+        )
+        self.assertEqual(created.status_code, 201, created.text)
+
+        question_id = created.json()["id"]
+        edited = self.client.patch(
+            f"/bookclub/questions/{question_id}",
+            json={"text": "Which idea stayed with the group?"},
+        )
+        self.assertEqual(edited.status_code, 200)
+        self.assertEqual(
+            edited.json()["text"],
+            "Which idea stayed with the group?",
+        )
+
+        deleted = self.client.delete(
+            f"/bookclub/questions/{question_id}"
+        )
+        self.assertEqual(deleted.status_code, 204)
+        empty_again = self.client.get(
+            f"/bookclub/meetings/{meeting['id']}/questions"
+        )
+        self.assertEqual(empty_again.json(), [])
 
 
 if __name__ == "__main__":

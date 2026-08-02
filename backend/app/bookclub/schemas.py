@@ -5,9 +5,57 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    HttpUrl,
     field_validator,
     model_validator,
 )
+
+
+class ClubCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    slug: str | None = Field(default=None, max_length=120)
+    description: str | None = None
+    public: bool = True
+    organizer_name: str | None = Field(default=None, max_length=200)
+    organizer_branch: str | None = Field(default=None, max_length=200)
+
+
+class ClubUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    slug: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = None
+    public: bool | None = None
+    organizer_name: str | None = Field(default=None, max_length=200)
+    organizer_branch: str | None = Field(default=None, max_length=200)
+
+
+class ClubResponse(BaseModel):
+    id: int
+    name: str
+    slug: str
+    description: str | None
+    public: bool
+    organizer_name: str | None
+    organizer_branch: str | None
+    role: str | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PublicMeetingResponse(BaseModel):
+    meeting_date: date
+    meeting_time: str | None
+    location: str | None
+    book: "BookResponse"
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PublicClubResponse(BaseModel):
+    name: str
+    slug: str
+    description: str | None
+    organizer_name: str | None
+    organizer_branch: str | None
+    upcoming_meeting: PublicMeetingResponse | None
 
 DeliveryMethod = Literal["pickup", "transfer", "none"]
 RecipientFilter = Literal[
@@ -80,16 +128,80 @@ class MemberResponse(MemberBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class BookBase(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    author: str = Field(min_length=1, max_length=200)
+    cover_image_url: HttpUrl | None = None
+    description: str | None = None
+    publication_date: date | None = None
+    isbn: str | None = Field(default=None, min_length=10, max_length=20)
+    publisher: str | None = Field(default=None, max_length=200)
+    page_count: int | None = Field(default=None, ge=1)
+    genres: str | None = Field(default=None, max_length=500)
+    series: str | None = Field(default=None, max_length=300)
+    catalogue_url: HttpUrl | None = None
+    discussion_notes: str | None = None
+
+    @field_validator("title", "author")
+    @classmethod
+    def strip_required_text(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("isbn")
+    @classmethod
+    def normalize_isbn(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.replace("-", "").replace(" ", "").upper()
+
+
+class BookCreate(BookBase):
+    pass
+
+
+class BookUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=300)
+    author: str | None = Field(default=None, min_length=1, max_length=200)
+    cover_image_url: HttpUrl | None = None
+    description: str | None = None
+    publication_date: date | None = None
+    isbn: str | None = Field(default=None, min_length=10, max_length=20)
+    publisher: str | None = Field(default=None, max_length=200)
+    page_count: int | None = Field(default=None, ge=1)
+    genres: str | None = Field(default=None, max_length=500)
+    series: str | None = Field(default=None, max_length=300)
+    catalogue_url: HttpUrl | None = None
+    discussion_notes: str | None = None
+
+    @field_validator("title", "author")
+    @classmethod
+    def required_text_cannot_be_null(cls, value: str | None) -> str:
+        if value is None:
+            raise ValueError("field cannot be null")
+        return value.strip()
+
+    @field_validator("isbn")
+    @classmethod
+    def normalize_isbn(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.replace("-", "").replace(" ", "").upper()
+
+
+class BookResponse(BookBase):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+
+
 class MeetingBase(BaseModel):
     meeting_date: date
     meeting_time: str | None = Field(default=None, max_length=50)
     location: str | None = Field(default=None, max_length=200)
-    book_title: str = Field(min_length=1, max_length=300)
-    book_author: str = Field(min_length=1, max_length=200)
     notes: str | None = None
 
 
 class MeetingCreate(MeetingBase):
+    book_id: int = Field(ge=1)
     add_active_members: bool = True
 
 
@@ -97,11 +209,10 @@ class MeetingUpdate(BaseModel):
     meeting_date: date | None = None
     meeting_time: str | None = Field(default=None, max_length=50)
     location: str | None = Field(default=None, max_length=200)
-    book_title: str | None = Field(default=None, min_length=1, max_length=300)
-    book_author: str | None = Field(default=None, min_length=1, max_length=200)
+    book_id: int | None = Field(default=None, ge=1)
     notes: str | None = None
 
-    @field_validator("meeting_date", "book_title", "book_author")
+    @field_validator("meeting_date", "book_id")
     @classmethod
     def required_values_cannot_be_null(cls, value: object) -> object:
         if value is None:
@@ -111,6 +222,8 @@ class MeetingUpdate(BaseModel):
 
 class MeetingResponse(MeetingBase):
     id: int
+    book_id: int
+    book: BookResponse
     giveaway_winner_member_id: int | None = None
     model_config = ConfigDict(from_attributes=True)
 
@@ -246,14 +359,3 @@ class DiscussionQuestionResponse(BaseModel):
     position: int
     text: str
     model_config = ConfigDict(from_attributes=True)
-
-
-class GenerateQuestionsRequest(BaseModel):
-    count: int = Field(default=10, ge=1, le=20)
-    spoiler_free: bool = False
-    tone: Literal["casual", "in_depth"] = "casual"
-    focus: Literal[
-        "balanced", "themes", "characters", "science_fiction", "style"
-    ] = "balanced"
-    synopsis: str | None = Field(default=None, max_length=5000)
-    replace_existing: bool = False

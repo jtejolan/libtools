@@ -5,13 +5,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.exc import IntegrityError
 
 from bookclub import crud, schemas
+from bookclub.access import require_selected_club
 from dependencies import DatabaseSession
-from lendery.auth import require_admin
 
 router = APIRouter(
     prefix="/bookclub",
     tags=["book club"],
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_selected_club)],
 )
 
 Offset = Annotated[int, Query(ge=0)]
@@ -94,12 +94,81 @@ def member_history(member_id: int, db: DatabaseSession):
 
 
 @router.post(
+    "/books",
+    response_model=schemas.BookResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_book(value: schemas.BookCreate, db: DatabaseSession):
+    try:
+        return crud.create_book(db, value)
+    except IntegrityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A book with this ISBN already exists",
+        ) from exc
+
+
+@router.get("/books", response_model=list[schemas.BookResponse])
+def list_books(
+    db: DatabaseSession,
+    search: str | None = None,
+    offset: Offset = 0,
+    limit: Limit = 100,
+):
+    return crud.list_books(
+        db, search=search, offset=offset, limit=limit
+    )
+
+
+@router.get("/books/{book_id}", response_model=schemas.BookResponse)
+def get_book(book_id: int, db: DatabaseSession):
+    book = crud.get_book(db, book_id)
+    if book is None:
+        raise _not_found("Book not found")
+    return book
+
+
+@router.patch("/books/{book_id}", response_model=schemas.BookResponse)
+def update_book(
+    book_id: int, changes: schemas.BookUpdate, db: DatabaseSession
+):
+    try:
+        book = crud.update_book(db, book_id, changes)
+    except IntegrityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A book with this ISBN already exists",
+        ) from exc
+    if book is None:
+        raise _not_found("Book not found")
+    return book
+
+
+@router.delete(
+    "/books/{book_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_book(book_id: int, db: DatabaseSession) -> Response:
+    result = crud.delete_book(db, book_id)
+    if result == "not_found":
+        raise _not_found("Book not found")
+    if result == "in_use":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This book is used by a meeting and cannot be deleted",
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
     "/meetings",
     response_model=schemas.MeetingResponse,
     status_code=status.HTTP_201_CREATED,
 )
 def create_meeting(value: schemas.MeetingCreate, db: DatabaseSession):
-    return crud.create_meeting(db, value)
+    book = crud.get_book(db, value.book_id)
+    if book is None:
+        raise _not_found("Book not found")
+    return crud.create_meeting(db, value, book)
 
 
 @router.get("/meetings", response_model=list[schemas.MeetingResponse])
@@ -130,7 +199,10 @@ def get_meeting(meeting_id: int, db: DatabaseSession):
 def update_meeting(
     meeting_id: int, changes: schemas.MeetingUpdate, db: DatabaseSession
 ):
-    meeting = crud.update_meeting(db, meeting_id, changes)
+    try:
+        meeting = crud.update_meeting(db, meeting_id, changes)
+    except LookupError as exc:
+        raise _not_found(str(exc)) from exc
     if meeting is None:
         raise _not_found("Meeting not found")
     return meeting
@@ -314,12 +386,14 @@ def render_transit_labels(
     template = crud.get_template(db, "transit_label")
     if template is None:
         raise _not_found("Transit label template not found")
-    selected = set(request.member_ids or [])
+    selected = (
+        None if request.member_ids is None else set(request.member_ids)
+    )
     labels = []
     for participation in crud.list_participation(db, meeting_id):
         if participation.delivery_method != "transfer":
             continue
-        if selected and participation.member_id not in selected:
+        if selected is not None and participation.member_id not in selected:
             continue
         context = crud.template_context(meeting, participation)
         rendered = crud.render_template(
@@ -351,7 +425,9 @@ def preview_emails(
     meeting = crud.get_meeting(db, meeting_id)
     if meeting is None:
         raise _not_found("Meeting not found")
-    selected = set(request.member_ids or [])
+    selected = (
+        None if request.member_ids is None else set(request.member_ids)
+    )
     previews = []
     onboarding_keys = {
         "pickup": "onboarding_pickup",
@@ -359,7 +435,7 @@ def preview_emails(
         "none": "onboarding_no_copy",
     }
     for participation in crud.list_participation(db, meeting_id):
-        if selected and participation.member_id not in selected:
+        if selected is not None and participation.member_id not in selected:
             continue
         template_key = (
             onboarding_keys[participation.delivery_method]
@@ -419,22 +495,6 @@ def create_question(
             status_code=status.HTTP_409_CONFLICT,
             detail="That question position is already in use",
         ) from exc
-
-
-@router.post(
-    "/meetings/{meeting_id}/questions/generate",
-    response_model=list[schemas.DiscussionQuestionResponse],
-    status_code=status.HTTP_201_CREATED,
-)
-def generate_questions(
-    meeting_id: int,
-    request: schemas.GenerateQuestionsRequest,
-    db: DatabaseSession,
-):
-    meeting = crud.get_meeting(db, meeting_id)
-    if meeting is None:
-        raise _not_found("Meeting not found")
-    return crud.generate_questions(db, meeting, request)
 
 
 @router.patch(
