@@ -163,7 +163,7 @@ def _replace_legacy_sqlite_unique_constraints() -> None:
                     text(
                         f"INSERT INTO {table_name}_new ({columns}) "
                         f"SELECT {columns} FROM {table_name}"
-                    )
+                )
                 )
                 connection.execute(text(f"DROP TABLE {table_name}"))
                 connection.execute(
