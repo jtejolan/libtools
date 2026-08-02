@@ -669,6 +669,15 @@ footer > a:last-child {
     height: 76px;
   }
 
+  .site-header .brand span {
+    display: none;
+  }
+
+  .site-header nav {
+    gap: 12px;
+    font-size: 12px;
+  }
+
   nav > a:first-child {
     display: none;
   }
