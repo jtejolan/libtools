@@ -9,7 +9,6 @@
   --gold: #e0ad56;
   --muted: #746f62;
   --line: rgba(24, 59, 51, 0.16);
-  --lendery-mark: url("/static/assets/lendery-logo-symbol-v3.png");
   --serif: "Newsreader", Georgia, serif;
   --sans: "DM Sans", Arial, sans-serif;
 }
@@ -558,7 +557,11 @@ blockquote em {
 .lendery-icon {
   border: 1px solid rgba(24, 59, 51, 0.16);
   border-radius: 18px;
-  background: var(--paper) var(--lendery-mark) center / cover no-repeat;
+  background-color: var(--paper);
+  background-image: url("/static/assets/lendery-logo-symbol-v3.png?v=3");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
   box-shadow: 0 12px 28px rgba(24, 59, 51, 0.12);
   transform: none;
 }

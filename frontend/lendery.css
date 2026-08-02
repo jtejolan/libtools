@@ -11,7 +11,6 @@
   --muted: #746f62;
   --danger: #a84432;
   --line: rgba(24, 59, 51, 0.14);
-  --lendery-mark: url("/static/assets/lendery-logo-symbol-v3.png");
   --serif: "Newsreader", Georgia, serif;
   --sans: "DM Sans", Arial, sans-serif;
 }
@@ -147,7 +146,11 @@ a {
   border-radius: 8px;
   overflow: hidden;
   color: transparent;
-  background: var(--paper) var(--lendery-mark) center / cover no-repeat;
+  background-color: var(--paper);
+  background-image: url("/static/assets/lendery-logo-symbol-v3.png?v=3");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
   font-size: 0;
 }
 
@@ -1118,7 +1121,11 @@ footer {
   border: 1px solid var(--line);
   border-radius: 9px;
   color: transparent;
-  background: var(--paper) var(--lendery-mark) center / cover no-repeat;
+  background-color: var(--paper);
+  background-image: url("/static/assets/lendery-logo-symbol-v3.png?v=3");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
   font-size: 0;
 }
 
