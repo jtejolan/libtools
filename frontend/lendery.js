@@ -472,6 +472,11 @@ const loadItems = async () => {
 const openItemDialog = (item = null) => {
   itemForm.reset();
   formError.textContent = "";
+  const importStatus = document.querySelector("#import-item-status");
+  importStatus.textContent =
+    "Paste a Lendery catalogue record to fill the item details automatically.";
+  importStatus.className = "field-help";
+  document.querySelector("#import-lendery-item").disabled = false;
   document.querySelector("#item-id").value = item?.id || "";
   document.querySelector("#dialog-title").textContent = item ? "Edit item" : "Add a new item";
   document.querySelector("#save-item").textContent = item ? "Save changes" : "Save item";
@@ -493,7 +498,46 @@ const openItemDialog = (item = null) => {
     }
   }
   dialog.showModal();
-  window.setTimeout(() => itemForm.elements.name.focus(), 50);
+  window.setTimeout(
+    () => (item ? itemForm.elements.name : itemForm.elements.library_url).focus(),
+    50,
+  );
+};
+
+const importLenderyItem = async () => {
+  const button = document.querySelector("#import-lendery-item");
+  const status = document.querySelector("#import-item-status");
+  const libraryUrl = itemForm.elements.library_url.value.trim();
+  if (!libraryUrl) {
+    status.textContent = "Paste a Vaughan Public Libraries Lendery link first.";
+    status.className = "field-help error";
+    itemForm.elements.library_url.focus();
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Finding details…";
+  status.textContent = "Reading the catalogue record…";
+  status.className = "field-help";
+  try {
+    const item = await request("/lendery/items/import", {
+      method: "POST",
+      body: JSON.stringify({ library_url: libraryUrl }),
+    });
+    ["name", "description", "image_url", "manual_url", "library_url"].forEach(
+      (field) => {
+        itemForm.elements[field].value = item[field] ?? "";
+      },
+    );
+    status.textContent = "Details added. Add a barcode, review, then save.";
+    status.className = "field-help success";
+  } catch (error) {
+    status.textContent = error.message;
+    status.className = "field-help error";
+  } finally {
+    button.disabled = false;
+    button.textContent = "Fill item details";
+  }
 };
 
 const formPayload = () => {
@@ -761,6 +805,15 @@ itemForm.addEventListener("submit", async (event) => {
   } finally {
     saveButton.disabled = false;
   }
+});
+
+document
+  .querySelector("#import-lendery-item")
+  .addEventListener("click", importLenderyItem);
+itemForm.elements.library_url.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  importLenderyItem();
 });
 
 document.addEventListener("click", async (event) => {

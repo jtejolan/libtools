@@ -168,7 +168,7 @@ class BookClubApiTests(unittest.TestCase):
         from bookclub.catalogue import CatalogueImportError
 
         fetch_book.side_effect = CatalogueImportError(
-            "Enter a Vaughan Public Libraries book record link."
+            "Enter a Vaughan Public Libraries catalogue record link."
         )
         response = self.client.post(
             "/bookclub/books/import",
@@ -177,7 +177,7 @@ class BookClubApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
         self.assertEqual(
             response.json()["detail"],
-            "Enter a Vaughan Public Libraries book record link.",
+            "Enter a Vaughan Public Libraries catalogue record link.",
         )
 
     def test_books_are_reusable_and_protected_while_in_use(self) -> None:

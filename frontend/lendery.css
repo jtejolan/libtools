@@ -1056,6 +1056,50 @@ footer {
   text-transform: uppercase;
 }
 
+.field > label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.catalogue-import {
+  padding: 15px;
+  border: 1px solid rgba(24, 59, 51, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.catalogue-import-row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.catalogue-import-row input {
+  min-width: 0;
+  flex: 1;
+}
+
+.catalogue-import-row button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.field-help {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.field-help.success {
+  color: var(--forest);
+  font-weight: 700;
+}
+
+.field-help.error {
+  color: var(--danger);
+}
+
 .field b {
   color: var(--orange);
 }
@@ -2052,6 +2096,10 @@ footer {
 
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .catalogue-import-row {
+    flex-direction: column;
   }
 
   .availability-controls {

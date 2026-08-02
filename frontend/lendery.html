@@ -20,8 +20,8 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/lendery.css?v=7" />
-    <script src="/static/lendery.js?v=4" defer></script>
+    <link rel="stylesheet" href="/static/lendery.css?v=8" />
+    <script src="/static/lendery.js?v=5" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -210,6 +210,16 @@
 
         <input id="item-id" name="id" type="hidden" />
         <div class="form-grid">
+          <div class="catalogue-import field-wide">
+            <div class="field">
+              <label for="lendery-library-url">Vaughan Public Libraries link</label>
+              <div class="catalogue-import-row">
+                <input id="lendery-library-url" name="library_url" type="url" placeholder="https://vaughanpl.bibliocommons.com/v2/record/S130C…" />
+                <button class="secondary-button" id="import-lendery-item" type="button">Fill item details</button>
+              </div>
+              <small class="field-help" id="import-item-status">Paste a Lendery catalogue record to fill the item details automatically.</small>
+            </div>
+          </div>
           <label class="field field-wide">
             <span>Item name <b>*</b></span>
             <input name="name" required maxlength="200" placeholder="e.g. Cordless drill kit" />
@@ -241,14 +251,6 @@
           <label class="field">
             <span>Purchase URL</span>
             <input name="purchase_url" type="url" placeholder="https://…" />
-          </label>
-          <label class="field field-wide">
-            <span>Vaughan library catalogue URL</span>
-            <input
-              name="library_url"
-              type="url"
-              placeholder="https://vaughanpl.bibliocommons.com/v2/record/S130C…"
-            />
           </label>
           <label class="field field-wide">
             <span>Staff notes</span>

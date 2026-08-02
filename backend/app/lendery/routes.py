@@ -15,7 +15,8 @@ from sqlalchemy.exc import IntegrityError
 
 from dependencies import DatabaseSession, get_db
 from accounts.auth import require_lendery_manage, require_lendery_view
-from lendery import component_images, crud, schemas
+from bookclub.catalogue import CatalogueImportError
+from lendery import catalogue, component_images, crud, schemas
 
 
 router = APIRouter(
@@ -53,6 +54,23 @@ def create_item(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="An item with this barcode already exists",
+        ) from exc
+
+
+@router.post(
+    "/items/import",
+    response_model=schemas.CatalogueItemImportResponse,
+)
+def import_item(
+    value: schemas.CatalogueItemImportRequest,
+    _manager=Depends(require_lendery_manage),
+):
+    try:
+        return catalogue.fetch_catalogue_item(str(value.library_url))
+    except CatalogueImportError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
         ) from exc
 
 

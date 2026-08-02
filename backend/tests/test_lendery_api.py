@@ -115,6 +115,47 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         return response.json()
 
+    @patch("lendery.catalogue.fetch_catalogue_item")
+    def test_imports_item_details_from_vaughan_catalogue(self, fetch_item) -> None:
+        fetch_item.return_value = {
+            "name": "ThermoMaven 3000FT Smart Wireless Meat Thermometer",
+            "description": "Monitor food from up to 3000 feet away.",
+            "image_url": (
+                "https://www.vaughanpl.info/img/catalogue/lendery/MeatThermo.jpg"
+            ),
+            "manual_url": (
+                "https://www.vaughanpl.info/files/catalogue/"
+                "ThermoMaven_X2_User_Manual_1.0.pdf"
+            ),
+            "library_url": (
+                "https://vaughanpl.bibliocommons.com/v2/record/S130C772570"
+            ),
+        }
+        response = self.client.post(
+            "/lendery/items/import",
+            json={
+                "library_url": (
+                    "https://vaughanpl.bibliocommons.com/v2/record/S130C772570"
+                )
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(
+            response.json()["name"],
+            "ThermoMaven 3000FT Smart Wireless Meat Thermometer",
+        )
+        self.assertTrue(response.json()["manual_url"].endswith(".pdf"))
+        fetch_item.assert_called_once_with(
+            "https://vaughanpl.bibliocommons.com/v2/record/S130C772570"
+        )
+
+    def test_lendery_page_uses_current_autofill_assets(self) -> None:
+        response = self.client.get("/lendery")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('/static/lendery.js?v=5', response.text)
+        self.assertIn('/static/lendery.css?v=8', response.text)
+
     @patch("lendery.availability.check_availability")
     def test_item_detail_refreshes_availability(self, check) -> None:
         check.return_value = AvailabilityResult(

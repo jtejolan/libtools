@@ -203,3 +203,22 @@ class LenderyItemResponse(LenderyItemBase):
     availability_error: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CatalogueItemImportRequest(BaseModel):
+    library_url: HttpUrl
+
+    @field_validator("library_url")
+    @classmethod
+    def library_url_must_be_a_vaughan_record(
+        cls, value: HttpUrl
+    ) -> HttpUrl:
+        return validate_library_url(value)
+
+
+class CatalogueItemImportResponse(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    image_url: HttpUrl | None = None
+    manual_url: HttpUrl | None = None
+    library_url: HttpUrl

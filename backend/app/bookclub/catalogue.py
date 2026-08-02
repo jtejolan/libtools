@@ -53,13 +53,13 @@ def _validated_url(value: str) -> tuple[str, str]:
         or match is None
     ):
         raise CatalogueImportError(
-            "Enter a Vaughan Public Libraries book record link."
+            "Enter a Vaughan Public Libraries catalogue record link."
         )
     canonical = f"https://{CATALOGUE_HOST}{parsed.path.rstrip('/')}"
     return canonical, match.group(1)
 
 
-def _clean_text(value: str | None) -> str | None:
+def clean_catalogue_text(value: str | None) -> str | None:
     if not value:
         return None
     value = html.unescape(value)
@@ -92,16 +92,13 @@ def _field_values(record: dict, field_name: str) -> list[str]:
 def parse_catalogue_record(
     page: str, catalogue_url: str, record_id: str
 ) -> dict:
-    parser = _MetadataParser()
-    parser.feed(page)
-    if not parser.state_parts:
-        raise CatalogueImportError("The catalogue record did not include book data.")
+    state = parse_catalogue_state(page)
     try:
-        state = json.loads("".join(parser.state_parts))
         record = state["entities"]["catalogBibs"][record_id]
         brief = record["brief"]
-    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+    except (KeyError, TypeError) as exc:
         raise CatalogueImportError("The catalogue record could not be read.") from exc
+
 
     creators = brief.get("creators") or []
     authors = [
@@ -142,12 +139,12 @@ def parse_catalogue_record(
 
     cover = brief.get("coverImage") or {}
     return {
-        "title": _clean_text(brief.get("title")),
+        "title": clean_catalogue_text(brief.get("title")),
         "author": "; ".join(authors) or None,
         "cover_image_url": (
             cover.get("large") or cover.get("medium") or cover.get("small")
         ),
-        "description": _clean_text(brief.get("description")),
+        "description": clean_catalogue_text(brief.get("description")),
         "publication_date": (
             f"{publication_year.group(1)}-01-01" if publication_year else None
         ),
@@ -160,9 +157,20 @@ def parse_catalogue_record(
     }
 
 
-def fetch_catalogue_book(value: str) -> dict:
+def parse_catalogue_state(page: str) -> dict:
+    parser = _MetadataParser()
+    parser.feed(page)
+    if not parser.state_parts:
+        raise CatalogueImportError("The catalogue record did not include item data.")
+    try:
+        return json.loads("".join(parser.state_parts))
+    except json.JSONDecodeError as exc:
+        raise CatalogueImportError("The catalogue record could not be read.") from exc
+
+
+def fetch_catalogue_page(value: str) -> tuple[str, str, str]:
     url, record_id = _validated_url(value)
-    headers = {"User-Agent": "Libtools Book Club Manager/1.0"}
+    headers = {"User-Agent": "Libtools Catalogue Import/1.0"}
     try:
         with httpx.Client(timeout=12, headers=headers) as client:
             for _ in range(4):
@@ -184,4 +192,9 @@ def fetch_catalogue_book(value: str) -> dict:
         ) from exc
     if len(response.content) > MAX_RESPONSE_BYTES:
         raise CatalogueImportError("The catalogue response was unexpectedly large.")
-    return parse_catalogue_record(response.text, url, record_id)
+    return response.text, url, record_id
+
+
+def fetch_catalogue_book(value: str) -> dict:
+    page, url, record_id = fetch_catalogue_page(value)
+    return parse_catalogue_record(page, url, record_id)
