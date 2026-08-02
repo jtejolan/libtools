@@ -542,7 +542,9 @@ footer {
 }
 
 footer p {
+  max-width: 520px;
   text-align: center;
+  line-height: 1.55;
 }
 
 footer > a:last-child {
