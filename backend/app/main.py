@@ -11,6 +11,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from database import Base, SessionLocal, engine, migrate_existing_database
+from bookclub import models as bookclub_models
+from bookclub.routes import router as bookclub_router
 from lendery import models
 from lendery.auth import (
     initialize_fixed_users,
@@ -52,6 +54,7 @@ app.add_middleware(
 )
 app.include_router(auth_router)
 app.include_router(lendery_router)
+app.include_router(bookclub_router)
 app.mount(
     "/static",
     StaticFiles(directory=FRONTEND_DIR),

@@ -5,6 +5,24 @@ project homepage at `/`, the Lendery inventory workspace at `/lendery`, the
 interactive API documentation at `/docs`, and the Lendery endpoints below the
 same `/lendery` namespace.
 
+## Book Club Manager API
+
+The admin-only Book Club Manager API is available under `/bookclub`. It keeps
+Eventbrite out of the recurring-member workflow and provides:
+
+- a master member list with join dates and active status;
+- meeting rosters with per-book checkout, branch transfer, and attendance data;
+- attendance history and a saved random giveaway winner for each meeting;
+- editable onboarding, reminder, and transit-label templates;
+- personalized email and printable transit-label previews; and
+- editable, reorderable discussion questions with metadata-based generation.
+
+Creating a meeting adds all active members to its roster. Use
+`POST /bookclub/meetings/{meeting_id}/roster/sync` to add active members who
+joined later. Email delivery is intentionally left to the client or a future
+mail-provider integration; the API returns recipient lists and fully rendered,
+personalized previews without sending anything unexpectedly.
+
 ## Pierre Berton availability
 
 Add a Vaughan BiblioCommons record URL to an item's `library_url` field. Opening
