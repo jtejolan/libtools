@@ -10,8 +10,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/bookclub.css?v=5" />
-    <script src="/static/bookclub.js?v=5" defer></script>
+    <link rel="stylesheet" href="/static/bookclub.css?v=6" />
+    <script src="/static/bookclub.js?v=6" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -51,9 +51,17 @@
           <div class="topbar-actions">
             <a class="account-button" id="public-club-link" href="#" target="_blank" hidden>Public page ↗</a>
             <button class="club-switcher" id="switch-club" type="button">Choose club</button>
-            <a class="account-button" href="/account">My account</a>
-            <span class="role-badge" id="user-badge">User</span>
-            <button class="account-button" id="logout-button" type="button">Log out</button>
+            <span class="role-badge" id="user-badge">Member</span>
+            <details class="account-menu" id="account-menu">
+              <summary class="account-menu-trigger">
+                <span id="account-menu-name">Account</span>
+                <span aria-hidden="true">⌄</span>
+              </summary>
+              <div class="account-menu-panel">
+                <a href="/account">My account</a>
+                <button id="logout-button" type="button">Log out</button>
+              </div>
+            </details>
           </div>
         </header>
 

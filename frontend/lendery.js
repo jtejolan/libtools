@@ -32,6 +32,8 @@ const loginForm = document.querySelector("#login-form");
 const loginError = document.querySelector("#login-error");
 const accountActions = document.querySelector("#account-actions");
 const roleBadge = document.querySelector("#role-badge");
+const accountMenu = document.querySelector("#account-menu");
+const accountMenuName = document.querySelector("#account-menu-name");
 
 const escapeHtml = (value = "") =>
   String(value)
@@ -102,6 +104,7 @@ const applyUser = (user) => {
   state.user = user;
   accountActions.hidden = false;
   roleBadge.textContent = canManage() ? "Lendery manager" : "Lendery viewer";
+  accountMenuName.textContent = user.username;
   document.querySelectorAll("[data-admin-only]").forEach((element) => {
     element.hidden = !canManage();
   });
@@ -113,6 +116,7 @@ const applyUser = (user) => {
 const showLogin = () => {
   state.user = null;
   accountActions.hidden = true;
+  accountMenu.open = false;
   closeDrawer();
   if (dialog.open) dialog.close();
   if (!loginDialog.open) loginDialog.showModal();
@@ -1008,8 +1012,16 @@ availabilitySort.addEventListener("change", (event) => {
   renderItems();
 });
 
+document.addEventListener("click", (event) => {
+  if (accountMenu.open && !accountMenu.contains(event.target)) {
+    accountMenu.open = false;
+  }
+});
+
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && drawer.classList.contains("open")) closeDrawer();
+  if (event.key !== "Escape") return;
+  accountMenu.open = false;
+  if (drawer.classList.contains("open")) closeDrawer();
 });
 
 loginDialog.addEventListener("cancel", (event) => event.preventDefault());

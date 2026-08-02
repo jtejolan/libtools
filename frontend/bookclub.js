@@ -22,6 +22,7 @@ const $$ = (selector) => [...document.querySelectorAll(selector)];
 const loginDialog = $("#login-dialog");
 const clubDialog = $("#club-dialog");
 const toast = $("#toast");
+const accountMenu = $("#account-menu");
 
 const escapeHtml = (value = "") =>
   String(value)
@@ -65,7 +66,14 @@ const showToast = (message) => {
 
 const showLogin = () => {
   state.user = null;
+  accountMenu.open = false;
   if (!loginDialog.open) loginDialog.showModal();
+};
+
+const applyUser = (user) => {
+  state.user = user;
+  $("#user-badge").textContent = user.role === "admin" ? "Administrator" : "Member";
+  $("#account-menu-name").textContent = user.username;
 };
 
 const applyClub = (club) => {
@@ -779,8 +787,7 @@ $("#login-form").addEventListener("submit", async (event) => {
       $("#login-error").textContent = "Book Club Manager access is required.";
       return;
     }
-    state.user = user;
-    $("#user-badge").textContent = user.username;
+    applyUser(user);
     loginDialog.close();
     await loadClubs();
   } catch (error) {
@@ -1001,14 +1008,23 @@ $("#logout-button").addEventListener("click", async () => {
   showLogin();
 });
 
+document.addEventListener("click", (event) => {
+  if (accountMenu.open && !accountMenu.contains(event.target)) {
+    accountMenu.open = false;
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") accountMenu.open = false;
+});
+
 $("#switch-club").addEventListener("click", showClubPicker);
 
 const initialize = async () => {
   try {
     const user = await request("/auth/me");
     if (user.role !== "admin" && !user.tools.includes("bookclub")) return showLogin();
-    state.user = user;
-    $("#user-badge").textContent = user.username;
+    applyUser(user);
     await loadClubs();
   } catch (error) {
     if (error.status !== 401) showToast(error.message);

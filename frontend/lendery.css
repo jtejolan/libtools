@@ -265,6 +265,7 @@ a {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto;
 }
 
 .role-badge {
@@ -290,6 +291,89 @@ a {
 
 .account-button:hover {
   color: var(--ink);
+}
+
+.account-menu {
+  position: relative;
+}
+
+.account-menu summary {
+  list-style: none;
+}
+
+.account-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.account-menu-trigger {
+  min-height: 38px;
+  padding: 0 11px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  background: rgba(255, 250, 241, 0.72);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.account-menu-trigger span:last-child {
+  color: var(--muted);
+  transition: transform 160ms ease;
+}
+
+#account-menu-name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-menu[open] .account-menu-trigger span:last-child {
+  transform: rotate(180deg);
+}
+
+.account-menu-panel {
+  min-width: 160px;
+  padding: 6px;
+  position: absolute;
+  z-index: 30;
+  right: 0;
+  top: calc(100% + 8px);
+  display: grid;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--paper);
+  box-shadow: 0 14px 36px rgba(24, 59, 51, 0.18);
+}
+
+.account-menu-panel a,
+.account-menu-panel button {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 11px;
+  display: flex;
+  align-items: center;
+  border: 0;
+  border-radius: 4px;
+  color: var(--ink);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account-menu-panel a:hover,
+.account-menu-panel button:hover {
+  background: rgba(24, 59, 51, 0.07);
+}
+
+.account-menu-panel button {
+  color: var(--danger);
 }
 
 .docs-link {
@@ -1900,6 +1984,14 @@ footer {
   .topbar-actions {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .role-badge {
+    display: none;
+  }
+
+  #account-menu-name {
+    max-width: 105px;
   }
 
   .content {

@@ -20,8 +20,8 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/lendery.css?v=6" />
-    <script src="/static/lendery.js?v=3" defer></script>
+    <link rel="stylesheet" href="/static/lendery.css?v=7" />
+    <script src="/static/lendery.js?v=4" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -84,15 +84,22 @@
             <strong>Inventory</strong>
           </div>
           <div class="topbar-actions">
-            <div class="account-actions" id="account-actions" hidden>
-              <span class="role-badge" id="role-badge"></span>
-              <a class="account-button" href="/account">My account</a>
-              <button class="account-button" id="logout-button" type="button">Log out</button>
-            </div>
-            <a class="docs-link" href="/docs#/lendery" data-platform-admin-only hidden>API docs <span aria-hidden="true">↗</span></a>
             <button class="primary-button" id="header-add-item" type="button" data-admin-only hidden>
               <span aria-hidden="true">＋</span> Add item
             </button>
+            <div class="account-actions" id="account-actions" hidden>
+              <span class="role-badge" id="role-badge"></span>
+              <details class="account-menu" id="account-menu">
+                <summary class="account-menu-trigger">
+                  <span id="account-menu-name">Account</span>
+                  <span aria-hidden="true">⌄</span>
+                </summary>
+                <div class="account-menu-panel">
+                  <a href="/account">My account</a>
+                  <button id="logout-button" type="button">Log out</button>
+                </div>
+              </details>
+            </div>
           </div>
         </header>
 
