@@ -7,6 +7,7 @@ const state = {
   availabilitySort: "",
   selectedId: null,
   checkedComponents: new Set(),
+  physicalManualChecked: false,
   maintenanceByItem: new Map(),
   refreshingIds: new Set(),
   refreshPromises: new Map(),
@@ -707,6 +708,9 @@ const openItemDialog = (item = null) => {
     ]) {
       itemForm.elements[field].value = item[field] ?? "";
     }
+    itemForm.elements.physical_manual_included.checked = Boolean(
+      item.physical_manual_included,
+    );
   }
   dialog.showModal();
   window.setTimeout(
@@ -761,6 +765,7 @@ const formPayload = () => {
   }
   payload.name = String(data.get("name")).trim();
   payload.barcode = String(data.get("barcode")).trim();
+  payload.physical_manual_included = itemForm.elements.physical_manual_included.checked;
   if (payload.purchase_price) payload.purchase_price = Number(payload.purchase_price);
   return payload;
 };
@@ -774,6 +779,7 @@ const closeDrawer = () => {
   }, 220);
   state.selectedId = null;
   state.checkedComponents.clear();
+  state.physicalManualChecked = false;
 };
 
 const renderDrawer = (item) => {
@@ -868,6 +874,32 @@ const renderDrawer = (item) => {
                 <b id="checklist-percent">${checklistPercent}%</b>
               </div>
               <div class="checklist-track"><span id="checklist-bar" style="width: ${checklistPercent}%"></span></div>`
+            : ""
+        }
+        ${
+          item.physical_manual_included
+            ? `<div class="physical-manual-row ${item.physical_manual_missing ? "missing" : ""}">
+                <label class="physical-manual-check">
+                  <input
+                    type="checkbox"
+                    id="physical-manual-checkbox"
+                    ${state.physicalManualChecked ? "checked" : ""}
+                    aria-label="Mark physical manual as present"
+                  />
+                  <span>Physical manual</span>
+                </label>
+                ${
+                  item.physical_manual_missing
+                    ? `<span class="physical-manual-status">Missing</span>${
+                        canManage()
+                          ? `<button class="physical-manual-action" type="button" id="physical-manual-found">Mark found</button>`
+                          : ""
+                      }`
+                    : canManage()
+                      ? `<button class="physical-manual-action" type="button" id="physical-manual-flag">Flag missing</button>`
+                      : ""
+                }
+              </div>`
             : ""
         }
         <div class="component-list">
@@ -967,6 +999,7 @@ const openDrawer = async (itemId) => {
   if (!item) return;
   state.selectedId = item.id;
   state.checkedComponents.clear();
+  state.physicalManualChecked = false;
   renderDrawer(item);
   drawerBackdrop.hidden = false;
   requestAnimationFrame(() => drawerBackdrop.classList.add("open"));
@@ -1415,6 +1448,55 @@ drawerContent.addEventListener("change", async (event) => {
       : "Tap each part as you find it";
   document.querySelector("#checklist-percent").textContent = `${percent}%`;
   document.querySelector("#checklist-bar").style.width = `${percent}%`;
+});
+
+document.addEventListener("click", (event) => {
+  if (event.target.closest("#physical-manual-checkbox")) {
+    state.physicalManualChecked = event.target.checked;
+    event.target.closest(".physical-manual-row")?.classList.toggle(
+      "checked",
+      state.physicalManualChecked,
+    );
+  }
+});
+
+document.addEventListener("click", async (event) => {
+  if (!state.selectedId) return;
+  const itemId = state.selectedId;
+
+  if (event.target.closest("#physical-manual-flag")) {
+    try {
+      const item = await request(`/lendery/items/${itemId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ physical_manual_missing: true }),
+      });
+      replaceItem(item);
+      await request(`/lendery/items/${itemId}/maintenance`, {
+        method: "POST",
+        body: JSON.stringify({ title: "Physical manual missing" }),
+      });
+      await reloadMaintenance(itemId);
+      if (state.selectedId === itemId) renderDrawer(item);
+      showToast("Flagged the physical manual as missing.");
+    } catch (error) {
+      showToast(error.message);
+    }
+    return;
+  }
+
+  if (event.target.closest("#physical-manual-found")) {
+    try {
+      const item = await request(`/lendery/items/${itemId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ physical_manual_missing: false }),
+      });
+      replaceItem(item);
+      if (state.selectedId === itemId) renderDrawer(item);
+      showToast("Physical manual marked as found.");
+    } catch (error) {
+      showToast(error.message);
+    }
+  }
 });
 
 searchInput.addEventListener("input", (event) => {

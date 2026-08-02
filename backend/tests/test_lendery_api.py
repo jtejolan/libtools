@@ -206,8 +206,8 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
     def test_lendery_page_uses_current_autofill_assets(self) -> None:
         response = self.client.get("/lendery")
         self.assertEqual(response.status_code, 200)
-        self.assertIn('/static/lendery.js?v=8', response.text)
-        self.assertIn('/static/lendery.css?v=10', response.text)
+        self.assertIn('/static/lendery.js?v=9', response.text)
+        self.assertIn('/static/lendery.css?v=11', response.text)
 
     @patch("lendery.availability.check_availability")
     def test_item_detail_refreshes_availability(self, check) -> None:
@@ -280,6 +280,49 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
         rows = response.text.splitlines()
         self.assertIn("barcode", rows[0])
         self.assertTrue(any("EXPORT-1" in row for row in rows[1:]))
+
+    def test_physical_manual_inclusion_and_missing_flag_are_tracked(self) -> None:
+        response = self.client.post(
+            "/lendery/items",
+            json={
+                "name": "Telescope",
+                "barcode": "MANUAL-1",
+                "physical_manual_included": True,
+            },
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        created = response.json()
+        self.assertTrue(created["physical_manual_included"])
+        self.assertFalse(created["physical_manual_missing"])
+
+        default_response = self.client.post(
+            "/lendery/items",
+            json={"name": "Sewing kit", "barcode": "MANUAL-2"},
+        )
+        self.assertEqual(default_response.status_code, 201, default_response.text)
+        self.assertFalse(default_response.json()["physical_manual_included"])
+
+        flagged = self.client.patch(
+            f"/lendery/items/{created['id']}",
+            json={"physical_manual_missing": True},
+        )
+        self.assertEqual(flagged.status_code, 200, flagged.text)
+        self.assertTrue(flagged.json()["physical_manual_missing"])
+
+        unflagged = self.client.patch(
+            f"/lendery/items/{created['id']}",
+            json={"physical_manual_missing": False},
+        )
+        self.assertEqual(unflagged.status_code, 200, unflagged.text)
+        self.assertFalse(unflagged.json()["physical_manual_missing"])
+
+        csv_rows = self.client.get(
+            "/lendery/items/export.csv"
+        ).text.splitlines()
+        self.assertIn("physical_manual_included", csv_rows[0])
+        self.assertTrue(
+            any("MANUAL-1" in row and "True" in row for row in csv_rows[1:])
+        )
 
         with self.sessions() as db:
             viewer = LibtoolsUser(

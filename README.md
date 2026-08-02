@@ -62,6 +62,17 @@ status such as open, waiting for a part, in repair, or resolved. Timestamped
 updates can record ordered, received, and installed parts together with cost,
 quantity, vendor link, order number, notes, and the editor who made the entry.
 Maintenance records and their API endpoints are not available to viewers.
+`GET /lendery/maintenance` lists every open case across the whole inventory
+(not just one item) so editors can triage from a single queue instead of
+opening each item; items currently `unavailable` with no case yet also
+surface there as a prompt to log one.
+
+An item can also track whether it ships with a physical manual, independent
+of its components. Editors can flag the manual missing from an item's return
+checklist; flagging opens a maintenance case automatically so it appears in
+the queue above, and "mark found" clears the flag.
+
+Editors can export the full inventory as CSV from `GET /lendery/items/export.csv`.
 
 ## Libtools accounts
 

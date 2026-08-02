@@ -195,6 +195,8 @@ def migrate_existing_database() -> None:
             "total_copies_at_branch": "INTEGER",
             "availability_checked_at": "TIMESTAMP",
             "availability_error": "TEXT",
+            "physical_manual_included": "BOOLEAN NOT NULL DEFAULT FALSE",
+            "physical_manual_missing": "BOOLEAN NOT NULL DEFAULT FALSE",
         }
         with engine.begin() as connection:
             for name, definition in columns.items():

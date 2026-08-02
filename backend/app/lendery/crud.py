@@ -103,6 +103,8 @@ def items_csv(db: Session) -> str:
             "availability_checked_at",
             "component_count",
             "open_maintenance_case_count",
+            "physical_manual_included",
+            "physical_manual_missing",
             "notes",
         ]
     )
@@ -131,6 +133,8 @@ def items_csv(db: Session) -> str:
                 ),
                 len(item.components),
                 open_cases,
+                item.physical_manual_included,
+                item.physical_manual_missing,
                 item.notes or "",
             ]
         )
@@ -185,6 +189,8 @@ def update_item(
         "image_url",
         "category",
         "library_url",
+        "physical_manual_included",
+        "physical_manual_missing",
     ):
         if field in update_data:
             setattr(db_item, field, update_data[field])

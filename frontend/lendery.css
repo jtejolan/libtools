@@ -1885,6 +1885,64 @@ button.needs-attention-row:hover {
   transition: width 180ms ease;
 }
 
+.physical-manual-row {
+  margin: 17px 0 0;
+  padding: 13px 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(244, 238, 223, 0.27);
+}
+
+.physical-manual-row.checked {
+  border-color: var(--moss);
+  background: rgba(131, 157, 107, 0.1);
+}
+
+.physical-manual-row.missing {
+  border-color: var(--danger);
+  background: rgba(196, 84, 66, 0.08);
+}
+
+.physical-manual-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.physical-manual-check input {
+  accent-color: var(--forest);
+}
+
+.physical-manual-status {
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.physical-manual-action {
+  padding: 6px 12px;
+  border: 1px solid var(--forest);
+  border-radius: 999px;
+  color: var(--forest);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.physical-manual-action:hover {
+  color: var(--paper);
+  background: var(--forest);
+}
+
 .component-list {
   margin: 17px 0;
   display: grid;

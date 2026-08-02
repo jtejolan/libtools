@@ -140,6 +140,8 @@ class LenderyItemBase(BaseModel):
 
     library_url: HttpUrl | None = None
 
+    physical_manual_included: bool = False
+
     @field_validator("library_url")
     @classmethod
     def library_url_must_be_a_vaughan_record(
@@ -176,10 +178,14 @@ class LenderyItemUpdate(BaseModel):
     image_url: HttpUrl | None = None
     category: str | None = None
     library_url: HttpUrl | None = None
+    physical_manual_included: bool | None = None
+    physical_manual_missing: bool | None = None
 
-    @field_validator("name", "barcode")
+    @field_validator(
+        "name", "barcode", "physical_manual_included", "physical_manual_missing"
+    )
     @classmethod
-    def required_values_cannot_be_null(cls, value: str | None) -> str:
+    def required_values_cannot_be_null(cls, value: object) -> object:
         if value is None:
             raise ValueError("field cannot be null")
         return value
@@ -202,6 +208,7 @@ class LenderyItemResponse(LenderyItemBase):
     total_copies_at_branch: int | None = None
     availability_checked_at: datetime | None = None
     availability_error: str | None = None
+    physical_manual_missing: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

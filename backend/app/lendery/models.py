@@ -80,6 +80,14 @@ class LenderyItem(Base):
 
     availability_error: Mapped[str | None] = mapped_column(Text())
 
+    physical_manual_included: Mapped[bool] = mapped_column(
+        Boolean(), default=False, server_default="0"
+    )
+
+    physical_manual_missing: Mapped[bool] = mapped_column(
+        Boolean(), default=False, server_default="0"
+    )
+
     components: Mapped[list["Component"]] = relationship(
         back_populates="item",
         cascade="all, delete-orphan",
