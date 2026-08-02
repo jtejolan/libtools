@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="-4 -2 238 252"
+  role="img"
+  aria-labelledby="library-tools-detailed-title library-tools-detailed-description"
+>
+  <title id="library-tools-detailed-title">Library Tools detailed logo</title>
+  <desc id="library-tools-detailed-description">
+    Three gently leaning book spines in orange, gold, and green, with subtle
+    dimensional shading, spine bands, and inset decorative panels.
+  </desc>
+
+  <defs>
+    <linearGradient id="orange-cover" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#EC8551" />
+      <stop offset="0.52" stop-color="#D96E3C" />
+      <stop offset="1" stop-color="#B9512B" />
+    </linearGradient>
+    <linearGradient id="gold-cover" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F0C66E" />
+      <stop offset="0.52" stop-color="#E0AD56" />
+      <stop offset="1" stop-color="#BE8434" />
+    </linearGradient>
+    <linearGradient id="green-cover" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9BB67D" />
+      <stop offset="0.52" stop-color="#849F68" />
+      <stop offset="1" stop-color="#667F4D" />
+    </linearGradient>
+    <linearGradient id="spine-shine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12" />
+      <stop offset="0.36" stop-color="#FFFFFF" stop-opacity="0.34" />
+      <stop offset="0.64" stop-color="#FFFFFF" stop-opacity="0.05" />
+      <stop offset="1" stop-color="#000000" stop-opacity="0.12" />
+    </linearGradient>
+    <filter id="soft-shadow" x="-35%" y="-20%" width="170%" height="150%">
+      <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#2D281E" flood-opacity="0.2" />
+    </filter>
+  </defs>
+
+  <g filter="url(#soft-shadow)">
+    <g transform="rotate(-5 47 238)">
+      <rect x="18" y="48" width="58" height="190" rx="6" fill="url(#orange-cover)" />
+      <rect x="18" y="48" width="58" height="190" rx="6" fill="url(#spine-shine)" />
+      <path d="M23 64H71M23 68H71M23 216H71M23 220H71" fill="none" stroke="#87391F" stroke-opacity="0.5" stroke-width="1.5" />
+      <rect x="25" y="82" width="44" height="112" rx="3" fill="none" stroke="#7D321C" stroke-opacity="0.42" stroke-width="1.6" />
+      <rect x="28" y="85" width="38" height="106" rx="2" fill="none" stroke="#FFD6B8" stroke-opacity="0.25" />
+      <path d="M24 75H70M24 208H70" fill="none" stroke="#FFD6B8" stroke-opacity="0.32" stroke-width="2.3" />
+      <path d="M23 54Q47 50 71 54" fill="none" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="1.5" />
+    </g>
+
+    <g transform="rotate(2 111 238)">
+      <rect x="82" y="18" width="58" height="220" rx="6" fill="url(#gold-cover)" />
+      <rect x="82" y="18" width="58" height="220" rx="6" fill="url(#spine-shine)" />
+      <path d="M87 42H135M87 46H135M87 215H135M87 219H135" fill="none" stroke="#8F6428" stroke-opacity="0.5" stroke-width="1.5" />
+      <rect x="89" y="61" width="44" height="132" rx="3" fill="none" stroke="#7D571F" stroke-opacity="0.42" stroke-width="1.6" />
+      <rect x="92" y="64" width="38" height="126" rx="2" fill="none" stroke="#FFF1C7" stroke-opacity="0.3" />
+      <path d="M88 52H134M88 205H134" fill="none" stroke="#FFF1C7" stroke-opacity="0.35" stroke-width="2.3" />
+      <path d="M87 24Q111 20 135 24" fill="none" stroke="#FFFFFF" stroke-opacity="0.25" stroke-width="1.5" />
+    </g>
+
+    <g transform="rotate(7 175 238)">
+      <rect x="146" y="58" width="58" height="180" rx="6" fill="url(#green-cover)" />
+      <rect x="146" y="58" width="58" height="180" rx="6" fill="url(#spine-shine)" />
+      <path d="M151 75H199M151 79H199M151 216H199M151 220H199" fill="none" stroke="#405331" stroke-opacity="0.5" stroke-width="1.5" />
+      <rect x="153" y="92" width="44" height="105" rx="3" fill="none" stroke="#354729" stroke-opacity="0.42" stroke-width="1.6" />
+      <rect x="156" y="95" width="38" height="99" rx="2" fill="none" stroke="#E5F1D7" stroke-opacity="0.25" />
+      <path d="M152 86H198M152 207H198" fill="none" stroke="#E5F1D7" stroke-opacity="0.3" stroke-width="2.3" />
+      <path d="M151 64Q175 60 199 64" fill="none" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="1.5" />
+    </g>
+  </g>
+</svg>

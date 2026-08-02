@@ -11,8 +11,8 @@
     <title>Library Tools</title>
     <link
       rel="icon"
-      type="image/png"
-      href="/static/assets/library-tools-logo-mark.png?v=2"
+      type="image/svg+xml"
+      href="/static/assets/library-tools-logo-classic.svg?v=1"
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -21,7 +21,8 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/static/styles.css?v=14" />
-    <script src="/static/home.js?v=1" defer></script>
+    <script src="/static/quotes.js?v=1" defer></script>
+    <script src="/static/home.js?v=2" defer></script>
   </head>
   <body id="top">
     <div class="page-shell">
@@ -29,7 +30,7 @@
         <a class="brand" href="/" aria-label="Library Tools home">
           <img
             class="brand-mark"
-            src="/static/assets/library-tools-logo-mark.png?v=2"
+            src="/static/assets/library-tools-logo-classic.svg?v=1"
             alt=""
             title="Business as usual."
           />
@@ -46,9 +47,14 @@
       <main>
         <section class="hero" aria-labelledby="hero-title">
           <div class="hero-identity" aria-hidden="true">
+            <div class="hero-decor">
+              <span class="decor-spark spark-1"></span>
+              <span class="decor-spark spark-2"></span>
+              <span class="decor-leaf"></span>
+            </div>
             <img
               class="hero-logo-mark"
-              src="/static/assets/library-tools-logo-mark.png?v=2"
+              src="/static/assets/library-tools-logo-hero.png?v=1"
               alt=""
             />
             <p class="hero-brand-name">Library Tools</p>
@@ -104,6 +110,9 @@
                   inventory workspace supports searching, filtering, and
                   maintaining item and component records.
                 </p>
+                <p class="card-stat">
+                  <strong id="lendery-stat-count">—</strong> items tracked
+                </p>
                 <span class="card-cta">Open inventory <b aria-hidden="true">→</b></span>
               </div>
             </a>
@@ -122,6 +131,9 @@
                 <p>
                   Manage regular members, monthly books, attendance, editable
                   messages, transit labels, giveaways, and discussion questions.
+                </p>
+                <p class="card-stat">
+                  <strong id="bookclub-stat-count">—</strong> public book clubs
                 </p>
                 <span class="card-cta">Open manager <b aria-hidden="true">→</b></span>
               </div>
@@ -155,15 +167,17 @@
         <section class="manifesto" aria-label="Book quotation">
           <span class="quote-mark" aria-hidden="true">“</span>
           <figure>
-            <blockquote id="book-quote-text">
-              It is a truth universally acknowledged, that a single man in
-              possession of a good fortune, must be in want of a wife.
-            </blockquote>
-            <figcaption class="quote-attribution">
-              <cite id="book-quote-title">Pride and Prejudice</cite>
-              <span aria-hidden="true">—</span>
-              <span id="book-quote-author">Jane Austen</span>
-            </figcaption>
+            <div class="quote-fade" id="quote-fade">
+              <blockquote id="book-quote-text">
+                It is a truth universally acknowledged, that a single man in
+                possession of a good fortune, must be in want of a wife.
+              </blockquote>
+              <figcaption class="quote-attribution">
+                <cite id="book-quote-title">Pride and Prejudice</cite>
+                <span aria-hidden="true">—</span>
+                <span id="book-quote-author">Jane Austen</span>
+              </figcaption>
+            </div>
             <img
               class="compass-easter-egg"
               src="/static/assets/compass.svg?v=1"
@@ -176,7 +190,7 @@
 
       <footer>
         <a class="brand footer-brand" href="/">
-          <img class="brand-mark" src="/static/assets/library-tools-logo-mark.png?v=2" alt="" />
+          <img class="brand-mark" src="/static/assets/library-tools-logo-classic.svg?v=1" alt="" />
           <span>Library Tools</span>
         </a>
         <p>Practical tools for public libraries</p>

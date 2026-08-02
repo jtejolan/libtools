@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 228 245"
+  role="img"
+  aria-labelledby="library-tools-classic-title library-tools-classic-description"
+>
+  <title id="library-tools-classic-title">Library Tools classic logo</title>
+  <desc id="library-tools-classic-description">
+    Three gently leaning book spines in orange, gold, and green.
+  </desc>
+
+  <g>
+    <rect
+      x="18"
+      y="48"
+      width="58"
+      height="190"
+      rx="5"
+      fill="#D96E3C"
+      transform="rotate(-5 47 238)"
+    />
+    <rect
+      x="82"
+      y="18"
+      width="58"
+      height="220"
+      rx="5"
+      fill="#E0AD56"
+      transform="rotate(2 111 238)"
+    />
+    <rect
+      x="146"
+      y="58"
+      width="58"
+      height="180"
+      rx="5"
+      fill="#849F68"
+      transform="rotate(7 175 238)"
+    />
+  </g>
+</svg>

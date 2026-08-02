@@ -8,9 +8,11 @@ from fastapi import Depends, FastAPI
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import func, select
 from starlette.middleware.sessions import SessionMiddleware
 
 from database import Base, SessionLocal, engine, migrate_existing_database
+from dependencies import DatabaseSession
 from accounts import models as account_models
 from accounts.auth import require_platform_admin
 from accounts.bootstrap import (
@@ -109,6 +111,20 @@ def public_club_page(slug: str) -> FileResponse:
 @app.get("/health", tags=["system"])
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/public/stats", tags=["system"])
+def public_stats(db: DatabaseSession) -> dict[str, int]:
+    item_count = db.scalar(select(func.count(models.LenderyItem.id))) or 0
+    club_count = (
+        db.scalar(
+            select(func.count(bookclub_models.BookClub.id)).where(
+                bookclub_models.BookClub.public.is_(True)
+            )
+        )
+        or 0
+    )
+    return {"lendery_items": item_count, "bookclub_clubs": club_count}
 
 
 @app.get("/docs", include_in_schema=False)

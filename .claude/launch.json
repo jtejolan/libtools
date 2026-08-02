@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "libtools",
+      "runtimeExecutable": "backend/.venv/bin/uvicorn",
+      "runtimeArgs": ["main:app", "--reload", "--app-dir", "backend/app"],
+      "port": 8000
+    }
+  ]
+}
