@@ -131,6 +131,7 @@ class BookClubApiTests(unittest.TestCase):
         entrypoint = self.client.get("/bookclub")
         self.assertEqual(entrypoint.status_code, 200)
         self.assertIn("Book Club Manager", entrypoint.text)
+        self.assertIn('/static/bookclub.js?v=7', entrypoint.text)
 
     @patch("bookclub.catalogue.fetch_catalogue_book")
     def test_imports_a_vaughan_catalogue_book(self, fetch_book) -> None:
