@@ -224,15 +224,9 @@ def migrate_existing_database() -> None:
 
     with engine.begin() as connection:
         if "book_clubs" not in tables:
-            connection.execute(
-                text(
-                    "CREATE TABLE book_clubs ("
-                    "id INTEGER PRIMARY KEY, name VARCHAR(200) NOT NULL, "
-                    "slug VARCHAR(120) NOT NULL UNIQUE, description TEXT, "
-                    "public BOOLEAN NOT NULL DEFAULT 1, "
-                    "organizer_name VARCHAR(200), organizer_branch VARCHAR(200))"
-                )
-            )
+            from bookclub.models import BookClub
+
+            BookClub.__table__.create(bind=connection, checkfirst=True)
         default_club_id = connection.execute(
             text("SELECT id FROM book_clubs ORDER BY id LIMIT 1")
         ).scalar()
@@ -241,9 +235,19 @@ def migrate_existing_database() -> None:
                 text(
                     "INSERT INTO book_clubs "
                     "(name, slug, description, public, organizer_name, organizer_branch) "
-                    "VALUES ('Science Fiction Book Club', 'science-fiction-book-club', "
-                    "'Monthly science fiction reading and discussion.', 1, 'Josh', 'PBRL')"
-                )
+                    "VALUES (:name, :slug, :description, :public, "
+                    ":organizer_name, :organizer_branch)"
+                ),
+                {
+                    "name": "Science Fiction Book Club",
+                    "slug": "science-fiction-book-club",
+                    "description": (
+                        "Monthly science fiction reading and discussion."
+                    ),
+                    "public": True,
+                    "organizer_name": "Josh",
+                    "organizer_branch": "PBRL",
+                },
             )
             default_club_id = connection.execute(
                 text("SELECT id FROM book_clubs ORDER BY id LIMIT 1")
