@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Library Tools is a friendly home for practical tools that help libraries lend more, gather often, and stay organized."
+      content="Library Tools is a friendly home for practical tools that help libraries lend more, run book clubs, and plan thoughtful storytimes."
     />
     <meta name="theme-color" content="#173f35" />
     <title>Library Tools — Good tools for good libraries</title>
@@ -15,15 +15,13 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/styles.css?v=3" />
+    <link rel="stylesheet" href="/static/styles.css?v=7" />
   </head>
   <body>
     <div class="page-shell">
       <header class="site-header">
         <a class="brand" href="/" aria-label="Library Tools home">
-          <span class="brand-mark" aria-hidden="true">
-            <span></span><span></span><span></span>
-          </span>
+          <img class="brand-mark" src="/static/assets/library-tools-logo-mark.svg?v=1" alt="" />
           <span>Library Tools</span>
         </a>
         <nav aria-label="Primary navigation">
@@ -34,39 +32,26 @@
 
       <main>
         <section class="hero" aria-labelledby="hero-title">
+          <div class="hero-identity" aria-hidden="true">
+            <img class="hero-logo-mark" src="/static/assets/library-tools-logo-mark.svg?v=1" alt="" />
+            <p class="hero-brand-name">Library Tools</p>
+            <p class="hero-brand-note">Practical software for public libraries</p>
+          </div>
+
           <div class="hero-copy">
             <p class="eyebrow"><span></span> Made for libraries, with care</p>
-            <h1 id="hero-title">Good tools for<br /><em>good libraries.</em></h1>
+            <h1 id="hero-title">
+              <span>Good tools.</span>
+              <em>For good libraries.</em>
+            </h1>
             <p class="hero-intro">
-              A growing collection of simple, thoughtful tools that help
-              libraries lend more, gather often, and stay beautifully organized.
+              One thoughtful collection for the work behind the welcome—from
+              lending and book clubs to storytime resources and planning.
             </p>
             <a class="primary-action" href="#tools">
               Explore the tools
               <span aria-hidden="true">↓</span>
             </a>
-          </div>
-
-          <div class="hero-art" aria-hidden="true">
-            <div class="sun-glow"></div>
-            <div class="plant">
-              <i class="leaf leaf-one"></i>
-              <i class="leaf leaf-two"></i>
-              <i class="leaf leaf-three"></i>
-              <i class="stem"></i>
-              <i class="pot"></i>
-            </div>
-            <div class="book-stack">
-              <span class="book book-one"><i></i></span>
-              <span class="book book-two"><i>FIELD NOTES</i></span>
-              <span class="book book-three"><i></i></span>
-            </div>
-            <div class="mug"><span></span><i>LT</i></div>
-            <div class="table-line"></div>
-            <div class="steam steam-one"></div>
-            <div class="steam steam-two"></div>
-            <span class="spark spark-one">✦</span>
-            <span class="spark spark-two">✦</span>
           </div>
         </section>
 
@@ -78,7 +63,8 @@
             </div>
             <p>
               Practical software should feel as welcoming as the spaces it
-              supports. Start with Lendery today, with more tools on the way.
+              supports. Start with Lendery today, with tools for book clubs and
+              storytime planning on the way.
             </p>
           </div>
 
@@ -89,8 +75,7 @@
                 <span class="card-arrow" aria-hidden="true">↗</span>
               </div>
               <div class="card-icon lendery-icon" aria-hidden="true">
-                <span class="tag-hole"></span>
-                <span class="tag-line"></span>
+                <img src="/static/assets/lendery-logo-symbol-v3.png?v=4" alt="" />
               </div>
               <div class="card-copy">
                 <p class="card-number">TOOL 01</p>
@@ -108,7 +93,7 @@
                 <span class="availability soon">Coming soon</span>
               </div>
               <div class="card-icon book-icon" aria-hidden="true">
-                <span></span><span></span>
+                <img src="/static/assets/book-club-manager-logo-v2.png?v=1" alt="" />
               </div>
               <div class="card-copy">
                 <p class="card-number">TOOL 02</p>
@@ -118,6 +103,29 @@
                   keep your reading community connected.
                 </p>
                 <span class="card-cta muted">On the reading list</span>
+              </div>
+            </div>
+
+            <div class="tool-card storytime-card" aria-labelledby="storytime-title">
+              <div class="card-topline">
+                <span class="availability soon">Coming soon</span>
+              </div>
+              <div class="card-icon storytime-icon" aria-hidden="true">
+                <img src="/static/assets/storytime-studio-logo.png?v=1" alt="" />
+              </div>
+              <div class="card-copy">
+                <p class="card-number">TOOL 03</p>
+                <h3 id="storytime-title">Storytime Studio API</h3>
+                <p>
+                  Keep books, songs, rhymes, activities, themes, props, and
+                  transitions in one resource database. Then bring the right
+                  pieces together to build clear, reusable storytime outlines.
+                </p>
+                <ul class="storytime-features" aria-label="Planned features">
+                  <li>Resource database</li>
+                  <li>Outline planner</li>
+                </ul>
+                <span class="card-cta muted">In development</span>
               </div>
             </div>
           </div>
@@ -134,9 +142,7 @@
 
       <footer>
         <a class="brand footer-brand" href="/">
-          <span class="brand-mark" aria-hidden="true">
-            <span></span><span></span><span></span>
-          </span>
+          <img class="brand-mark" src="/static/assets/library-tools-logo-mark.svg?v=1" alt="" />
           <span>Library Tools</span>
         </a>
         <p>Made for the people who keep knowledge moving.</p>
