@@ -2,7 +2,7 @@ import secrets
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from accounts.models import LibtoolsUser, ToolAccess
@@ -25,7 +25,7 @@ def get_user(db: Session, username: str) -> LibtoolsUser | None:
     normalized = normalize_username(username)
     return db.scalar(
         select(LibtoolsUser).where(
-            LibtoolsUser.username.collate("NOCASE") == normalized
+            func.lower(LibtoolsUser.username) == normalized
         )
     )
 
