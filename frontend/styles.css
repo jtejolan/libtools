@@ -604,6 +604,14 @@ blockquote em {
   margin: 0;
 }
 
+.quote-fade {
+  transition: opacity 0.5s ease;
+}
+
+.quote-fade.is-swapping {
+  opacity: 0;
+}
+
 blockquote {
   max-width: 1050px;
   margin: 18px auto 0;
