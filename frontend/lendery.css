@@ -677,10 +677,6 @@ h1 {
   background: var(--orange);
 }
 
-.availability-filter[data-availability-filter="not_held"] i {
-  background: var(--gold);
-}
-
 .availability-filter:hover,
 .availability-filter.active {
   color: var(--paper);
@@ -1700,6 +1696,113 @@ footer {
 .maintenance-empty-state strong {
   color: var(--ink);
   font-size: 14px;
+}
+
+.needs-attention-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--paper);
+  background: var(--danger);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+#needs-attention-dialog > div {
+  padding: 31px;
+  max-height: calc(100vh - 30px);
+  overflow-y: auto;
+}
+
+.needs-attention-content {
+  display: grid;
+  gap: 22px;
+}
+
+.needs-attention-group h3 {
+  margin: 0 0 11px;
+  font-family: var(--serif);
+  font-size: 19px;
+}
+
+.needs-attention-list {
+  display: grid;
+  gap: 13px;
+}
+
+.needs-attention-row {
+  width: 100%;
+  padding: 17px;
+  display: block;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--orange);
+  border-radius: 7px;
+  background: rgba(255, 250, 241, 0.72);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.needs-attention-row:hover {
+  background: rgba(255, 250, 241, 1);
+}
+
+.needs-attention-row.waiting_for_part {
+  border-left-color: var(--gold);
+}
+
+.needs-attention-row.in_repair {
+  border-left-color: var(--danger);
+}
+
+.needs-attention-row.unavailable-flag {
+  border-left-color: var(--danger);
+  background: rgba(255, 250, 241, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  cursor: default;
+}
+
+.needs-attention-row-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.needs-attention-row-heading h4 {
+  margin: 5px 0 0;
+  font-family: var(--serif);
+  font-size: 18px;
+}
+
+.needs-attention-row-heading > small,
+.needs-attention-row > small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.needs-attention-log-issue {
+  padding: 8px 13px;
+  flex: 0 0 auto;
+  border: 1px solid var(--forest);
+  border-radius: 999px;
+  color: var(--forest);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.needs-attention-log-issue:hover {
+  color: var(--paper);
+  background: var(--forest);
 }
 
 .components-section {

@@ -33,10 +33,11 @@ personalized previews without sending anything unexpectedly.
 
 ## Pierre Berton availability
 
-Add a Vaughan BiblioCommons record URL to an item's `library_url` field. Opening
-that item refreshes its status using only copies at Pierre Berton Resource
-Library; copies at every other branch are ignored. The saved status is one of
-`available`, `checked_out`, `unavailable`, `not_held`, or `unknown`.
+Add a Vaughan BiblioCommons record URL to an item's `library_url` field.
+Adding or changing that link checks availability immediately, using only
+copies at Pierre Berton Resource Library; copies at every other branch are
+ignored. The saved status is one of `available`, `checked_out`, or
+`unavailable`.
 
 Filter saved statuses through the list API:
 
@@ -44,8 +45,6 @@ Filter saved statuses through the list API:
 GET /lendery/items?availability=in
 GET /lendery/items?availability=out
 GET /lendery/items?availability=unavailable
-GET /lendery/items?availability=not_held
-GET /lendery/items?availability=unknown
 ```
 
 An availability failure keeps the previous status and records the failed check

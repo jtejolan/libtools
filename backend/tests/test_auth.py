@@ -258,6 +258,42 @@ class LenderyAuthorizationTests(unittest.TestCase):
             "manager",
         )
 
+    def test_maintenance_queue_lists_open_cases_across_items_and_is_editor_only(
+        self,
+    ) -> None:
+        first_item = self.create_item()
+        second = self.manager.post(
+            "/lendery/items",
+            json={"name": "Sewing machine", "barcode": "KIT-2"},
+        )
+        self.assertEqual(second.status_code, 201, second.text)
+        second_item = second.json()
+
+        open_case = self.manager.post(
+            f"/lendery/items/{first_item['id']}/maintenance",
+            json={"title": "Missing remote"},
+        )
+        self.assertEqual(open_case.status_code, 201, open_case.text)
+
+        resolved_case = self.manager.post(
+            f"/lendery/items/{second_item['id']}/maintenance",
+            json={"title": "Needle replaced", "status": "resolved"},
+        )
+        self.assertEqual(resolved_case.status_code, 201, resolved_case.text)
+
+        self.assertEqual(
+            self.viewer.get("/lendery/maintenance").status_code, 403
+        )
+
+        queue = self.manager.get("/lendery/maintenance")
+        self.assertEqual(queue.status_code, 200, queue.text)
+        entries = queue.json()
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["title"], "Missing remote")
+        self.assertEqual(entries[0]["item_id"], first_item["id"])
+        self.assertEqual(entries[0]["item_name"], "Projector kit")
+        self.assertEqual(entries[0]["item_barcode"], "KIT-1")
+
     def test_shared_lendery_login_endpoints_are_removed(self) -> None:
         self.assertEqual(
             self.anonymous.post(

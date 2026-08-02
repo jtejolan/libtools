@@ -1,3 +1,5 @@
+import csv
+import io
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
@@ -5,9 +7,11 @@ from typing import Any
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from lendery import availability, component_images, models, schemas
+
+OPEN_MAINTENANCE_STATUSES = {"open", "waiting_for_part", "in_repair"}
 
 
 def _model_data(
@@ -71,6 +75,68 @@ def list_items(
     return list(db.scalars(statement))
 
 
+def items_csv(db: Session) -> str:
+    statement = (
+        select(models.LenderyItem)
+        .options(
+            selectinload(models.LenderyItem.components),
+            selectinload(models.LenderyItem.maintenance_cases),
+        )
+        .order_by(models.LenderyItem.id)
+    )
+    items = db.scalars(statement)
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            "id",
+            "barcode",
+            "name",
+            "category",
+            "description",
+            "purchase_price",
+            "purchase_url",
+            "manual_url",
+            "library_url",
+            "availability_status",
+            "availability_checked_at",
+            "component_count",
+            "open_maintenance_case_count",
+            "notes",
+        ]
+    )
+    for item in items:
+        open_cases = sum(
+            1
+            for case in item.maintenance_cases
+            if case.status in OPEN_MAINTENANCE_STATUSES
+        )
+        writer.writerow(
+            [
+                item.id,
+                item.barcode,
+                item.name,
+                item.category or "",
+                item.description or "",
+                item.purchase_price if item.purchase_price is not None else "",
+                item.purchase_url or "",
+                item.manual_url or "",
+                item.library_url or "",
+                item.availability_status,
+                (
+                    item.availability_checked_at.isoformat()
+                    if item.availability_checked_at
+                    else ""
+                ),
+                len(item.components),
+                open_cases,
+                item.notes or "",
+            ]
+        )
+    return buffer.getvalue()
+
+
 def create_item(
     db: Session,
     item: schemas.LenderyItemCreate,
@@ -87,7 +153,10 @@ def create_item(
         for component in item.components
     ]
     db.add(db_item)
-    return _commit(db, db_item)
+    db_item = _commit(db, db_item)
+    if db_item.library_url:
+        db_item = refresh_item_availability(db, db_item)
+    return db_item
 
 
 def update_item(
@@ -130,7 +199,10 @@ def update_item(
         db_item.availability_checked_at = None
         db_item.availability_error = None
 
-    return _commit(db, db_item)
+    db_item = _commit(db, db_item)
+    if library_url_changed and db_item.library_url:
+        db_item = refresh_item_availability(db, db_item)
+    return db_item
 
 
 def refresh_item_availability(
@@ -294,6 +366,16 @@ def get_maintenance_case(
         .where(models.MaintenanceCase.id == case_id)
     )
     return db.scalar(statement)
+
+
+def list_open_maintenance_cases(db: Session) -> list[models.MaintenanceCase]:
+    statement = (
+        select(models.MaintenanceCase)
+        .options(joinedload(models.MaintenanceCase.item))
+        .where(models.MaintenanceCase.status.in_(OPEN_MAINTENANCE_STATUSES))
+        .order_by(models.MaintenanceCase.opened_at)
+    )
+    return list(db.scalars(statement))
 
 
 def create_maintenance_case(

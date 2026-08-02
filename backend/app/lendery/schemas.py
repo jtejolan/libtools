@@ -310,3 +310,17 @@ class MaintenanceCaseResponse(BaseModel):
     events: list[MaintenanceEventResponse] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class MaintenanceQueueEntry(BaseModel):
+    id: int
+    item_id: int
+    item_name: str
+    item_barcode: str
+    component_id: int | None = None
+    component_name: str | None = None
+    title: str
+    description: str | None = None
+    status: MaintenanceStatus
+    opened_by_name: str
+    opened_at: datetime

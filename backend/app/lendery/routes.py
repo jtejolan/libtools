@@ -33,8 +33,6 @@ AvailabilityFilter = Literal[
     "available",
     "checked_out",
     "unavailable",
-    "not_held",
-    "unknown",
 ]
 
 
@@ -93,6 +91,23 @@ def list_items(
         offset=offset,
         limit=limit,
         availability_status=status_filter,
+    )
+
+
+@router.get(
+    "/items/export.csv",
+    include_in_schema=False,
+)
+def export_items_csv(
+    db: DatabaseSession,
+    _manager=Depends(require_lendery_manage),
+) -> Response:
+    return Response(
+        content=crud.items_csv(db),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": 'attachment; filename="lendery-inventory.csv"',
+        },
     )
 
 
@@ -368,6 +383,32 @@ def delete_component(
         )
     component_images.delete_component_image(component_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/maintenance",
+    response_model=list[schemas.MaintenanceQueueEntry],
+)
+def list_maintenance_queue(
+    db: DatabaseSession,
+    _editor=Depends(require_lendery_manage),
+):
+    return [
+        schemas.MaintenanceQueueEntry(
+            id=case.id,
+            item_id=case.item_id,
+            item_name=case.item.name,
+            item_barcode=case.item.barcode,
+            component_id=case.component_id,
+            component_name=case.component_name,
+            title=case.title,
+            description=case.description,
+            status=case.status,
+            opened_by_name=case.opened_by_name,
+            opened_at=case.opened_at,
+        )
+        for case in crud.list_open_maintenance_cases(db)
+    ]
 
 
 @router.get(

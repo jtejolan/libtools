@@ -20,8 +20,8 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/lendery.css?v=9" />
-    <script src="/static/lendery.js?v=7" defer></script>
+    <link rel="stylesheet" href="/static/lendery.css?v=10" />
+    <script src="/static/lendery.js?v=8" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -155,6 +155,12 @@
                     autocomplete="off"
                   />
                 </label>
+                <button class="secondary-button" id="needs-attention-button" type="button" data-admin-only hidden>
+                  <span aria-hidden="true">⚑</span> Needs attention<span class="needs-attention-count" id="needs-attention-count" hidden></span>
+                </button>
+                <a class="secondary-button" id="export-items-csv" href="/lendery/items/export.csv" data-admin-only hidden>
+                  <span aria-hidden="true">⇩</span> Export CSV
+                </a>
                 <button class="secondary-button" id="panel-add-item" type="button" data-admin-only hidden>
                   <span aria-hidden="true">＋</span> Add item
                 </button>
@@ -305,6 +311,19 @@
           <button class="primary-button" type="submit">Create repair log</button>
         </div>
       </form>
+    </dialog>
+
+    <dialog class="item-dialog" id="needs-attention-dialog">
+      <div>
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow"><span></span> Inventory-wide</p>
+            <h2>Needs attention</h2>
+          </div>
+          <button class="icon-button" type="button" data-close-needs-attention aria-label="Close">×</button>
+        </div>
+        <div class="needs-attention-content" id="needs-attention-content"></div>
+      </div>
     </dialog>
 
     <dialog class="auth-dialog" id="login-dialog">

@@ -10,6 +10,7 @@ const state = {
   maintenanceByItem: new Map(),
   refreshingIds: new Set(),
   refreshPromises: new Map(),
+  maintenanceQueue: [],
 };
 
 const AVAILABILITY_STALE_MS = 30 * 60 * 1000;
@@ -38,6 +39,9 @@ const accountMenuName = document.querySelector("#account-menu-name");
 const maintenanceDialog = document.querySelector("#maintenance-dialog");
 const maintenanceCaseForm = document.querySelector("#maintenance-case-form");
 const maintenanceFormError = document.querySelector("#maintenance-form-error");
+const needsAttentionCountBadge = document.querySelector("#needs-attention-count");
+const needsAttentionDialog = document.querySelector("#needs-attention-dialog");
+const needsAttentionContent = document.querySelector("#needs-attention-content");
 
 const escapeHtml = (value = "") =>
   String(value)
@@ -115,11 +119,13 @@ const applyUser = (user) => {
 const showLogin = () => {
   state.user = null;
   state.maintenanceByItem.clear();
+  state.maintenanceQueue = [];
   accountActions.hidden = true;
   accountMenu.open = false;
   closeDrawer();
   if (dialog.open) dialog.close();
   if (maintenanceDialog.open) maintenanceDialog.close();
+  if (needsAttentionDialog.open) needsAttentionDialog.close();
   if (!loginDialog.open) loginDialog.showModal();
 };
 
@@ -334,6 +340,81 @@ const renderMaintenanceSection = (cases) => `
     </div>
   </section>`;
 
+const unresolvedUnavailableItems = () => {
+  const flagged = new Set(state.maintenanceQueue.map((entry) => entry.item_id));
+  return state.items.filter(
+    (item) => item.availability_status === "unavailable" && !flagged.has(item.id),
+  );
+};
+
+const needsAttentionCount = () =>
+  state.maintenanceQueue.length + unresolvedUnavailableItems().length;
+
+const renderNeedsAttentionButton = () => {
+  const count = needsAttentionCount();
+  needsAttentionCountBadge.textContent = String(count);
+  needsAttentionCountBadge.hidden = count === 0;
+};
+
+const renderNeedsAttentionDialog = () => {
+  const cases = state.maintenanceQueue;
+  const flagged = unresolvedUnavailableItems();
+
+  const caseRows = cases
+    .map(
+      (entry) => `
+        <button class="needs-attention-row ${escapeHtml(entry.status)}" type="button" data-open-item="${entry.item_id}">
+          <div class="needs-attention-row-heading">
+            <div>
+              <span class="maintenance-status">${escapeHtml(maintenanceStatusLabel(entry.status))}</span>
+              <h4>${escapeHtml(entry.title)}</h4>
+            </div>
+          </div>
+          <small>${escapeHtml(entry.item_name)} · ${escapeHtml(entry.item_barcode)}${entry.component_name ? ` · ${escapeHtml(entry.component_name)}` : ""}</small><br />
+          <small>Opened ${escapeHtml(formatMaintenanceDate(entry.opened_at))} by ${escapeHtml(entry.opened_by_name)}</small>
+        </button>`,
+    )
+    .join("");
+
+  const flaggedRows = flagged
+    .map(
+      (item) => `
+        <div class="needs-attention-row unavailable-flag">
+          <div>
+            <span class="maintenance-status">Unavailable</span>
+            <h4>${escapeHtml(item.name)}</h4>
+            <small>${escapeHtml(item.barcode)}</small>
+          </div>
+          <button class="needs-attention-log-issue" type="button" data-log-issue="${item.id}">Log an issue</button>
+        </div>`,
+    )
+    .join("");
+
+  needsAttentionContent.innerHTML = `
+    ${
+      cases.length
+        ? `<div class="needs-attention-group">
+            <h3>Open maintenance cases</h3>
+            <div class="needs-attention-list">${caseRows}</div>
+          </div>`
+        : ""
+    }
+    ${
+      flagged.length
+        ? `<div class="needs-attention-group">
+            <h3>Unavailable, no issue logged</h3>
+            <div class="needs-attention-list">${flaggedRows}</div>
+          </div>`
+        : ""
+    }
+    ${
+      !cases.length && !flagged.length
+        ? `<div class="maintenance-empty-state"><strong>All clear</strong><span>No open issues or unresolved availability problems.</span></div>`
+        : ""
+    }
+  `;
+};
+
 const visibleItems = () => {
   const query = state.query.toLowerCase().trim();
   const items = state.items.filter((item) => {
@@ -355,22 +436,16 @@ const visibleItems = () => {
     available: 0,
     checked_out: 1,
     unavailable: 2,
-    not_held: 3,
-    unknown: 4,
   };
   const checkedOutFirst = {
     checked_out: 0,
     available: 1,
     unavailable: 2,
-    not_held: 3,
-    unknown: 4,
   };
   const unavailableFirst = {
     unavailable: 0,
     available: 1,
     checked_out: 2,
-    not_held: 3,
-    unknown: 4,
   };
   const order = {
     "available-first": availableFirst,
@@ -411,8 +486,6 @@ const renderAvailabilityControls = () => {
     ["available", "Available"],
     ["checked_out", "Checked out"],
     ["unavailable", "Unavailable"],
-    ["not_held", "Not held"],
-    ["unknown", "Unknown"],
   ];
   availabilityFilters.innerHTML = definitions
     .map(([status, label]) => {
@@ -580,11 +653,22 @@ const refreshStaleAvailability = async () => {
   );
 };
 
+const loadMaintenanceQueue = async () => {
+  if (!canManage()) return;
+  try {
+    state.maintenanceQueue = await request("/lendery/maintenance");
+  } catch (error) {
+    state.maintenanceQueue = [];
+  }
+  renderNeedsAttentionButton();
+};
+
 const loadItems = async () => {
   try {
     state.items = await request("/lendery/items?limit=100");
     renderAll();
     refreshStaleAvailability();
+    loadMaintenanceQueue();
   } catch (error) {
     grid.innerHTML = `
       <div class="error-state">
@@ -928,6 +1012,7 @@ const reloadMaintenance = async (itemId) => {
   state.maintenanceByItem.set(itemId, cases);
   const item = state.items.find((candidate) => candidate.id === itemId);
   if (item && state.selectedId === itemId) renderDrawer(item);
+  loadMaintenanceQueue();
 };
 
 const refreshSelectedItem = async () => {
@@ -1025,6 +1110,34 @@ document.addEventListener("click", async (event) => {
 
   if (event.target.closest("[data-close-maintenance-dialog]")) {
     maintenanceDialog.close();
+    return;
+  }
+
+  if (event.target.closest("#needs-attention-button")) {
+    if (!canManage()) return;
+    await loadMaintenanceQueue();
+    renderNeedsAttentionDialog();
+    needsAttentionDialog.showModal();
+    return;
+  }
+
+  if (event.target.closest("[data-close-needs-attention]")) {
+    needsAttentionDialog.close();
+    return;
+  }
+
+  const logIssueTrigger = event.target.closest("[data-log-issue]");
+  if (logIssueTrigger) {
+    needsAttentionDialog.close();
+    await openDrawer(logIssueTrigger.dataset.logIssue);
+    openMaintenanceDialog();
+    return;
+  }
+
+  const needsAttentionItemTrigger = event.target.closest("[data-open-item]");
+  if (needsAttentionItemTrigger) {
+    needsAttentionDialog.close();
+    openDrawer(needsAttentionItemTrigger.dataset.openItem);
     return;
   }
 

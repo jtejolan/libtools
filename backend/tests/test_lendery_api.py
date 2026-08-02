@@ -101,19 +101,72 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
         return contents.getvalue()
 
     def create_linked_item(self, barcode: str = "LENDERY-1") -> dict:
+        with patch(
+            "lendery.availability.check_availability",
+            return_value=AvailabilityResult("available", 1, 1),
+        ):
+            response = self.client.post(
+                "/lendery/items",
+                json={
+                    "name": "Carpet cleaner",
+                    "barcode": barcode,
+                    "library_url": (
+                        "https://vaughanpl.bibliocommons.com/"
+                        "v2/record/S130C603511"
+                    ),
+                },
+            )
+        self.assertEqual(response.status_code, 201)
+        return response.json()
+
+    @patch("lendery.availability.check_availability")
+    def test_creating_a_linked_item_checks_availability_immediately(
+        self, check
+    ) -> None:
+        check.return_value = AvailabilityResult("checked_out", 0, 1)
+
         response = self.client.post(
             "/lendery/items",
             json={
                 "name": "Carpet cleaner",
-                "barcode": barcode,
+                "barcode": "IMMEDIATE-1",
                 "library_url": (
                     "https://vaughanpl.bibliocommons.com/"
                     "v2/record/S130C603511"
                 ),
             },
         )
-        self.assertEqual(response.status_code, 201)
-        return response.json()
+
+        self.assertEqual(response.status_code, 201, response.text)
+        created = response.json()
+        self.assertEqual(created["availability_status"], "checked_out")
+        self.assertEqual(created["available_copies"], 0)
+        self.assertIsNotNone(created["availability_checked_at"])
+        check.assert_called_once()
+
+    @patch("lendery.availability.check_availability")
+    def test_changing_the_library_url_checks_availability_immediately(
+        self, check
+    ) -> None:
+        check.return_value = AvailabilityResult("available", 1, 1)
+        created = self.create_linked_item()
+        check.reset_mock()
+
+        check.return_value = AvailabilityResult("not_held", 0, 0)
+        response = self.client.patch(
+            f"/lendery/items/{created['id']}",
+            json={
+                "library_url": (
+                    "https://vaughanpl.bibliocommons.com/"
+                    "v2/record/S130C999999"
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual(body["availability_status"], "not_held")
+        check.assert_called_once()
 
     @patch("lendery.catalogue.fetch_catalogue_item")
     def test_imports_item_details_from_vaughan_catalogue(self, fetch_item) -> None:
@@ -153,8 +206,8 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
     def test_lendery_page_uses_current_autofill_assets(self) -> None:
         response = self.client.get("/lendery")
         self.assertEqual(response.status_code, 200)
-        self.assertIn('/static/lendery.js?v=7', response.text)
-        self.assertIn('/static/lendery.css?v=9', response.text)
+        self.assertIn('/static/lendery.js?v=8', response.text)
+        self.assertIn('/static/lendery.css?v=10', response.text)
 
     @patch("lendery.availability.check_availability")
     def test_item_detail_refreshes_availability(self, check) -> None:
@@ -215,6 +268,37 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
             [entry["barcode"] for entry in unavailable_items],
             ["UNAVAILABLE-1"],
         )
+
+    def test_export_csv_lists_inventory_and_requires_manage_access(self) -> None:
+        self.create_linked_item("EXPORT-1")
+
+        response = self.client.get("/lendery/items/export.csv")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            response.headers["content-type"].startswith("text/csv")
+        )
+        rows = response.text.splitlines()
+        self.assertIn("barcode", rows[0])
+        self.assertTrue(any("EXPORT-1" in row for row in rows[1:]))
+
+        with self.sessions() as db:
+            viewer = LibtoolsUser(
+                username="viewer",
+                password_hash=hash_password("viewer-password"),
+                role="user",
+            )
+            db.add(viewer)
+            db.commit()
+
+        viewer_client = TestClient(app)
+        login = viewer_client.post(
+            "/auth/login",
+            json={"username": "viewer", "password": "viewer-password"},
+        )
+        self.assertEqual(login.status_code, 200)
+        forbidden = viewer_client.get("/lendery/items/export.csv")
+        self.assertEqual(forbidden.status_code, 403)
+        viewer_client.close()
 
     def test_component_photo_upload_is_processed_and_served(self) -> None:
         item = self.create_linked_item()
