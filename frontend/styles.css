@@ -107,18 +107,10 @@ nav a:hover {
 .hero-identity {
   min-height: 470px;
   padding: 52px;
-  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
   flex-direction: column;
-  overflow: hidden;
-  border: 1px solid rgba(24, 59, 51, 0.13);
-  border-radius: 10px;
-  background:
-    radial-gradient(circle at 76% 20%, rgba(224, 173, 86, 0.24), transparent 15rem),
-    var(--paper);
-  box-shadow: 0 24px 70px rgba(24, 59, 51, 0.08);
 }
 
 .hero-logo-mark {
