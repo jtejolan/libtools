@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.exc import IntegrityError
 
-from bookclub import crud, schemas
+from bookclub import catalogue, crud, schemas
 from bookclub.access import require_selected_club
 from dependencies import DatabaseSession
 
@@ -118,6 +118,17 @@ def list_books(
     return crud.list_books(
         db, search=search, offset=offset, limit=limit
     )
+
+
+@router.post("/books/import", response_model=schemas.BookImportResponse)
+def import_book(value: schemas.BookImportRequest):
+    try:
+        return catalogue.fetch_catalogue_book(str(value.catalogue_url))
+    except catalogue.CatalogueImportError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get("/books/{book_id}", response_model=schemas.BookResponse)

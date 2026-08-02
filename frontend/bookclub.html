@@ -255,6 +255,9 @@
         <div class="dialog-heading"><div><p class="eyebrow"><span></span> Book record</p><h2 id="book-dialog-title">Add book</h2></div><button class="icon-button" type="button" data-close="book-dialog">×</button></div>
         <input name="id" type="hidden" />
         <div class="form-grid">
+          <div class="catalogue-import field-wide">
+            <div class="field"><label for="catalogue-url">Vaughan Public Libraries link</label><div class="catalogue-import-row"><input id="catalogue-url" name="catalogue_url" type="url" placeholder="https://vaughanpl.bibliocommons.com/v2/record/…" /><button class="secondary-button" id="import-book" type="button">Fill book details</button></div><small class="field-help" id="import-book-status">Paste a book record link to fill the form automatically.</small></div>
+          </div>
           <label class="field"><span>Title <b>*</b></span><input name="title" required maxlength="300" /></label>
           <label class="field"><span>Author <b>*</b></span><input name="author" required maxlength="200" /></label>
           <label class="field field-wide"><span>Cover image URL</span><input name="cover_image_url" type="url" placeholder="https://…" /></label>
@@ -265,7 +268,6 @@
           <label class="field"><span>Page count</span><input name="page_count" type="number" min="1" /></label>
           <label class="field"><span>Genres or subjects</span><input name="genres" maxlength="500" placeholder="Science fiction, space opera" /></label>
           <label class="field"><span>Series</span><input name="series" maxlength="300" /></label>
-          <label class="field field-wide"><span>Library catalogue URL</span><input name="catalogue_url" type="url" placeholder="https://…" /></label>
           <label class="field field-wide"><span>Book-club notes</span><textarea name="discussion_notes" rows="3" placeholder="Themes, context, or ideas worth returning to"></textarea></label>
         </div>
         <p class="form-error" id="book-error"></p>

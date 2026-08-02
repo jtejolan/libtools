@@ -132,6 +132,53 @@ class BookClubApiTests(unittest.TestCase):
         self.assertEqual(entrypoint.status_code, 200)
         self.assertIn("Book Club Manager", entrypoint.text)
 
+    @patch("bookclub.catalogue.fetch_catalogue_book")
+    def test_imports_a_vaughan_catalogue_book(self, fetch_book) -> None:
+        fetch_book.return_value = {
+            "title": "Project Hail Mary",
+            "author": "Andy Weir",
+            "cover_image_url": "https://www.syndetics.com/cover.jpg",
+            "description": "A lone astronaut must save Earth.",
+            "publication_date": "2021-01-01",
+            "isbn": "9780593135204",
+            "publisher": "Ballantine Books",
+            "page_count": 476,
+            "genres": "Science fiction, Astronauts — Fiction",
+            "series": None,
+            "catalogue_url": "https://vaughanpl.bibliocommons.com/v2/record/S130C532272",
+        }
+
+        response = self.client.post(
+            "/bookclub/books/import",
+            json={
+                "catalogue_url": "https://vaughanpl.bibliocommons.com/v2/record/S130C532272"
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["title"], "Project Hail Mary")
+        self.assertEqual(response.json()["page_count"], 476)
+        fetch_book.assert_called_once_with(
+            "https://vaughanpl.bibliocommons.com/v2/record/S130C532272"
+        )
+
+    @patch("bookclub.catalogue.fetch_catalogue_book")
+    def test_reports_catalogue_import_errors(self, fetch_book) -> None:
+        from bookclub.catalogue import CatalogueImportError
+
+        fetch_book.side_effect = CatalogueImportError(
+            "Enter a Vaughan Public Libraries book record link."
+        )
+        response = self.client.post(
+            "/bookclub/books/import",
+            json={"catalogue_url": "https://example.com/not-a-book"},
+        )
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            response.json()["detail"],
+            "Enter a Vaughan Public Libraries book record link.",
+        )
+
     def test_books_are_reusable_and_protected_while_in_use(self) -> None:
         book = self.create_book("A Wizard of Earthsea")
         updated = self.client.patch(

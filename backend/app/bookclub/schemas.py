@@ -193,6 +193,24 @@ class BookResponse(BookBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class BookImportRequest(BaseModel):
+    catalogue_url: HttpUrl
+
+
+class BookImportResponse(BaseModel):
+    title: str | None = None
+    author: str | None = None
+    cover_image_url: HttpUrl | None = None
+    description: str | None = None
+    publication_date: date | None = None
+    isbn: str | None = None
+    publisher: str | None = None
+    page_count: int | None = None
+    genres: str | None = None
+    series: str | None = None
+    catalogue_url: HttpUrl
+
+
 class MeetingBase(BaseModel):
     meeting_date: date
     meeting_time: str | None = Field(default=None, max_length=50)

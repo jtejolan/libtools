@@ -465,7 +465,57 @@ const openBookDialog = (book = null) => {
   });
   $("#book-dialog-title").textContent = book ? "Edit book" : "Add book";
   $("#book-error").textContent = "";
+  const importStatus = $("#import-book-status");
+  importStatus.textContent = "Paste a book record link to fill the form automatically.";
+  importStatus.className = "field-help";
+  $("#import-book").disabled = false;
   $("#book-dialog").showModal();
+};
+
+const importBookDetails = async () => {
+  const form = $("#book-form");
+  const button = $("#import-book");
+  const status = $("#import-book-status");
+  const catalogueUrl = form.elements.catalogue_url.value.trim();
+  if (!catalogueUrl) {
+    status.textContent = "Paste a Vaughan Public Libraries book link first.";
+    status.className = "field-help error";
+    form.elements.catalogue_url.focus();
+    return;
+  }
+  button.disabled = true;
+  button.textContent = "Finding details…";
+  status.textContent = "Reading the catalogue record…";
+  status.className = "field-help";
+  try {
+    const book = await request("/bookclub/books/import", {
+      method: "POST",
+      body: JSON.stringify({ catalogue_url: catalogueUrl }),
+    });
+    [
+      "title",
+      "author",
+      "cover_image_url",
+      "description",
+      "publication_date",
+      "isbn",
+      "publisher",
+      "page_count",
+      "genres",
+      "series",
+      "catalogue_url",
+    ].forEach((field) => {
+      form.elements[field].value = book[field] ?? "";
+    });
+    status.textContent = "Details added. Review them, then save the book.";
+    status.className = "field-help success";
+  } catch (error) {
+    status.textContent = error.message;
+    status.className = "field-help error";
+  } finally {
+    button.disabled = false;
+    button.textContent = "Fill book details";
+  }
 };
 
 const showMemberHistory = async (memberId) => {
@@ -685,6 +735,13 @@ $("#meeting-form").addEventListener("submit", async (event) => {
   } catch (error) {
     $("#meeting-error").textContent = error.message;
   }
+});
+
+$("#import-book").addEventListener("click", importBookDetails);
+$("#book-form").elements.catalogue_url.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  importBookDetails();
 });
 
 $("#book-form").addEventListener("submit", async (event) => {

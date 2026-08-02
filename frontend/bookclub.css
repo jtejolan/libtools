@@ -168,6 +168,14 @@ tbody tr:hover { background: rgba(255,255,255,.35); }
 .book-card-actions .danger-text { color: var(--danger); }
 .field-help { color: var(--muted); font-size: 10px; }
 .book-dialog { width: min(760px, calc(100% - 32px)); }
+.catalogue-import { padding: 14px; border: 1px solid rgba(22,62,52,.16); border-radius: 8px; background: rgba(255,255,255,.36); }
+.catalogue-import label { display: block; }
+.catalogue-import-row { display: flex; align-items: stretch; gap: 10px; }
+.catalogue-import-row input { min-width: 0; flex: 1; }
+.catalogue-import-row button { flex: 0 0 auto; white-space: nowrap; }
+.catalogue-import .field-help { display: block; margin-top: 7px; }
+.catalogue-import .field-help.success { color: var(--forest); font-weight: 600; }
+.catalogue-import .field-help.error { color: #9c342a; }
 
 .meeting-lower-grid { margin-top: 20px; display: grid; grid-template-columns: .8fr 1.2fr; gap: 20px; }
 .giveaway-content { min-height: 300px; padding: 28px; display: flex; align-items: center; flex-direction: column; justify-content: center; text-align: center; }
@@ -220,7 +228,7 @@ tbody tr:hover { background: rgba(255,255,255,.35); }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 .field { display: grid; gap: 6px; }
 .field-wide { grid-column: 1 / -1; }
-.field > span { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .03em; }
+.field > span, .field > label { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .03em; }
 .field b { color: var(--orange); }
 .field input, .field textarea, .field select { width: 100%; padding: 10px 11px; border: 1px solid var(--line); border-radius: 6px; outline: 0; color: var(--ink); background: var(--paper); }
 .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(22,62,52,.08); }
@@ -291,6 +299,7 @@ footer { padding: 26px 38px; display: flex; justify-content: space-between; gap:
   .meeting-card { grid-template-columns: 82px minmax(0, 1fr) auto; gap: 14px; padding: 16px; }
   .meeting-date { font-size: 17px; }
   .form-grid { grid-template-columns: 1fr; }
+  .catalogue-import-row { flex-direction: column; }
   .field-wide { grid-column: auto; }
   footer { flex-direction: column; }
 }
