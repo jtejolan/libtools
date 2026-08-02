@@ -1,8 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title">
   <title id="title">Compass</title>
-  <circle cx="24" cy="24" r="20" fill="none" stroke="#163e34" stroke-width="3" />
-  <path d="M24 7v4M24 37v4M7 24h4M37 24h4" stroke="#163e34" stroke-width="2" stroke-linecap="round" />
-  <path d="m29.5 18.5-3.2 7.8-7.8 3.2 3.2-7.8 7.8-3.2Z" fill="#e0ad56" stroke="#163e34" stroke-width="1.5" stroke-linejoin="round" />
-  <path d="m29.5 18.5-7.8 3.2 4.6 4.6 3.2-7.8Z" fill="#d96e3c" />
-  <circle cx="24" cy="24" r="2" fill="#163e34" />
+  <circle cx="24" cy="24" r="20" fill="none" stroke="#fff" stroke-width="3" />
+  <path d="M24 7v4M24 37v4M7 24h4M37 24h4" stroke="#fff" stroke-width="2" stroke-linecap="round" />
+  <path d="m29.5 18.5-3.2 7.8-7.8 3.2 3.2-7.8 7.8-3.2Z" fill="#fff" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" />
+  <circle cx="24" cy="24" r="2" fill="#fff" />
 </svg>
