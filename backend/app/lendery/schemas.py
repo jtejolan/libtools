@@ -10,6 +10,7 @@ from pydantic import (
     Field,
     HttpUrl,
     field_validator,
+    model_validator,
 )
 
 AvailabilityStatus = Literal[
@@ -222,3 +223,90 @@ class CatalogueItemImportResponse(BaseModel):
     image_url: HttpUrl | None = None
     manual_url: HttpUrl | None = None
     library_url: HttpUrl
+
+
+MaintenanceStatus = Literal[
+    "open",
+    "waiting_for_part",
+    "in_repair",
+    "resolved",
+    "cancelled",
+]
+MaintenanceEventType = Literal[
+    "issue_update",
+    "part_ordered",
+    "part_received",
+    "part_installed",
+    "repair_completed",
+]
+
+
+class MaintenanceCaseCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+    component_id: int | None = Field(default=None, ge=1)
+    status: MaintenanceStatus = "open"
+
+
+class MaintenanceCaseUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = None
+    status: MaintenanceStatus | None = None
+
+    @field_validator("title", "status")
+    @classmethod
+    def required_values_cannot_be_null(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("field cannot be null")
+        return value
+
+
+class MaintenanceEventCreate(BaseModel):
+    event_type: MaintenanceEventType
+    note: str | None = None
+    part_name: str | None = Field(default=None, max_length=200)
+    quantity: int | None = Field(default=None, ge=1)
+    cost: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    vendor_url: HttpUrl | None = None
+    order_number: str | None = Field(default=None, max_length=100)
+    new_status: MaintenanceStatus | None = None
+
+    @model_validator(mode="after")
+    def part_events_have_a_part(self):
+        if self.event_type.startswith("part_") and not self.part_name:
+            raise ValueError("Part name is required for part updates")
+        if self.event_type == "issue_update" and not self.note:
+            raise ValueError("Add a note describing the update")
+        return self
+
+
+class MaintenanceEventResponse(BaseModel):
+    id: int
+    event_type: MaintenanceEventType
+    note: str | None = None
+    part_name: str | None = None
+    quantity: int | None = None
+    cost: Decimal | None = None
+    vendor_url: str | None = None
+    order_number: str | None = None
+    status_after: MaintenanceStatus | None = None
+    created_by_name: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MaintenanceCaseResponse(BaseModel):
+    id: int
+    item_id: int
+    component_id: int | None = None
+    component_name: str | None = None
+    title: str
+    description: str | None = None
+    status: MaintenanceStatus
+    opened_by_name: str
+    opened_at: datetime
+    resolved_at: datetime | None = None
+    events: list[MaintenanceEventResponse] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)

@@ -571,7 +571,15 @@ footer p {
   line-height: 1.55;
 }
 
-footer > a:last-child {
+.footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.footer-links a {
   justify-self: end;
   font-weight: 600;
 }
@@ -768,6 +776,10 @@ footer > a:last-child {
 
   footer {
     min-height: 100px;
+  }
+
+  .footer-links {
+    gap: 12px;
   }
 
   .footer-brand > span:last-child {

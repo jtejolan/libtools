@@ -1490,6 +1490,218 @@ footer {
   color: var(--orange);
 }
 
+.maintenance-section {
+  margin: 28px 0 0;
+  padding: 26px 0 28px;
+  border-top: 1px solid var(--line);
+}
+
+.maintenance-new,
+.maintenance-update-form > button {
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 1px solid var(--forest);
+  border-radius: 5px;
+  color: var(--paper);
+  background: var(--forest);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.maintenance-intro {
+  margin: 9px 0 17px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.maintenance-cases {
+  display: grid;
+  gap: 13px;
+}
+
+.maintenance-case {
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--orange);
+  border-radius: 7px;
+  background: rgba(255, 250, 241, 0.72);
+}
+
+.maintenance-case.waiting_for_part {
+  border-left-color: var(--gold);
+}
+
+.maintenance-case.in_repair {
+  border-left-color: var(--danger);
+}
+
+.maintenance-case.resolved,
+.maintenance-case.cancelled {
+  border-left-color: var(--moss);
+}
+
+.maintenance-case-heading,
+.maintenance-event-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.maintenance-case-heading h4 {
+  margin: 5px 0 0;
+  font-family: var(--serif);
+  font-size: 22px;
+}
+
+.maintenance-case-heading > small,
+.maintenance-case > small,
+.maintenance-event small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.maintenance-case > p {
+  margin: 11px 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.maintenance-status {
+  display: inline-flex;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: var(--forest);
+  background: rgba(131, 157, 107, 0.16);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.maintenance-timeline {
+  margin: 17px 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+  list-style: none;
+}
+
+.maintenance-event {
+  min-height: 54px;
+  position: relative;
+  padding: 0 0 16px 22px;
+}
+
+.maintenance-event:not(:last-child)::before {
+  width: 1px;
+  position: absolute;
+  left: 5px;
+  top: 10px;
+  bottom: 0;
+  content: "";
+  background: var(--line);
+}
+
+.maintenance-event-mark {
+  width: 11px;
+  height: 11px;
+  position: absolute;
+  left: 0;
+  top: 4px;
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+  background: var(--moss);
+  box-shadow: 0 0 0 1px var(--moss);
+}
+
+.maintenance-event-heading strong {
+  font-size: 13px;
+}
+
+.maintenance-event-heading time {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.maintenance-event p {
+  margin: 5px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.maintenance-event a,
+.maintenance-event small {
+  margin-top: 4px;
+  display: block;
+}
+
+.maintenance-event a {
+  color: var(--orange);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.maintenance-update-form {
+  margin-top: 15px;
+  padding-top: 15px;
+  display: grid;
+  gap: 11px;
+  border-top: 1px solid var(--line);
+}
+
+.maintenance-update-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.maintenance-part-details {
+  padding: 10px 0;
+  border-top: 1px dashed var(--line);
+  border-bottom: 1px dashed var(--line);
+}
+
+.maintenance-part-details summary {
+  color: var(--forest);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.maintenance-part-details[open] summary {
+  margin-bottom: 11px;
+}
+
+.maintenance-order-url {
+  grid-column: 1 / -1;
+}
+
+.maintenance-empty,
+.maintenance-empty-state {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.maintenance-empty-state {
+  min-height: 90px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  border: 1px dashed var(--line);
+  border-radius: 7px;
+  text-align: center;
+}
+
+.maintenance-empty-state strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
 .components-section {
   padding-top: 26px;
   border-top: 1px solid var(--line);
@@ -2148,6 +2360,14 @@ footer {
 
   .component-list {
     grid-template-columns: 1fr;
+  }
+
+  .maintenance-update-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .maintenance-order-url {
+    grid-column: auto;
   }
 }
 

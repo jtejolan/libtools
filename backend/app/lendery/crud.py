@@ -5,7 +5,7 @@ from typing import Any
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from lendery import availability, component_images, models, schemas
 
@@ -263,3 +263,128 @@ def delete_component(
         db.rollback()
         raise
     return True
+
+
+def list_maintenance_cases(
+    db: Session,
+    item_id: int,
+) -> list[models.MaintenanceCase] | None:
+    if get_item(db, item_id) is None:
+        return None
+    statement = (
+        select(models.MaintenanceCase)
+        .options(selectinload(models.MaintenanceCase.events))
+        .where(models.MaintenanceCase.item_id == item_id)
+        .order_by(
+            models.MaintenanceCase.resolved_at.is_not(None),
+            models.MaintenanceCase.opened_at.desc(),
+            models.MaintenanceCase.id.desc(),
+        )
+    )
+    return list(db.scalars(statement))
+
+
+def get_maintenance_case(
+    db: Session,
+    case_id: int,
+) -> models.MaintenanceCase | None:
+    statement = (
+        select(models.MaintenanceCase)
+        .options(selectinload(models.MaintenanceCase.events))
+        .where(models.MaintenanceCase.id == case_id)
+    )
+    return db.scalar(statement)
+
+
+def create_maintenance_case(
+    db: Session,
+    item_id: int,
+    value: schemas.MaintenanceCaseCreate,
+    *,
+    actor_id: int,
+    actor_name: str,
+) -> models.MaintenanceCase | None:
+    item = get_item(db, item_id)
+    if item is None:
+        return None
+    component_name = None
+    if value.component_id is not None:
+        component = get_component(db, value.component_id)
+        if component is None or component.item_id != item_id:
+            raise ValueError("Component does not belong to this item")
+        component_name = component.name
+    case = models.MaintenanceCase(
+        item=item,
+        component_id=value.component_id,
+        component_name=component_name,
+        title=value.title,
+        description=value.description,
+        status=value.status,
+        opened_by_user_id=actor_id,
+        opened_by_name=actor_name,
+    )
+    if value.status in {"resolved", "cancelled"}:
+        case.resolved_at = datetime.now(timezone.utc)
+    db.add(case)
+    _commit(db, case)
+    return get_maintenance_case(db, case.id)
+
+
+def update_maintenance_case(
+    db: Session,
+    case_id: int,
+    value: schemas.MaintenanceCaseUpdate,
+) -> models.MaintenanceCase | None:
+    case = get_maintenance_case(db, case_id)
+    if case is None:
+        return None
+    update_data = value.model_dump(exclude_unset=True)
+    for field in ("title", "description", "status"):
+        if field in update_data:
+            setattr(case, field, update_data[field])
+    if "status" in update_data:
+        case.resolved_at = (
+            datetime.now(timezone.utc)
+            if case.status in {"resolved", "cancelled"}
+            else None
+        )
+    _commit(db, case)
+    return get_maintenance_case(db, case.id)
+
+
+def add_maintenance_event(
+    db: Session,
+    case_id: int,
+    value: schemas.MaintenanceEventCreate,
+    *,
+    actor_id: int,
+    actor_name: str,
+) -> models.MaintenanceCase | None:
+    case = get_maintenance_case(db, case_id)
+    if case is None:
+        return None
+    automatic_status = {
+        "part_ordered": "waiting_for_part",
+        "part_received": "in_repair",
+        "part_installed": "in_repair",
+        "repair_completed": "resolved",
+    }.get(value.event_type)
+    status_after = value.new_status or automatic_status
+    event_data = value.model_dump(mode="json", exclude={"new_status"})
+    event = models.MaintenanceEvent(
+        case=case,
+        **event_data,
+        status_after=status_after,
+        created_by_user_id=actor_id,
+        created_by_name=actor_name,
+    )
+    if status_after is not None:
+        case.status = status_after
+        case.resolved_at = (
+            datetime.now(timezone.utc)
+            if status_after in {"resolved", "cancelled"}
+            else None
+        )
+    db.add(event)
+    _commit(db, event)
+    return get_maintenance_case(db, case.id)

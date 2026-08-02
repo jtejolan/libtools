@@ -147,17 +147,18 @@ class PlatformAccountTests(unittest.TestCase):
             ["bookclub", "lendery_manage", "storytime"],
         )
 
-    def test_lendery_access_is_a_personal_account_permission(self) -> None:
+    def test_lendery_view_is_default_and_edit_access_can_be_toggled(self) -> None:
         created = self.admin.post(
             "/api/admin/users",
             json={
                 "username": "Inventory Viewer",
                 "password": "viewer-password",
                 "confirm_password": "viewer-password",
-                "tools": ["lendery_view"],
+                "tools": [],
             },
         )
         self.assertEqual(created.status_code, 201, created.text)
+        self.assertEqual(created.json()["tools"], [])
         client = TestClient(app)
         try:
             self.assertEqual(
@@ -176,6 +177,34 @@ class PlatformAccountTests(unittest.TestCase):
                 client.post(
                     "/lendery/items",
                     json={"name": "Projector", "barcode": "P-1"},
+                ).status_code,
+                403,
+            )
+
+            enabled = self.admin.patch(
+                f"/api/admin/users/{created.json()['id']}",
+                json={"tools": ["lendery_manage"]},
+            )
+            self.assertEqual(enabled.status_code, 200, enabled.text)
+            self.assertEqual(enabled.json()["tools"], ["lendery_manage"])
+            self.assertEqual(
+                client.post(
+                    "/lendery/items",
+                    json={"name": "Projector", "barcode": "P-2"},
+                ).status_code,
+                201,
+            )
+
+            disabled = self.admin.patch(
+                f"/api/admin/users/{created.json()['id']}",
+                json={"tools": []},
+            )
+            self.assertEqual(disabled.status_code, 200, disabled.text)
+            self.assertEqual(client.get("/lendery/items").status_code, 200)
+            self.assertEqual(
+                client.post(
+                    "/lendery/items",
+                    json={"name": "Projector", "barcode": "P-3"},
                 ).status_code,
                 403,
             )

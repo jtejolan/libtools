@@ -20,8 +20,8 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/lendery.css?v=8" />
-    <script src="/static/lendery.js?v=5" defer></script>
+    <link rel="stylesheet" href="/static/lendery.css?v=9" />
+    <script src="/static/lendery.js?v=7" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -266,6 +266,47 @@
       </form>
     </dialog>
 
+    <dialog class="item-dialog maintenance-dialog" id="maintenance-dialog">
+      <form id="maintenance-case-form">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow"><span></span> Maintenance &amp; repairs</p>
+            <h2>Report an issue</h2>
+          </div>
+          <button class="icon-button" type="button" data-close-maintenance-dialog aria-label="Close">×</button>
+        </div>
+        <div class="form-grid">
+          <label class="field field-wide">
+            <span>What needs attention? <b>*</b></span>
+            <input name="title" required maxlength="200" placeholder="e.g. Missing charger" />
+          </label>
+          <label class="field field-wide">
+            <span>Details</span>
+            <textarea name="description" rows="4" placeholder="Describe the problem and anything learned from the internal notes."></textarea>
+          </label>
+          <label class="field">
+            <span>Affected component</span>
+            <select name="component_id" id="maintenance-component">
+              <option value="">Whole item</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Starting status</span>
+            <select name="status">
+              <option value="open">Open</option>
+              <option value="waiting_for_part">Waiting for part</option>
+              <option value="in_repair">In repair</option>
+            </select>
+          </label>
+        </div>
+        <p class="form-error" id="maintenance-form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="text-button" type="button" data-close-maintenance-dialog>Cancel</button>
+          <button class="primary-button" type="submit">Create repair log</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog class="auth-dialog" id="login-dialog">
       <form id="login-form">
         <div class="auth-mark" aria-hidden="true">
@@ -273,7 +314,7 @@
         </div>
         <p class="eyebrow"><span></span> Library inventory</p>
         <h2>Welcome to Lendery</h2>
-        <p class="auth-intro">Sign in with a personal Libtools account that has Lendery access.</p>
+        <p class="auth-intro">Sign in with your personal Libtools account.</p>
         <label class="field">
           <span>Name</span>
           <input

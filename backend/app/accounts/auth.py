@@ -36,7 +36,10 @@ def user_response(db: Session, user: LibtoolsUser) -> UserResponse:
     tools = list(
         db.scalars(
             select(ToolAccess.tool_key)
-            .where(ToolAccess.user_id == user.id)
+            .where(
+                ToolAccess.user_id == user.id,
+                ToolAccess.tool_key != "lendery_view",
+            )
             .order_by(ToolAccess.tool_key)
         )
     )
@@ -109,14 +112,11 @@ def has_tool_access(db: Session, user: LibtoolsUser, tool_key: str) -> bool:
     ) is not None
 
 
-def require_lendery_view(user: CurrentUser, db: DatabaseSession) -> LibtoolsUser:
-    allowed = has_tool_access(db, user, "lendery_view") or has_tool_access(
-        db, user, "lendery_manage"
-    )
-    if not allowed:
+def require_lendery_view(user: CurrentUser) -> LibtoolsUser:
+    if user.must_change_password:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Lendery access is required",
+            detail="Change your temporary password before continuing",
         )
     return user
 
@@ -125,7 +125,7 @@ def require_lendery_manage(user: CurrentUser, db: DatabaseSession) -> LibtoolsUs
     if not has_tool_access(db, user, "lendery_manage"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Lendery management access is required",
+            detail="Lendery edit access is required",
         )
     return user
 
@@ -144,8 +144,7 @@ def set_tools(db: Session, user: LibtoolsUser, tools: list[str]) -> None:
     for entry in existing:
         db.delete(entry)
     selected = set(tools)
-    if "lendery_manage" in selected:
-        selected.discard("lendery_view")
+    selected.discard("lendery_view")
     db.add_all(ToolAccess(user=user, tool_key=key) for key in sorted(selected))
 
 

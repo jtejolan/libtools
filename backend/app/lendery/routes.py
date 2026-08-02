@@ -368,3 +368,98 @@ def delete_component(
         )
     component_images.delete_component_image(component_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/items/{item_id}/maintenance",
+    response_model=list[schemas.MaintenanceCaseResponse],
+)
+def list_maintenance_cases(
+    item_id: int,
+    db: DatabaseSession,
+    _editor=Depends(require_lendery_manage),
+):
+    cases = crud.list_maintenance_cases(db, item_id)
+    if cases is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item not found",
+        )
+    return cases
+
+
+@router.post(
+    "/items/{item_id}/maintenance",
+    response_model=schemas.MaintenanceCaseResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_maintenance_case(
+    item_id: int,
+    value: schemas.MaintenanceCaseCreate,
+    db: DatabaseSession,
+    editor=Depends(require_lendery_manage),
+):
+    try:
+        case = crud.create_maintenance_case(
+            db,
+            item_id,
+            value,
+            actor_id=editor.id,
+            actor_name=editor.username,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        ) from exc
+    if case is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item not found",
+        )
+    return case
+
+
+@router.patch(
+    "/maintenance/{case_id}",
+    response_model=schemas.MaintenanceCaseResponse,
+)
+def update_maintenance_case(
+    case_id: int,
+    value: schemas.MaintenanceCaseUpdate,
+    db: DatabaseSession,
+    _editor=Depends(require_lendery_manage),
+):
+    case = crud.update_maintenance_case(db, case_id, value)
+    if case is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Maintenance case not found",
+        )
+    return case
+
+
+@router.post(
+    "/maintenance/{case_id}/events",
+    response_model=schemas.MaintenanceCaseResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_maintenance_event(
+    case_id: int,
+    value: schemas.MaintenanceEventCreate,
+    db: DatabaseSession,
+    editor=Depends(require_lendery_manage),
+):
+    case = crud.add_maintenance_event(
+        db,
+        case_id,
+        value,
+        actor_id=editor.id,
+        actor_name=editor.username,
+    )
+    if case is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Maintenance case not found",
+        )
+    return case

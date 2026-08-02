@@ -75,10 +75,6 @@ class LenderyAuthorizationTests(unittest.TestCase):
                         user_id=users["manager"].id,
                         tool_key="lendery_manage",
                     ),
-                    ToolAccess(
-                        user_id=users["viewer"].id,
-                        tool_key="lendery_view",
-                    ),
                 ]
             )
             db.commit()
@@ -119,9 +115,9 @@ class LenderyAuthorizationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
 
-    def test_inventory_requires_personal_account_and_permission(self) -> None:
+    def test_inventory_requires_a_personal_account(self) -> None:
         self.assertEqual(self.anonymous.get("/lendery/items").status_code, 401)
-        self.assertEqual(self.other.get("/lendery/items").status_code, 403)
+        self.assertEqual(self.other.get("/lendery/items").status_code, 200)
 
     def test_viewer_can_view_and_refresh(self) -> None:
         item = self.create_item()
@@ -136,6 +132,13 @@ class LenderyAuthorizationTests(unittest.TestCase):
             ).status_code,
             200,
         )
+
+    def test_default_viewer_cannot_change_inventory(self) -> None:
+        response = self.other.post(
+            "/lendery/items",
+            json={"name": "New item", "barcode": "NEW-1"},
+        )
+        self.assertEqual(response.status_code, 403)
 
     def test_viewer_cannot_change_inventory(self) -> None:
         item = self.create_item()
@@ -175,6 +178,85 @@ class LenderyAuthorizationTests(unittest.TestCase):
         self.assertEqual(changed.status_code, 200, changed.text)
         self.assertEqual(self.manager.get("/docs").status_code, 403)
         self.assertEqual(self.admin.get("/docs").status_code, 200)
+
+    def test_maintenance_log_is_editor_only_and_tracks_repair_history(self) -> None:
+        item = self.create_item()
+        component_id = item["components"][0]["id"]
+
+        self.assertEqual(
+            self.viewer.get(
+                f"/lendery/items/{item['id']}/maintenance"
+            ).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.viewer.post(
+                f"/lendery/items/{item['id']}/maintenance",
+                json={"title": "Missing remote"},
+            ).status_code,
+            403,
+        )
+
+        created = self.manager.post(
+            f"/lendery/items/{item['id']}/maintenance",
+            json={
+                "title": "Damaged remote",
+                "description": "Buttons no longer respond.",
+                "component_id": component_id,
+            },
+        )
+        self.assertEqual(created.status_code, 201, created.text)
+        repair_case = created.json()
+        self.assertEqual(repair_case["status"], "open")
+        self.assertEqual(repair_case["component_name"], "Remote")
+
+        ordered = self.manager.post(
+            f"/lendery/maintenance/{repair_case['id']}/events",
+            json={
+                "event_type": "part_ordered",
+                "note": "Ordered a replacement.",
+                "part_name": "Replacement remote",
+                "quantity": 1,
+                "cost": "24.99",
+                "vendor_url": "https://example.com/remote",
+                "order_number": "PO-123",
+            },
+        )
+        self.assertEqual(ordered.status_code, 201, ordered.text)
+        self.assertEqual(ordered.json()["status"], "waiting_for_part")
+
+        installed = self.manager.post(
+            f"/lendery/maintenance/{repair_case['id']}/events",
+            json={
+                "event_type": "part_installed",
+                "part_name": "Replacement remote",
+                "note": "Added to the kit and tested.",
+            },
+        )
+        self.assertEqual(installed.status_code, 201, installed.text)
+        self.assertEqual(installed.json()["status"], "in_repair")
+
+        completed = self.manager.post(
+            f"/lendery/maintenance/{repair_case['id']}/events",
+            json={
+                "event_type": "repair_completed",
+                "note": "Item is ready for circulation.",
+            },
+        )
+        self.assertEqual(completed.status_code, 201, completed.text)
+        self.assertEqual(completed.json()["status"], "resolved")
+        self.assertIsNotNone(completed.json()["resolved_at"])
+
+        history = self.manager.get(
+            f"/lendery/items/{item['id']}/maintenance"
+        )
+        self.assertEqual(history.status_code, 200, history.text)
+        self.assertEqual(len(history.json()), 1)
+        self.assertEqual(len(history.json()[0]["events"]), 3)
+        self.assertEqual(
+            history.json()[0]["events"][0]["created_by_name"],
+            "manager",
+        )
 
     def test_shared_lendery_login_endpoints_are_removed(self) -> None:
         self.assertEqual(

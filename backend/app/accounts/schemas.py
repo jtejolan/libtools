@@ -3,9 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-ToolKey = Literal[
-    "bookclub", "storytime", "lendery_view", "lendery_manage"
-]
+ToolKey = Literal["bookclub", "storytime", "lendery_manage"]
 PlatformRole = Literal["user", "admin"]
 
 

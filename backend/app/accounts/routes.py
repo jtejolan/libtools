@@ -104,6 +104,7 @@ def create_user(value: schemas.UserCreate, db: DatabaseSession):
         password_hash=hash_password(value.password),
         role=value.role,
     )
+    db.add(user)
     code = auth.issue_recovery_code(user)
     auth.set_tools(db, user, value.tools)
     try:

@@ -11,6 +11,14 @@ from security import hash_password
 
 
 def initialize_platform_accounts(db: Session) -> None:
+    legacy_view_access = list(
+        db.scalars(
+            select(ToolAccess).where(ToolAccess.tool_key == "lendery_view")
+        )
+    )
+    for access in legacy_view_access:
+        db.delete(access)
+
     user = db.scalar(select(LibtoolsUser).order_by(LibtoolsUser.id))
     if user is None:
         legacy_hash = None

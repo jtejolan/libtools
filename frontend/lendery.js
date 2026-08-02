@@ -7,6 +7,7 @@ const state = {
   availabilitySort: "",
   selectedId: null,
   checkedComponents: new Set(),
+  maintenanceByItem: new Map(),
   refreshingIds: new Set(),
   refreshPromises: new Map(),
 };
@@ -34,6 +35,9 @@ const accountActions = document.querySelector("#account-actions");
 const roleBadge = document.querySelector("#role-badge");
 const accountMenu = document.querySelector("#account-menu");
 const accountMenuName = document.querySelector("#account-menu-name");
+const maintenanceDialog = document.querySelector("#maintenance-dialog");
+const maintenanceCaseForm = document.querySelector("#maintenance-case-form");
+const maintenanceFormError = document.querySelector("#maintenance-form-error");
 
 const escapeHtml = (value = "") =>
   String(value)
@@ -95,15 +99,10 @@ const uploadComponentPhoto = async (componentId, file) => {
 const canManage = () =>
   state.user?.role === "admin" || state.user?.tools?.includes("lendery_manage");
 
-const canView = (user) =>
-  user.role === "admin" ||
-  user.tools.includes("lendery_view") ||
-  user.tools.includes("lendery_manage");
-
 const applyUser = (user) => {
   state.user = user;
   accountActions.hidden = false;
-  roleBadge.textContent = canManage() ? "Lendery manager" : "Lendery viewer";
+  roleBadge.textContent = canManage() ? "Lendery editor" : "Lendery viewer";
   accountMenuName.textContent = user.username;
   document.querySelectorAll("[data-admin-only]").forEach((element) => {
     element.hidden = !canManage();
@@ -115,10 +114,12 @@ const applyUser = (user) => {
 
 const showLogin = () => {
   state.user = null;
+  state.maintenanceByItem.clear();
   accountActions.hidden = true;
   accountMenu.open = false;
   closeDrawer();
   if (dialog.open) dialog.close();
+  if (maintenanceDialog.open) maintenanceDialog.close();
   if (!loginDialog.open) loginDialog.showModal();
 };
 
@@ -206,6 +207,132 @@ const formatCheckedAt = (value) => {
     ? "Check time unavailable"
     : `Checked ${date.toLocaleString()}`;
 };
+
+const formatMaintenanceDate = (value) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Date unavailable" : date.toLocaleString();
+};
+
+const maintenanceStatusLabel = (status) =>
+  ({
+    open: "Open",
+    waiting_for_part: "Waiting for part",
+    in_repair: "In repair",
+    resolved: "Resolved",
+    cancelled: "Cancelled",
+  })[status] || status;
+
+const maintenanceEventLabel = (type) =>
+  ({
+    issue_update: "Update",
+    part_ordered: "Part ordered",
+    part_received: "Part received",
+    part_installed: "Part installed",
+    repair_completed: "Repair completed",
+  })[type] || type;
+
+const renderMaintenanceEvent = (entry) => {
+  const details = [];
+  if (entry.part_name) {
+    details.push(`${entry.quantity || 1} × ${entry.part_name}`);
+  }
+  if (entry.cost !== null && entry.cost !== undefined) {
+    details.push(`$${Number(entry.cost).toFixed(2)}`);
+  }
+  if (entry.order_number) details.push(`Order ${entry.order_number}`);
+  const vendorUrl = safeUrl(entry.vendor_url);
+  return `<li class="maintenance-event">
+    <span class="maintenance-event-mark" aria-hidden="true"></span>
+    <div>
+      <div class="maintenance-event-heading">
+        <strong>${escapeHtml(maintenanceEventLabel(entry.event_type))}</strong>
+        <time>${escapeHtml(formatMaintenanceDate(entry.created_at))}</time>
+      </div>
+      ${entry.note ? `<p>${escapeHtml(entry.note)}</p>` : ""}
+      ${details.length ? `<small>${escapeHtml(details.join(" · "))}</small>` : ""}
+      ${vendorUrl ? `<a href="${escapeHtml(vendorUrl)}" target="_blank" rel="noreferrer">Open order source ↗</a>` : ""}
+      <small>Recorded by ${escapeHtml(entry.created_by_name)}${entry.status_after ? ` · ${escapeHtml(maintenanceStatusLabel(entry.status_after))}` : ""}</small>
+    </div>
+  </li>`;
+};
+
+const renderMaintenanceSection = (cases) => `
+  <section class="maintenance-section">
+    <div class="section-title-row">
+      <div>
+        <p class="drawer-category">Editor workspace</p>
+        <h3>Maintenance &amp; repairs</h3>
+      </div>
+      <button class="maintenance-new" id="new-maintenance-case" type="button">＋ Report issue</button>
+    </div>
+    <p class="maintenance-intro">Record problems, replacement orders, installations, and completed repairs.</p>
+    <div class="maintenance-cases">
+      ${
+        cases.length
+          ? cases
+              .map(
+                (repairCase) => `<article class="maintenance-case ${escapeHtml(repairCase.status)}">
+                  <div class="maintenance-case-heading">
+                    <div>
+                      <span class="maintenance-status">${escapeHtml(maintenanceStatusLabel(repairCase.status))}</span>
+                      <h4>${escapeHtml(repairCase.title)}</h4>
+                    </div>
+                    ${repairCase.component_name ? `<small>${escapeHtml(repairCase.component_name)}</small>` : ""}
+                  </div>
+                  ${repairCase.description ? `<p>${escapeHtml(repairCase.description)}</p>` : ""}
+                  <small>Opened ${escapeHtml(formatMaintenanceDate(repairCase.opened_at))} by ${escapeHtml(repairCase.opened_by_name)}</small>
+                  ${
+                    repairCase.events.length
+                      ? `<ol class="maintenance-timeline">${repairCase.events.map(renderMaintenanceEvent).join("")}</ol>`
+                      : `<p class="maintenance-empty">No updates recorded yet.</p>`
+                  }
+                  <form class="maintenance-update-form" data-maintenance-case-id="${repairCase.id}">
+                    <div class="maintenance-update-grid">
+                      <label class="field">
+                        <span>Update type</span>
+                        <select name="event_type">
+                          <option value="issue_update">General update</option>
+                          <option value="part_ordered">Part ordered</option>
+                          <option value="part_received">Part received</option>
+                          <option value="part_installed">Part installed</option>
+                          <option value="repair_completed">Repair completed</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>New status</span>
+                        <select name="new_status">
+                          <option value="">Update automatically</option>
+                          <option value="open">Open</option>
+                          <option value="waiting_for_part">Waiting for part</option>
+                          <option value="in_repair">In repair</option>
+                          <option value="resolved">Resolved</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </label>
+                    </div>
+                    <label class="field">
+                      <span>Note</span>
+                      <textarea name="note" rows="2" placeholder="What changed?"></textarea>
+                    </label>
+                    <details class="maintenance-part-details">
+                      <summary>Part or order details</summary>
+                      <div class="maintenance-update-grid">
+                        <label class="field"><span>Part name</span><input name="part_name" maxlength="200" /></label>
+                        <label class="field"><span>Quantity</span><input name="quantity" type="number" min="1" /></label>
+                        <label class="field"><span>Cost</span><input name="cost" type="number" min="0" step="0.01" /></label>
+                        <label class="field"><span>Order number</span><input name="order_number" maxlength="100" /></label>
+                        <label class="field maintenance-order-url"><span>Vendor or order URL</span><input name="vendor_url" type="url" placeholder="https://…" /></label>
+                      </div>
+                    </details>
+                    <button type="submit">Add to repair log</button>
+                  </form>
+                </article>`,
+              )
+              .join("")
+          : `<div class="maintenance-empty-state"><strong>No repair history</strong><span>Report an issue when this item needs attention.</span></div>`
+      }
+    </div>
+  </section>`;
 
 const visibleItems = () => {
   const query = state.query.toLowerCase().trim();
@@ -633,6 +760,8 @@ const renderDrawer = (item) => {
 
       ${item.notes ? `<p class="drawer-description"><strong>Staff notes:</strong> ${escapeHtml(item.notes)}</p>` : ""}
 
+      ${canManage() ? renderMaintenanceSection(state.maintenanceByItem.get(item.id) || []) : ""}
+
       <section class="components-section">
         <div class="section-title-row">
           <div>
@@ -761,11 +890,44 @@ const openDrawer = async (itemId) => {
   drawer.setAttribute("aria-hidden", "false");
   document.querySelector("#drawer-close").focus();
 
+  if (canManage()) {
+    try {
+      const cases = await request(`/lendery/items/${item.id}/maintenance`);
+      state.maintenanceByItem.set(item.id, cases);
+      if (state.selectedId === item.id) renderDrawer(item);
+    } catch (error) {
+      showToast(error.message);
+    }
+  }
+
   if (!item.library_url) return;
   const refreshedItem = await refreshAvailabilityForItem(item, {
     showErrors: true,
   });
   if (state.selectedId === item.id) renderDrawer(refreshedItem);
+};
+
+const openMaintenanceDialog = () => {
+  if (!canManage() || !state.selectedId) return;
+  const item = state.items.find((candidate) => candidate.id === state.selectedId);
+  if (!item) return;
+  maintenanceCaseForm.reset();
+  maintenanceFormError.textContent = "";
+  const componentSelect = document.querySelector("#maintenance-component");
+  componentSelect.innerHTML = `<option value="">Whole item</option>${item.components
+    .map(
+      (component) =>
+        `<option value="${component.id}">${escapeHtml(component.name)}</option>`,
+    )
+    .join("")}`;
+  maintenanceDialog.showModal();
+};
+
+const reloadMaintenance = async (itemId) => {
+  const cases = await request(`/lendery/items/${itemId}/maintenance`);
+  state.maintenanceByItem.set(itemId, cases);
+  const item = state.items.find((candidate) => candidate.id === itemId);
+  if (item && state.selectedId === itemId) renderDrawer(item);
 };
 
 const refreshSelectedItem = async () => {
@@ -807,6 +969,36 @@ itemForm.addEventListener("submit", async (event) => {
   }
 });
 
+maintenanceCaseForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!canManage() || !state.selectedId) return;
+  const itemId = state.selectedId;
+  maintenanceFormError.textContent = "";
+  const button = event.target.querySelector("button[type='submit']");
+  const data = new FormData(event.target);
+  button.disabled = true;
+  try {
+    await request(`/lendery/items/${itemId}/maintenance`, {
+      method: "POST",
+      body: JSON.stringify({
+        title: String(data.get("title")).trim(),
+        description: String(data.get("description")).trim() || null,
+        component_id: data.get("component_id")
+          ? Number(data.get("component_id"))
+          : null,
+        status: data.get("status"),
+      }),
+    });
+    await reloadMaintenance(itemId);
+    maintenanceDialog.close();
+    showToast("Repair log created.");
+  } catch (error) {
+    maintenanceFormError.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
 document
   .querySelector("#import-lendery-item")
   .addEventListener("click", importLenderyItem);
@@ -828,6 +1020,11 @@ document.addEventListener("click", async (event) => {
 
   if (event.target.closest("[data-close-dialog]")) {
     dialog.close();
+    return;
+  }
+
+  if (event.target.closest("[data-close-maintenance-dialog]")) {
+    maintenanceDialog.close();
     return;
   }
 
@@ -880,6 +1077,11 @@ document.addEventListener("click", async (event) => {
     if (!canManage()) return;
     const item = state.items.find((candidate) => candidate.id === state.selectedId);
     if (item) openItemDialog(item);
+    return;
+  }
+
+  if (event.target.closest("#new-maintenance-case")) {
+    openMaintenanceDialog();
     return;
   }
 
@@ -965,6 +1167,40 @@ document.addEventListener("click", async (event) => {
 });
 
 drawerContent.addEventListener("submit", async (event) => {
+  const maintenanceForm = event.target.closest("[data-maintenance-case-id]");
+  if (maintenanceForm) {
+    event.preventDefault();
+    if (!canManage() || !state.selectedId) return;
+    const itemId = state.selectedId;
+    const data = new FormData(maintenanceForm);
+    const button = maintenanceForm.querySelector("button[type='submit']");
+    button.disabled = true;
+    try {
+      await request(
+        `/lendery/maintenance/${maintenanceForm.dataset.maintenanceCaseId}/events`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            event_type: data.get("event_type"),
+            note: String(data.get("note")).trim() || null,
+            part_name: String(data.get("part_name")).trim() || null,
+            quantity: data.get("quantity") ? Number(data.get("quantity")) : null,
+            cost: data.get("cost") ? Number(data.get("cost")) : null,
+            vendor_url: String(data.get("vendor_url")).trim() || null,
+            order_number: String(data.get("order_number")).trim() || null,
+            new_status: data.get("new_status") || null,
+          }),
+        },
+      );
+      await reloadMaintenance(itemId);
+      showToast("Repair log updated.");
+    } catch (error) {
+      button.disabled = false;
+      showToast(error.message);
+    }
+    return;
+  }
+
   if (event.target.id !== "component-form") return;
   event.preventDefault();
   if (!canManage()) return;
@@ -1000,6 +1236,19 @@ drawerContent.addEventListener("submit", async (event) => {
 });
 
 drawerContent.addEventListener("change", async (event) => {
+  const maintenanceType = event.target.closest(
+    ".maintenance-update-form select[name='event_type']",
+  );
+  if (maintenanceType) {
+    const form = maintenanceType.closest(".maintenance-update-form");
+    const partDetails = form.querySelector(".maintenance-part-details");
+    const partName = form.elements.part_name;
+    const isPartEvent = maintenanceType.value.startsWith("part_");
+    partDetails.open = isPartEvent;
+    partName.required = isPartEvent;
+    return;
+  }
+
   const newPhoto = event.target.closest("#component-photo-input");
   if (newPhoto) {
     const preview = drawerContent.querySelector("#component-photo-preview");
@@ -1093,10 +1342,6 @@ loginForm.addEventListener("submit", async (event) => {
         password: String(data.get("password")),
       }),
     });
-    if (!canView(user)) {
-      loginError.textContent = "Lendery access has not been assigned to this account.";
-      return;
-    }
     applyUser(user);
     event.target.reset();
     loginDialog.close();
@@ -1121,12 +1366,6 @@ document.querySelector("#logout-button").addEventListener("click", async () => {
 const initialize = async () => {
   try {
     const user = await request("/auth/me");
-    if (!canView(user)) {
-      throw Object.assign(
-        new Error("Lendery access has not been assigned to this account."),
-        { status: 403 },
-      );
-    }
     applyUser(user);
     await loadItems();
   } catch (error) {

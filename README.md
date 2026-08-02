@@ -55,6 +55,15 @@ When the inventory page opens, linked items that have never been checked or
 were last checked more than 30 minutes ago refresh in the background. The page
 also provides status filters and Available first / Unavailable first sorting.
 
+## Lendery maintenance and repairs
+
+Lendery editors can keep a private repair history for each inventory item.
+Maintenance cases record the problem, an optional affected component, and a
+status such as open, waiting for a part, in repair, or resolved. Timestamped
+updates can record ordered, received, and installed parts together with cost,
+quantity, vendor link, order number, notes, and the editor who made the entry.
+Maintenance records and their API endpoints are not available to viewers.
+
 ## Libtools accounts
 
 Personal Libtools accounts work across Book Club Manager, Storytime Studio, and
@@ -70,9 +79,10 @@ password. The former clerk credential is removed. Existing Book Club records
 are assigned to a default Science Fiction Book Club owned by that
 administrator.
 
-Lendery access is assigned to personal accounts. A **Viewer** can browse
-inventory, refresh availability, and operate item checklists. A **Manager** can
-also create, edit, and delete inventory and components.
+Every personal account can browse Lendery inventory, refresh availability, and
+operate item checklists. Administrators can grant **Edit Lendery inventory**
+access to staff who should also create, edit, and delete inventory and
+components.
 
 ## Run locally
 
