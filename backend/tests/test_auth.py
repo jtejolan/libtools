@@ -156,6 +156,13 @@ class LenderyAuthorizationTests(unittest.TestCase):
             self.viewer.patch(
                 f"/lendery/components/{component_id}", json={"name": "Changed"}
             ),
+            self.viewer.post(
+                f"/lendery/components/{component_id}/image",
+                files={"image": ("photo.jpg", b"not-used", "image/jpeg")},
+            ),
+            self.viewer.delete(
+                f"/lendery/components/{component_id}/image"
+            ),
             self.viewer.delete(f"/lendery/components/{component_id}"),
         ]
         self.assertTrue(all(response.status_code == 403 for response in attempts))

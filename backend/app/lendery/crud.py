@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from lendery import availability, models, schemas
+from lendery import availability, component_images, models, schemas
 
 
 def _model_data(
@@ -166,12 +166,16 @@ def delete_item(
     if db_item is None:
         return False
 
+    component_ids = [component.id for component in db_item.components]
+
     try:
         db.delete(db_item)
         db.commit()
     except SQLAlchemyError:
         db.rollback()
         raise
+    for component_id in component_ids:
+        component_images.delete_component_image(component_id)
     return True
 
 

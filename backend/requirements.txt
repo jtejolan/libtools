@@ -5,4 +5,7 @@ psycopg[binary]>=3.2,<4
 python-dotenv
 sqlalchemy==2.0.51
 itsdangerous>=2.2,<3
+pillow>=11.3,<12
+pillow-heif>=1.1,<2
+python-multipart>=0.0.20,<1
 uvicorn

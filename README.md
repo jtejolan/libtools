@@ -108,6 +108,12 @@ On the first start, the current `backend/librarytools.db` is copied into the
 empty volume. Later deploys reuse the volume database and do not overwrite it.
 Keep the service at one replica while it uses SQLite.
 
+Lendery component photos are processed and stored on the same persistent
+volume under `/data/uploads`. Back up both `/data/librarytools.db` and
+`/data/uploads`; the database contains the photo references, while the image
+files live in the uploads directory. For local development, uploads default to
+`backend/uploads`. Set `LIBTOOLS_UPLOAD_DIR` to use a different location.
+
 PostgreSQL is also supported. Add a Railway PostgreSQL service and set the web
 service's `DATABASE_URL` to its connection URL. A PostgreSQL deployment starts
 with an empty database; the local SQLite records are not imported automatically.

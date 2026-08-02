@@ -3,16 +3,19 @@ from typing import Annotated, Literal
 from fastapi import (
     APIRouter,
     Depends,
+    File,
     HTTPException,
     Query,
     Response,
+    UploadFile,
     status,
 )
+from fastapi.responses import FileResponse
 from sqlalchemy.exc import IntegrityError
 
 from dependencies import DatabaseSession, get_db
 from accounts.auth import require_lendery_manage, require_lendery_view
-from lendery import crud, schemas
+from lendery import component_images, crud, schemas
 
 
 router = APIRouter(
@@ -259,6 +262,78 @@ def update_component(
     return component
 
 
+@router.get(
+    "/components/{component_id}/image",
+    include_in_schema=False,
+)
+def get_component_image(
+    component_id: int,
+    db: DatabaseSession,
+):
+    component = crud.get_component(db, component_id)
+    path = component_images.component_image_path(component_id)
+    if component is None or not path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Component photo not found",
+        )
+    return FileResponse(
+        path,
+        media_type="image/webp",
+        headers={"Cache-Control": "private, no-store"},
+    )
+
+
+@router.post(
+    "/components/{component_id}/image",
+    response_model=schemas.ComponentResponse,
+)
+async def upload_component_image(
+    component_id: int,
+    db: DatabaseSession,
+    image: UploadFile = File(...),
+    _manager=Depends(require_lendery_manage),
+):
+    component = crud.get_component(db, component_id)
+    if component is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Component not found",
+        )
+    try:
+        await component_images.save_component_image(component_id, image)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    return crud.update_component(
+        db,
+        component_id,
+        {"image_url": component_images.component_image_url(component_id)},
+    )
+
+
+@router.delete(
+    "/components/{component_id}/image",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def remove_component_image(
+    component_id: int,
+    db: DatabaseSession,
+    _manager=Depends(require_lendery_manage),
+) -> Response:
+    component = crud.get_component(db, component_id)
+    if component is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Component not found",
+        )
+    crud.update_component(db, component_id, {"image_url": None})
+    component_images.delete_component_image(component_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.delete(
     "/components/{component_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -273,4 +348,5 @@ def delete_component(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Component not found",
         )
+    component_images.delete_component_image(component_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

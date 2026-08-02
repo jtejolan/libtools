@@ -20,6 +20,22 @@ AvailabilityStatus = Literal[
     "unknown",
 ]
 
+INTERNAL_COMPONENT_IMAGE_PATTERN = re.compile(
+    r"/lendery/components/\d+/image"
+)
+
+
+def validate_image_url(value: str | HttpUrl | None) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value)
+    if INTERNAL_COMPONENT_IMAGE_PATTERN.fullmatch(normalized):
+        return normalized
+    parsed = urlsplit(normalized)
+    if parsed.scheme in {"http", "https"} and parsed.netloc:
+        return normalized
+    raise ValueError("image_url must be an HTTP URL or a Lendery image path")
+
 
 def validate_library_url(value: HttpUrl | None) -> HttpUrl | None:
     if value is None:
@@ -49,10 +65,15 @@ class ComponentBase(BaseModel):
 
 
     description: str | None = None
-    image_url: HttpUrl | None = None
+    image_url: str | None = None
 
     optional: bool = False
     check_in_notes: str | None = None
+
+    @field_validator("image_url")
+    @classmethod
+    def image_url_must_be_safe(cls, value: str | None) -> str | None:
+        return validate_image_url(value)
 
 
 class ComponentCreate(ComponentBase):
@@ -67,9 +88,14 @@ class ComponentUpdate(BaseModel):
     )
     quantity: int | None = Field(default=None, ge=1)
     description: str | None = None
-    image_url: HttpUrl | None = None
+    image_url: str | None = None
     optional: bool | None = None
     check_in_notes: str | None = None
+
+    @field_validator("image_url")
+    @classmethod
+    def image_url_must_be_safe(cls, value: str | None) -> str | None:
+        return validate_image_url(value)
 
     @field_validator("name", "quantity", "optional")
     @classmethod

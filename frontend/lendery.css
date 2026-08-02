@@ -1558,6 +1558,40 @@ footer {
   line-height: 1.55;
 }
 
+.component-photo-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 12px;
+  margin-top: 5px;
+}
+
+.component-photo-actions input {
+  width: 1px;
+  height: 1px;
+  position: absolute;
+  opacity: 0;
+}
+
+.component-photo-actions label,
+.component-photo-actions button {
+  padding: 0;
+  border: 0;
+  color: var(--forest);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.component-photo-actions button {
+  color: var(--muted);
+}
+
+.component-photo-actions label:hover,
+.component-photo-actions button:hover {
+  text-decoration: underline;
+}
+
 .remove-component {
   border: 0;
   color: var(--muted);
@@ -1616,6 +1650,97 @@ footer {
 .component-form-grid .component-url-input,
 .component-form-grid .component-note-input {
   grid-column: 1 / -1;
+}
+
+.component-photo-picker {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px;
+  border: 1px dashed var(--line);
+  border-radius: 5px;
+  background: rgba(255, 250, 241, 0.55);
+}
+
+.component-photo-picker > input {
+  width: 1px;
+  height: 1px;
+  position: absolute;
+  opacity: 0;
+}
+
+.component-photo-picker > label {
+  min-height: 38px;
+  padding: 0 13px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--forest);
+  border-radius: 5px;
+  color: var(--forest);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.component-photo-picker > small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.component-photo-preview {
+  grid-column: 1 / -1;
+  height: 150px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--paper-deep);
+}
+
+.component-photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.component-photo-preview button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  border: 0;
+  border-radius: 50%;
+  color: var(--paper);
+  background: rgba(24, 59, 51, 0.78);
+  cursor: pointer;
+}
+
+.component-photo-picker details {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.component-photo-picker summary {
+  cursor: pointer;
+}
+
+.component-photo-picker details input {
+  width: 100%;
+  height: 40px;
+  margin-top: 8px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  outline: 0;
+  background: rgba(244, 238, 223, 0.43);
+}
+
+.component-photo-picker details input:focus {
+  border-color: var(--forest);
 }
 
 .optional-check {

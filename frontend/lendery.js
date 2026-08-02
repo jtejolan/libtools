@@ -52,10 +52,11 @@ const safeUrl = (value) => {
 };
 
 const request = async (url, options = {}) => {
+  const hasJsonBody = options.body && !(options.body instanceof FormData);
   const response = await fetch(url, {
     ...options,
     headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(hasJsonBody ? { "Content-Type": "application/json" } : {}),
       ...options.headers,
     },
   });
@@ -75,6 +76,18 @@ const request = async (url, options = {}) => {
     throw error;
   }
   return body;
+};
+
+const uploadComponentPhoto = async (componentId, file) => {
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error("The photo must be 10 MB or smaller.");
+  }
+  const body = new FormData();
+  body.append("image", file);
+  return request(`/lendery/components/${componentId}/image`, {
+    method: "POST",
+    body,
+  });
 };
 
 const canManage = () =>
@@ -630,6 +643,17 @@ const renderDrawer = (item) => {
                               : ""
                           }
                           ${component.check_in_notes ? `<p>${escapeHtml(component.check_in_notes)}</p>` : ""}
+                          ${
+                            canManage()
+                              ? `<div class="component-photo-actions">
+                                  <label>
+                                    <input type="file" accept="image/*,.heic,.heif" data-replace-component-photo="${component.id}" />
+                                    ${componentImage ? "Replace photo" : "Add photo"}
+                                  </label>
+                                  ${componentImage ? `<button type="button" data-remove-component-photo="${component.id}">Remove photo</button>` : ""}
+                                </div>`
+                              : ""
+                          }
                         </div>
                       </article>`;
                   })
@@ -644,7 +668,19 @@ const renderDrawer = (item) => {
           <div class="component-form-grid">
             <input name="name" required maxlength="200" placeholder="Component name" aria-label="Component name" />
             <input name="quantity" required type="number" min="1" value="1" aria-label="Quantity" />
-            <input class="component-url-input" name="image_url" type="url" placeholder="Image URL (recommended)" aria-label="Component image URL" />
+            <div class="component-photo-picker">
+              <input id="component-photo-input" name="photo" type="file" accept="image/*,.heic,.heif" />
+              <label for="component-photo-input">📷 Take or choose photo</label>
+              <div class="component-photo-preview" id="component-photo-preview" hidden>
+                <img alt="Selected component photo preview" />
+                <button type="button" data-clear-component-photo aria-label="Remove selected photo">×</button>
+              </div>
+              <small>JPEG, PNG, WebP, or HEIC · up to 10 MB</small>
+              <details>
+                <summary>Use an image URL instead</summary>
+                <input name="image_url" type="url" placeholder="https://…" aria-label="Component image URL" />
+              </details>
+            </div>
             <input class="component-note-input" name="check_in_notes" maxlength="500" placeholder="Return note, e.g. check for charger" aria-label="Check-in note" />
             <label class="optional-check"><input name="optional" type="checkbox" /> Optional part</label>
             <button type="submit">＋ Add part</button>
@@ -840,6 +876,34 @@ document.addEventListener("click", async (event) => {
     } catch (error) {
       showToast(error.message);
     }
+    return;
+  }
+
+  const removePhoto = event.target.closest("[data-remove-component-photo]");
+  if (removePhoto) {
+    if (!canManage()) return;
+    try {
+      await request(
+        `/lendery/components/${removePhoto.dataset.removeComponentPhoto}/image`,
+        { method: "DELETE" },
+      );
+      await refreshSelectedItem();
+      showToast("Component photo removed.");
+    } catch (error) {
+      showToast(error.message);
+    }
+    return;
+  }
+
+  if (event.target.closest("[data-clear-component-photo]")) {
+    const input = drawerContent.querySelector("#component-photo-input");
+    const preview = drawerContent.querySelector("#component-photo-preview");
+    if (input) input.value = "";
+    if (preview) {
+      URL.revokeObjectURL(preview.dataset.objectUrl || "");
+      preview.dataset.objectUrl = "";
+      preview.hidden = true;
+    }
   }
 });
 
@@ -849,7 +913,7 @@ drawerContent.addEventListener("submit", async (event) => {
   if (!canManage()) return;
   const data = new FormData(event.target);
   try {
-    await request(`/lendery/items/${state.selectedId}/components`, {
+    const component = await request(`/lendery/items/${state.selectedId}/components`, {
       method: "POST",
       body: JSON.stringify({
         name: String(data.get("name")).trim(),
@@ -859,6 +923,18 @@ drawerContent.addEventListener("submit", async (event) => {
         optional: data.get("optional") === "on",
       }),
     });
+    const photo = data.get("photo");
+    if (photo instanceof File && photo.size) {
+      try {
+        await uploadComponentPhoto(component.id, photo);
+      } catch (error) {
+        await refreshSelectedItem();
+        showToast(`Component added, but its photo was not uploaded: ${error.message}`);
+        return;
+      }
+    }
+    const preview = drawerContent.querySelector("#component-photo-preview");
+    URL.revokeObjectURL(preview?.dataset.objectUrl || "");
     await refreshSelectedItem();
     showToast("Component added.");
   } catch (error) {
@@ -866,7 +942,36 @@ drawerContent.addEventListener("submit", async (event) => {
   }
 });
 
-drawerContent.addEventListener("change", (event) => {
+drawerContent.addEventListener("change", async (event) => {
+  const newPhoto = event.target.closest("#component-photo-input");
+  if (newPhoto) {
+    const preview = drawerContent.querySelector("#component-photo-preview");
+    const file = newPhoto.files?.[0];
+    if (!preview || !file) return;
+    URL.revokeObjectURL(preview.dataset.objectUrl || "");
+    preview.dataset.objectUrl = URL.createObjectURL(file);
+    preview.querySelector("img").src = preview.dataset.objectUrl;
+    preview.hidden = false;
+    return;
+  }
+
+  const replacement = event.target.closest("[data-replace-component-photo]");
+  if (replacement) {
+    const file = replacement.files?.[0];
+    if (!file || !canManage()) return;
+    replacement.disabled = true;
+    try {
+      await uploadComponentPhoto(replacement.dataset.replaceComponentPhoto, file);
+      await refreshSelectedItem();
+      showToast("Component photo updated.");
+    } catch (error) {
+      replacement.disabled = false;
+      replacement.value = "";
+      showToast(error.message);
+    }
+    return;
+  }
+
   const checkbox = event.target.closest("[data-check-component]");
   if (!checkbox) return;
   const componentId = Number(checkbox.dataset.checkComponent);
