@@ -80,24 +80,28 @@ const lenderyCard = (tools, summary) => {
       : `${metric === 1 ? "item needs" : "items need"} attention`
     : `${metric === 1 ? "item" : "items"} in inventory`;
 
-  return `<a class="dash-card dash-card-feature dash-lendery is-link" href="/lendery" aria-label="Open Lendery inventory">
-    <div class="dash-card-top">
-      <div class="dash-card-identity">
-        <span class="dash-card-icon"><img src="/static/assets/lendery-logo-symbol-v3.png?v=4" alt=""/></span>
-        <div><span class="dash-kicker">Live inventory</span><h2>Lendery</h2></div>
+  const bottomSection = `<form class="dash-scan-form" id="lendery-scan-form">
+        <label for="lendery-scan-input">Scan an item barcode</label>
+        <input type="text" id="lendery-scan-input" autocomplete="off" autofocus placeholder="Scan or type a barcode…" />
+      </form>`;
+
+  return `<div class="dash-card dash-card-feature dash-lendery is-link">
+    <a class="dash-card-linkarea" href="/lendery" aria-label="Open Lendery inventory">
+      <div class="dash-card-top">
+        <div class="dash-card-identity">
+          <span class="dash-card-icon"><img src="/static/assets/lendery-logo-symbol-v3.png?v=4" alt=""/></span>
+          <div><span class="dash-kicker">Live inventory</span><h2>Lendery</h2></div>
+        </div>
+        <span class="status">${editor ? "Editor" : "Viewer"}</span>
       </div>
-      <span class="status">${editor ? "Editor" : "Viewer"}</span>
-    </div>
-    <div class="live-metric ${editor && metric === 0 ? "is-clear" : ""}">
-      <strong>${metric ?? "—"}</strong>
-      <span>${inventory ? escapeHtml(liveCopy) : "Live update unavailable"}</span>
-    </div>
-    <div class="dashboard-facts">
-      <span><strong>${inventory?.total_items ?? "—"}</strong> Total items</span>
-      <span><strong>${inventory?.checked_out_items ?? "—"}</strong> Checked out</span>
-    </div>
-    <span class="dash-card-cta">Open inventory <b aria-hidden="true">→</b></span>
-  </a>`;
+      <div class="live-metric ${editor && metric === 0 ? "is-clear" : ""}">
+        <strong>${metric ?? "—"}</strong>
+        <span>${inventory ? escapeHtml(liveCopy) : "Live update unavailable"}</span>
+      </div>
+    </a>
+    ${bottomSection}
+    <a class="dash-card-cta" href="/lendery">Open inventory <b aria-hidden="true">→</b></a>
+  </div>`;
 };
 
 const meetingCountdown = (meeting) => {
@@ -249,6 +253,20 @@ const renderDashboard = (user, summary) => {
     quoteCard(),
   ].join("");
   initializeDashboardQuotes();
+  initializeLenderyScan();
+};
+
+const initializeLenderyScan = () => {
+  const form = $("#lendery-scan-form");
+  if (!form) return;
+  const input = $("#lendery-scan-input");
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const barcode = input.value.trim();
+    if (!barcode) return;
+    location.href = `/lendery?barcode=${encodeURIComponent(barcode)}`;
+  });
+  input.focus({ preventScroll: true });
 };
 
 $("#logout").addEventListener("click", async () => {

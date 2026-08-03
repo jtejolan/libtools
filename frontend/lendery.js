@@ -19,6 +19,7 @@ const AVAILABILITY_STALE_MS = 30 * 60 * 1000;
 const AUTO_REFRESH_CONCURRENCY = 3;
 const AVAILABILITY_STATUS_VERSION = 2;
 let pendingDashboardAction = new URLSearchParams(window.location.search).get("action");
+let pendingBarcodeLookup = new URLSearchParams(window.location.search).get("barcode");
 
 const grid = document.querySelector("#inventory-grid");
 const filters = document.querySelector("#category-filters");
@@ -134,6 +135,20 @@ const runDashboardAction = async () => {
     renderReportIssueDialog();
     needsAttentionDialog.showModal();
   }
+};
+
+const finishBarcodeLookup = () => {
+  pendingBarcodeLookup = null;
+  const url = new URL(window.location.href);
+  url.searchParams.delete("barcode");
+  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+};
+
+const runPendingBarcodeLookup = async () => {
+  if (!pendingBarcodeLookup) return;
+  const barcode = pendingBarcodeLookup;
+  finishBarcodeLookup();
+  await openItemByBarcode(barcode);
 };
 
 const applyUser = (user) => {
@@ -659,7 +674,11 @@ const renderItems = () => {
       const imageUrl = safeUrl(item.image_url);
       const availability = availabilityInfo(item);
       const componentLabel =
-        item.components.length === 1 ? "1 part" : `${item.components.length} parts`;
+        item.components.length === 0
+          ? "Whole item"
+          : item.components.length === 1
+            ? "1 part"
+            : `${item.components.length} parts`;
       return `
         <article class="item-card">
           <div class="item-image">
@@ -1900,6 +1919,7 @@ loginForm.addEventListener("submit", async (event) => {
     await loadItems();
     searchInput.focus({ preventScroll: true });
     await runDashboardAction();
+    await runPendingBarcodeLookup();
   } catch (error) {
     loginError.textContent = error.message;
   } finally {
@@ -1950,6 +1970,7 @@ const initialize = async () => {
     await loadItems();
     searchInput.focus({ preventScroll: true });
     await runDashboardAction();
+    await runPendingBarcodeLookup();
   } catch (error) {
     if (error.status !== 401) {
       showToast(error.message);
