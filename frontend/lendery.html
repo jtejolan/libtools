@@ -20,8 +20,8 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/lendery.css?v=11" />
-    <script src="/static/lendery.js?v=9" defer></script>
+    <link rel="stylesheet" href="/static/lendery.css?v=18" />
+    <script src="/static/lendery.js?v=17" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -51,6 +51,11 @@
             <span aria-hidden="true">▦</span>
             <span>Inventory</span>
           </a>
+          <button class="nav-item" id="needs-attention-button" type="button" data-admin-only hidden>
+            <span aria-hidden="true">⚑</span>
+            <span>Needs attention</span>
+            <span class="needs-attention-count" id="needs-attention-count" hidden></span>
+          </button>
           <button class="nav-item" id="nav-add-item" type="button" data-admin-only hidden>
             <span aria-hidden="true">＋</span>
             <span>Add an item</span>
@@ -115,27 +120,33 @@
           </div>
 
           <section class="stats-grid" aria-label="Inventory overview">
-            <article>
-              <span class="stat-icon orange" aria-hidden="true">▤</span>
-              <div>
-                <strong id="total-stat">—</strong>
-                <span>Total items</span>
+            <div class="stat-cell">
+              <span class="stat-label">Total items</span>
+              <strong id="total-stat">—</strong>
+            </div>
+            <button
+              class="stat-cell stat-cell-action"
+              type="button"
+              data-availability-filter="checked_out"
+            >
+              <span class="stat-label">Checked out</span>
+              <div class="stat-figure">
+                <strong id="checked-out-stat">—</strong>
+                <span class="stat-percent" id="checked-out-percent">—</span>
               </div>
-            </article>
-            <article>
-              <span class="stat-icon gold" aria-hidden="true">⌘</span>
-              <div>
-                <strong id="kit-stat">—</strong>
-                <span>Kits with parts</span>
-              </div>
-            </article>
-            <article>
-              <span class="stat-icon green" aria-hidden="true">⌁</span>
-              <div>
-                <strong id="category-stat">—</strong>
-                <span>Categories</span>
-              </div>
-            </article>
+              <span class="stat-track"><span class="stat-track-fill" id="checked-out-fill"></span></span>
+            </button>
+            <button
+              class="stat-cell stat-cell-action"
+              id="stat-needs-attention"
+              type="button"
+              data-admin-only
+              hidden
+            >
+              <span class="stat-label">Needs attention</span>
+              <strong id="attention-stat">—</strong>
+              <span class="stat-note" id="attention-note">All clear</span>
+            </button>
           </section>
 
           <section class="inventory-panel" aria-labelledby="inventory-title">
@@ -155,9 +166,6 @@
                     autocomplete="off"
                   />
                 </label>
-                <button class="secondary-button" id="needs-attention-button" type="button" data-admin-only hidden>
-                  <span aria-hidden="true">⚑</span> Needs attention<span class="needs-attention-count" id="needs-attention-count" hidden></span>
-                </button>
                 <a class="secondary-button" id="export-items-csv" href="/lendery/items/export.csv" data-admin-only hidden>
                   <span aria-hidden="true">⇩</span> Export CSV
                 </a>
@@ -236,7 +244,8 @@
           </label>
           <label class="field">
             <span>Category</span>
-            <input name="category" maxlength="100" placeholder="e.g. Tools" />
+            <input name="category" list="category-options" maxlength="100" placeholder="e.g. Tools" />
+            <datalist id="category-options"></datalist>
           </label>
           <label class="field field-wide">
             <span>Description</span>

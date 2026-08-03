@@ -30,7 +30,9 @@ html {
 body {
   margin: 0;
   color: var(--ink);
-  background: var(--cream);
+  background:
+    radial-gradient(circle at 82% 6%, rgba(227, 178, 92, 0.12), transparent 24rem),
+    var(--cream);
   font-family: var(--sans);
   font-size: 16px;
   line-height: 1.5;
@@ -194,6 +196,10 @@ a {
 .nav-item.active {
   color: var(--paper);
   background: rgba(244, 238, 223, 0.1);
+}
+
+.nav-item .needs-attention-count {
+  margin-left: auto;
 }
 
 .sidebar-note {
@@ -477,58 +483,114 @@ h1 {
 
 .stats-grid {
   margin: 18px 0 42px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-}
-
-.stats-grid article {
-  min-height: 96px;
-  padding: 18px 21px;
   display: flex;
-  align-items: center;
-  gap: 16px;
+  align-items: stretch;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 10px;
+  overflow: hidden;
   background: rgba(255, 250, 241, 0.44);
 }
 
-.stat-icon {
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  border-radius: 6px;
-  font-size: 21px;
+.stat-cell {
+  flex: 1;
+  min-width: 0;
+  padding: 20px 26px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
 }
 
-.stat-icon.orange {
-  background: rgba(217, 110, 60, 0.18);
+.stat-cell:first-child {
+  border-left: none;
 }
 
-.stat-icon.gold {
-  background: rgba(227, 178, 92, 0.23);
+button.stat-cell {
+  cursor: pointer;
+  transition: background 0.15s ease;
 }
 
-.stat-icon.green {
-  background: rgba(131, 157, 107, 0.24);
+button.stat-cell:hover {
+  background: rgba(24, 59, 51, 0.05);
 }
 
-.stats-grid article div {
-  display: grid;
-  gap: 1px;
+.stat-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.stats-grid strong {
+.stat-cell strong {
   font-family: var(--serif);
-  font-size: 30px;
+  font-size: 32px;
   font-weight: 600;
   line-height: 1;
+  color: var(--ink);
 }
 
-.stats-grid article div span {
-  color: var(--muted);
-  font-size: 14px;
+.stat-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+
+.stat-percent {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.stat-track {
+  height: 4px;
+  margin-top: 2px;
+  border-radius: 999px;
+  background: rgba(24, 59, 51, 0.08);
+  overflow: hidden;
+}
+
+.stat-track-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: var(--gold);
+  transition: width 0.3s ease;
+}
+
+.stat-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.stat-note::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+#stat-needs-attention strong {
+  color: var(--danger);
+}
+
+#stat-needs-attention.is-clear strong {
+  color: var(--ink);
+}
+
+#stat-needs-attention.is-clear .stat-note {
+  color: var(--moss);
 }
 
 .inventory-panel {
@@ -728,11 +790,13 @@ h1 {
   overflow: hidden;
   background: rgba(255, 250, 241, 0.66);
   box-shadow: 0 5px 20px rgba(24, 59, 51, 0.035);
-  transition: transform 180ms ease, box-shadow 180ms ease;
+  transform: perspective(1200px) rotateX(var(--tilt-x, 0deg))
+    rotateY(var(--tilt-y, 0deg)) translateY(var(--tilt-lift, 0px));
+  transition: transform 220ms ease, box-shadow 180ms ease;
 }
 
 .item-card:hover {
-  transform: translateY(-4px);
+  --tilt-lift: -4px;
   box-shadow: 0 14px 30px rgba(24, 59, 51, 0.1);
 }
 
@@ -786,6 +850,43 @@ h1 {
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+.category-badge.tint-gold {
+  color: var(--ink);
+  background: rgba(227, 178, 92, 0.92);
+}
+
+.category-badge.tint-moss {
+  color: var(--ink);
+  background: rgba(131, 157, 107, 0.85);
+}
+
+.category-badge.tint-orange {
+  color: var(--paper);
+  background: rgba(217, 110, 60, 0.9);
+}
+
+.category-badge.tint-forest {
+  color: var(--paper);
+  background: rgba(36, 83, 72, 0.92);
+}
+
+.attention-flag {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--paper);
+  background: var(--danger);
+  box-shadow: 0 2px 8px rgba(24, 59, 51, 0.15);
+  font-size: 12px;
 }
 
 .availability-badge {
@@ -1759,6 +1860,10 @@ button.needs-attention-row:hover {
   border-left-color: var(--danger);
 }
 
+.needs-attention-row.missing-component {
+  border-left-color: var(--danger);
+}
+
 .needs-attention-row.unavailable-flag {
   border-left-color: var(--danger);
   background: rgba(255, 250, 241, 0.72);
@@ -1963,6 +2068,15 @@ button.needs-attention-row:hover {
   background: rgba(131, 157, 107, 0.1);
 }
 
+.component-card.missing {
+  border-color: var(--danger);
+  background: rgba(196, 84, 66, 0.08);
+}
+
+.component-card.missing-ignored {
+  border-style: dashed;
+}
+
 .component-visual {
   height: 120px;
   position: relative;
@@ -2102,6 +2216,138 @@ button.needs-attention-row:hover {
 
 .remove-component:hover {
   color: var(--danger);
+}
+
+.report-missing-button {
+  grid-column: 1 / -1;
+  margin-top: 5px;
+  padding: 0;
+  border: 0;
+  color: var(--danger);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.report-missing-button:hover {
+  text-decoration: underline;
+}
+
+.report-missing-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+  text-decoration: none;
+}
+
+.missing-report-status {
+  grid-column: 1 / -1;
+  margin-top: 5px;
+  padding: 9px 10px;
+  border: 1px solid rgba(196, 84, 66, 0.3);
+  border-radius: 6px;
+  background: rgba(196, 84, 66, 0.07);
+}
+
+.missing-badge {
+  color: var(--danger);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.missing-report-status p {
+  margin: 4px 0 0;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.missing-report-status small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.missing-report-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 7px;
+}
+
+.missing-report-actions button {
+  padding: 5px 10px;
+  border: 1px solid var(--forest);
+  border-radius: 999px;
+  color: var(--forest);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.missing-report-actions button:hover {
+  color: var(--paper);
+  background: var(--forest);
+}
+
+.missing-report-actions button[data-resolution="ignored"] {
+  border-color: var(--muted);
+  color: var(--muted);
+}
+
+.missing-report-actions button[data-resolution="ignored"]:hover {
+  color: var(--paper);
+  background: var(--muted);
+}
+
+.missing-ignored-note {
+  grid-column: 1 / -1;
+  margin-top: 5px;
+  padding: 9px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  background: rgba(116, 111, 98, 0.06);
+}
+
+.missing-ignored-badge {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.missing-ignored-note p {
+  margin: 4px 0 0;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.missing-ignored-note small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.missing-ignored-clear {
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.missing-ignored-clear:hover {
+  text-decoration: underline;
 }
 
 .component-empty {
@@ -2340,7 +2586,8 @@ button.needs-attention-row:hover {
 
   .brand > span:last-child,
   .product-name div,
-  .nav-item > span:last-child,
+  .nav-item > span:nth-child(2),
+  .nav-item .needs-attention-count,
   .nav-label,
   .sidebar-note {
     display: none;
@@ -2425,12 +2672,17 @@ button.needs-attention-row:hover {
 
   .stats-grid {
     margin: 14px 0 38px;
-    grid-template-columns: 1fr;
-    gap: 8px;
+    flex-direction: column;
   }
 
-  .stats-grid article {
-    min-height: 78px;
+  .stat-cell {
+    padding: 16px 18px;
+    border-left: none;
+    border-top: 1px solid var(--line);
+  }
+
+  .stat-cell:first-child {
+    border-top: none;
   }
 
   .panel-heading {

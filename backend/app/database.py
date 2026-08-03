@@ -208,6 +208,28 @@ def migrate_existing_database() -> None:
                         )
                     )
 
+    if "components" in tables:
+        existing = {
+            column["name"]
+            for column in inspector.get_columns("components")
+        }
+        columns = {
+            "missing_reported_at": "TIMESTAMP",
+            "missing_reported_by": "VARCHAR(80)",
+            "missing_note": "TEXT",
+            "missing_ignored_at": "TIMESTAMP",
+            "missing_ignored_by": "VARCHAR(80)",
+        }
+        with engine.begin() as connection:
+            for name, definition in columns.items():
+                if name not in existing:
+                    connection.execute(
+                        text(
+                            f"ALTER TABLE components "
+                            f"ADD COLUMN {name} {definition}"
+                        )
+                    )
+
     if "libtools_users" in tables:
         user_columns = {
             column["name"] for column in inspector.get_columns("libtools_users")

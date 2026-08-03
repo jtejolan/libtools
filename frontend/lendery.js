@@ -43,6 +43,7 @@ const maintenanceFormError = document.querySelector("#maintenance-form-error");
 const needsAttentionCountBadge = document.querySelector("#needs-attention-count");
 const needsAttentionDialog = document.querySelector("#needs-attention-dialog");
 const needsAttentionContent = document.querySelector("#needs-attention-content");
+const categoryOptions = document.querySelector("#category-options");
 
 const escapeHtml = (value = "") =>
   String(value)
@@ -135,6 +136,16 @@ const showToast = (message) => {
   toast.classList.add("show");
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => toast.classList.remove("show"), 2600);
+};
+
+const CATEGORY_TINTS = ["tint-gold", "tint-moss", "tint-orange", "tint-forest"];
+const categoryTintClass = (category) => {
+  if (!category) return "";
+  let hash = 0;
+  for (let i = 0; i < category.length; i += 1) {
+    hash = (hash * 31 + category.charCodeAt(i)) >>> 0;
+  }
+  return CATEGORY_TINTS[hash % CATEGORY_TINTS.length];
 };
 
 const itemInitials = (name) =>
@@ -348,18 +359,43 @@ const unresolvedUnavailableItems = () => {
   );
 };
 
+const missingComponentReports = () =>
+  state.items.flatMap((item) =>
+    (item.components || [])
+      .filter((component) => component.missing_reported_at)
+      .map((component) => ({ item, component })),
+  );
+
 const needsAttentionCount = () =>
-  state.maintenanceQueue.length + unresolvedUnavailableItems().length;
+  state.maintenanceQueue.length +
+  unresolvedUnavailableItems().length +
+  missingComponentReports().length;
+
+const itemsNeedingAttentionIds = () => {
+  const ids = new Set(state.maintenanceQueue.map((entry) => entry.item_id));
+  for (const item of unresolvedUnavailableItems()) ids.add(item.id);
+  for (const { item } of missingComponentReports()) ids.add(item.id);
+  return ids;
+};
 
 const renderNeedsAttentionButton = () => {
   const count = needsAttentionCount();
   needsAttentionCountBadge.textContent = String(count);
   needsAttentionCountBadge.hidden = count === 0;
+
+  const attentionCell = document.querySelector("#stat-needs-attention");
+  if (attentionCell) {
+    attentionCell.classList.toggle("is-clear", count === 0);
+    document.querySelector("#attention-stat").textContent = count;
+    document.querySelector("#attention-note").textContent =
+      count === 0 ? "All clear" : count === 1 ? "1 open issue" : `${count} open issues`;
+  }
 };
 
 const renderNeedsAttentionDialog = () => {
   const cases = state.maintenanceQueue;
   const flagged = unresolvedUnavailableItems();
+  const missingReports = missingComponentReports();
 
   const caseRows = cases
     .map(
@@ -391,12 +427,36 @@ const renderNeedsAttentionDialog = () => {
     )
     .join("");
 
+  const missingRows = missingReports
+    .map(
+      ({ item, component }) => `
+        <button class="needs-attention-row missing-component" type="button" data-open-item="${item.id}">
+          <div class="needs-attention-row-heading">
+            <div>
+              <span class="maintenance-status">Missing part</span>
+              <h4>${escapeHtml(component.name)}</h4>
+            </div>
+          </div>
+          <small>${escapeHtml(item.name)} · ${escapeHtml(item.barcode)}</small><br />
+          <small>Reported ${escapeHtml(formatMaintenanceDate(component.missing_reported_at))} by ${escapeHtml(component.missing_reported_by)}${component.missing_note ? ` · “${escapeHtml(component.missing_note)}”` : ""}</small>
+        </button>`,
+    )
+    .join("");
+
   needsAttentionContent.innerHTML = `
     ${
       cases.length
         ? `<div class="needs-attention-group">
             <h3>Open maintenance cases</h3>
             <div class="needs-attention-list">${caseRows}</div>
+          </div>`
+        : ""
+    }
+    ${
+      missingReports.length
+        ? `<div class="needs-attention-group">
+            <h3>Reported missing parts</h3>
+            <div class="needs-attention-list">${missingRows}</div>
           </div>`
         : ""
     }
@@ -409,7 +469,7 @@ const renderNeedsAttentionDialog = () => {
         : ""
     }
     ${
-      !cases.length && !flagged.length
+      !cases.length && !flagged.length && !missingReports.length
         ? `<div class="maintenance-empty-state"><strong>All clear</strong><span>No open issues or unresolved availability problems.</span></div>`
         : ""
     }
@@ -462,12 +522,19 @@ const visibleItems = () => {
 };
 
 const renderStats = () => {
-  const categories = new Set(state.items.map((item) => item.category).filter(Boolean));
   document.querySelector("#total-stat").textContent = state.items.length;
-  document.querySelector("#kit-stat").textContent = state.items.filter(
-    (item) => item.components.length,
+
+  const checkedOutCount = state.items.filter(
+    (item) => item.availability_status === "checked_out",
   ).length;
-  document.querySelector("#category-stat").textContent = categories.size;
+  const percent = state.items.length
+    ? Math.round((checkedOutCount / state.items.length) * 100)
+    : 0;
+  document.querySelector("#checked-out-stat").textContent = checkedOutCount;
+  document.querySelector("#checked-out-percent").textContent = state.items.length
+    ? `${percent}%`
+    : "—";
+  document.querySelector("#checked-out-fill").style.width = `${percent}%`;
 };
 
 const renderFilters = () => {
@@ -479,6 +546,9 @@ const renderFilters = () => {
         `<button class="filter-chip ${state.category === category ? "active" : ""}" type="button" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`,
     ),
   ].join("");
+  categoryOptions.innerHTML = categories
+    .map((category) => `<option value="${escapeHtml(category)}"></option>`)
+    .join("");
 };
 
 const renderAvailabilityControls = () => {
@@ -535,6 +605,7 @@ const renderItems = () => {
     return;
   }
 
+  const attentionIds = canManage() ? itemsNeedingAttentionIds() : new Set();
   grid.innerHTML = items
     .map((item) => {
       const imageUrl = safeUrl(item.image_url);
@@ -549,7 +620,12 @@ const renderItems = () => {
                 ? `<img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" />`
                 : `<span class="item-placeholder" aria-hidden="true">${escapeHtml(itemInitials(item.name))}</span>`
             }
-            <span class="category-badge">${escapeHtml(item.category || "Uncategorized")}</span>
+            <span class="category-badge ${categoryTintClass(item.category)}">${escapeHtml(item.category || "Uncategorized")}</span>
+            ${
+              attentionIds.has(item.id)
+                ? `<span class="attention-flag" title="Needs attention"><i aria-hidden="true">⚑</i></span>`
+                : ""
+            }
             ${
               item.library_url
                 ? `<span class="availability-badge ${availability.status}"><i></i>${escapeHtml(availability.shortLabel)}</span>`
@@ -575,6 +651,7 @@ const renderAll = () => {
   renderFilters();
   renderAvailabilityControls();
   renderItems();
+  renderNeedsAttentionButton();
 };
 
 const replaceItem = (item) => {
@@ -662,6 +739,7 @@ const loadMaintenanceQueue = async () => {
     state.maintenanceQueue = [];
   }
   renderNeedsAttentionButton();
+  renderItems();
 };
 
 const loadItems = async () => {
@@ -909,8 +987,10 @@ const renderDrawer = (item) => {
                   .map((component) => {
                     const componentImage = safeUrl(component.image_url);
                     const isChecked = state.checkedComponents.has(component.id);
+                    const isMissing = Boolean(component.missing_reported_at);
+                    const isIgnored = !isMissing && Boolean(component.missing_ignored_at);
                     return `
-                      <article class="component-card ${isChecked ? "checked" : ""}" data-component-card="${component.id}">
+                      <article class="component-card ${isChecked ? "checked" : ""} ${isMissing ? "missing" : ""} ${isIgnored ? "missing-ignored" : ""}" data-component-card="${component.id}">
                         <label class="component-visual">
                           <input
                             type="checkbox"
@@ -936,6 +1016,36 @@ const renderDrawer = (item) => {
                               : ""
                           }
                           ${component.check_in_notes ? `<p>${escapeHtml(component.check_in_notes)}</p>` : ""}
+                          ${
+                            isMissing
+                              ? `<div class="missing-report-status">
+                                  <span class="missing-badge">Reported missing</span>
+                                  ${component.missing_note ? `<p>“${escapeHtml(component.missing_note)}”</p>` : ""}
+                                  <small>By ${escapeHtml(component.missing_reported_by || "a viewer")} · ${escapeHtml(formatMaintenanceDate(component.missing_reported_at))}</small>
+                                  ${
+                                    canManage()
+                                      ? `<div class="missing-report-actions">
+                                          <button type="button" data-resolve-missing="${component.id}" data-resolution="resolved">Mark resolved</button>
+                                          <button type="button" data-resolve-missing="${component.id}" data-resolution="ignored">Ignore</button>
+                                        </div>`
+                                      : ""
+                                  }
+                                </div>`
+                              : `${
+                                    isIgnored
+                                      ? `<div class="missing-ignored-note">
+                                          <span class="missing-ignored-badge">Marked OK by staff</span>
+                                          ${component.missing_note ? `<p>“${escapeHtml(component.missing_note)}”</p>` : ""}
+                                          <small>By ${escapeHtml(component.missing_ignored_by || "staff")} · ${escapeHtml(formatMaintenanceDate(component.missing_ignored_at))}</small>
+                                          ${
+                                            canManage()
+                                              ? `<button type="button" class="missing-ignored-clear" data-resolve-missing="${component.id}" data-resolution="resolved">Clear note</button>`
+                                              : ""
+                                          }
+                                        </div>`
+                                      : ""
+                                  }<button class="report-missing-button" type="button" data-report-missing="${component.id}">Report missing</button>`
+                          }
                           ${
                             canManage()
                               ? `<div class="component-photo-actions">
@@ -1022,6 +1132,31 @@ const openDrawer = async (itemId) => {
     showErrors: true,
   });
   if (state.selectedId === item.id) renderDrawer(refreshedItem);
+};
+
+const openItemByBarcode = async (barcode) => {
+  let item = state.items.find(
+    (candidate) => candidate.barcode.toLowerCase() === barcode.toLowerCase(),
+  );
+  if (!item) {
+    try {
+      item = await request(`/lendery/items/barcode/${encodeURIComponent(barcode)}`);
+    } catch (error) {
+      showToast(
+        error.status === 404
+          ? `No item found for barcode "${barcode}".`
+          : error.message,
+      );
+      return;
+    }
+    const index = state.items.findIndex((candidate) => candidate.id === item.id);
+    if (index >= 0) state.items[index] = item;
+    else state.items.unshift(item);
+  }
+  state.query = "";
+  searchInput.value = "";
+  renderItems();
+  openDrawer(item.id);
 };
 
 const openMaintenanceDialog = () => {
@@ -1146,7 +1281,7 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
-  if (event.target.closest("#needs-attention-button")) {
+  if (event.target.closest("#needs-attention-button, #stat-needs-attention")) {
     if (!canManage()) return;
     await loadMaintenanceQueue();
     renderNeedsAttentionDialog();
@@ -1464,6 +1599,46 @@ document.addEventListener("click", async (event) => {
   if (!state.selectedId) return;
   const itemId = state.selectedId;
 
+  const reportMissing = event.target.closest("[data-report-missing]");
+  if (reportMissing) {
+    const componentId = reportMissing.dataset.reportMissing;
+    reportMissing.disabled = true;
+    try {
+      await request(`/lendery/components/${componentId}/missing-report`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      await refreshSelectedItem();
+      showToast("Reported the missing part to staff.");
+    } catch (error) {
+      reportMissing.disabled = false;
+      showToast(error.message);
+    }
+    return;
+  }
+
+  const resolveMissing = event.target.closest("[data-resolve-missing]");
+  if (resolveMissing) {
+    if (!canManage()) return;
+    const componentId = resolveMissing.dataset.resolveMissing;
+    const resolution = resolveMissing.dataset.resolution;
+    try {
+      await request(
+        `/lendery/components/${componentId}/missing-report?resolution=${resolution}`,
+        { method: "DELETE" },
+      );
+      await refreshSelectedItem();
+      showToast(
+        resolution === "ignored"
+          ? "Marked as OK for now — staff will see this note if it's reported again."
+          : "Marked as resolved.",
+      );
+    } catch (error) {
+      showToast(error.message);
+    }
+    return;
+  }
+
   if (event.target.closest("#physical-manual-flag")) {
     try {
       const item = await request(`/lendery/items/${itemId}`, {
@@ -1502,6 +1677,14 @@ document.addEventListener("click", async (event) => {
 searchInput.addEventListener("input", (event) => {
   state.query = event.target.value;
   renderItems();
+});
+
+searchInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  const barcode = searchInput.value.trim();
+  if (!barcode) return;
+  event.preventDefault();
+  openItemByBarcode(barcode);
 });
 
 availabilitySort.addEventListener("change", (event) => {
@@ -1557,6 +1740,32 @@ document.querySelector("#logout-button").addEventListener("click", async () => {
     renderAll();
   }
 });
+
+const prefersReducedMotion = window.matchMedia(
+  "(prefers-reduced-motion: reduce)",
+).matches;
+const supportsFinePointer = window.matchMedia("(pointer: fine)").matches;
+
+if (!prefersReducedMotion && supportsFinePointer) {
+  const maxTilt = 4;
+
+  grid.addEventListener("mousemove", (event) => {
+    const card = event.target.closest(".item-card");
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    const px = (event.clientX - rect.left) / rect.width;
+    const py = (event.clientY - rect.top) / rect.height;
+    card.style.setProperty("--tilt-y", `${(px - 0.5) * maxTilt * 2}deg`);
+    card.style.setProperty("--tilt-x", `${(0.5 - py) * maxTilt * 2}deg`);
+  });
+
+  grid.addEventListener("mouseout", (event) => {
+    const card = event.target.closest(".item-card");
+    if (!card || card.contains(event.relatedTarget)) return;
+    card.style.setProperty("--tilt-x", "0deg");
+    card.style.setProperty("--tilt-y", "0deg");
+  });
+}
 
 const initialize = async () => {
   try {

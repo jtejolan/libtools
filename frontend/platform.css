@@ -35,10 +35,26 @@ a { color:inherit; text-decoration:none; }
 .page-heading { margin-bottom:30px; display:flex; align-items:end; justify-content:space-between; gap:24px; }
 .page-heading h1 { font-size:52px; }
 .tool-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
-.tool-tile { min-height:210px; padding:26px; display:flex; flex-direction:column; border:1px solid var(--line); border-radius:10px; background:var(--paper); }
-.tool-tile h2 { margin:18px 0 7px; font-family:var(--serif); font-size:31px; font-weight:500; }
-.tool-tile p { margin:0; color:var(--muted); }
-.tool-tile strong { margin-top:auto; color:var(--orange); font-size:13px; }
+.dash-card { min-height:230px; padding:26px; position:relative; display:flex; flex-direction:column; border:1px solid var(--line); border-radius:12px; background:var(--paper); overflow:hidden; transition:transform .18s ease,box-shadow .18s ease; }
+.dash-card.is-link:hover { transform:translateY(-3px); box-shadow:0 18px 40px rgba(22,62,52,.14); }
+.dash-card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.dash-card-icon { width:56px; height:56px; flex:0 0 auto; display:grid; place-items:center; border-radius:14px; overflow:hidden; background:rgba(255,255,255,.6); box-shadow:0 8px 20px rgba(22,62,52,.12); font-size:22px; color:var(--forest); }
+.dash-card-icon img { width:100%; height:100%; object-fit:cover; }
+.dash-card h2 { margin:18px 0 6px; font-family:var(--serif); font-size:27px; font-weight:500; }
+.dash-card p { margin:0; flex:1; color:var(--muted); font-size:13.5px; line-height:1.55; }
+.dash-card-cta { margin-top:16px; display:inline-flex; align-items:center; gap:8px; color:var(--forest); font-size:13px; font-weight:700; }
+.dash-card-cta b { font-size:16px; }
+.dash-card.locked .dash-card-cta { color:var(--muted); }
+.dash-lendery { background:linear-gradient(160deg,rgba(227,170,66,.26),transparent 60%),var(--paper); }
+.dash-bookclub { color:var(--cream); background:var(--soft); }
+.dash-bookclub p { color:rgba(244,238,223,.78); }
+.dash-bookclub .dash-card-icon { background:rgba(244,238,223,.16); }
+.dash-bookclub.locked { color:var(--ink); background:var(--paper); }
+.dash-bookclub.locked p { color:var(--muted); }
+.dash-bookclub.locked .dash-card-icon { background:rgba(255,255,255,.6); }
+.dash-storytime { background:linear-gradient(160deg,rgba(232,94,22,.16),transparent 60%),var(--paper); }
+.status.muted { color:var(--muted); background:rgba(116,111,98,.12); }
+.status.on-dark { color:var(--cream); background:rgba(244,238,223,.18); }
 .account-grid { margin-top:18px; display:grid; grid-template-columns:1fr 1fr; gap:18px; }
 .admin-layout { padding:48px 0 80px; }
 .admin-grid { display:grid; grid-template-columns:360px minmax(0,1fr); gap:20px; align-items:start; }

@@ -206,8 +206,8 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
     def test_lendery_page_uses_current_autofill_assets(self) -> None:
         response = self.client.get("/lendery")
         self.assertEqual(response.status_code, 200)
-        self.assertIn('/static/lendery.js?v=9', response.text)
-        self.assertIn('/static/lendery.css?v=11', response.text)
+        self.assertIn('/static/lendery.js?v=17', response.text)
+        self.assertIn('/static/lendery.css?v=18', response.text)
 
     @patch("lendery.availability.check_availability")
     def test_item_detail_refreshes_availability(self, check) -> None:

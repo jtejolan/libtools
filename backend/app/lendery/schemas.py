@@ -108,8 +108,17 @@ class ComponentUpdate(BaseModel):
 
 class ComponentResponse(ComponentBase):
     id: int
+    missing_reported_at: datetime | None = None
+    missing_reported_by: str | None = None
+    missing_note: str | None = None
+    missing_ignored_at: datetime | None = None
+    missing_ignored_by: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ComponentMissingReport(BaseModel):
+    note: str | None = Field(default=None, max_length=500)
 
 ##Lendery Item Schemas##
 

@@ -109,9 +109,10 @@ nav a:hover {
   padding: 52px;
   position: relative;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: flex-end;
   flex-direction: column;
+  text-align: center;
 }
 
 .hero-decor {
@@ -161,7 +162,7 @@ nav a:hover {
 .hero-logo-mark {
   width: 220px;
   height: 245px;
-  margin: 0 0 28px 10px;
+  margin: 0 0 28px;
   display: block;
   object-fit: contain;
 }
@@ -837,7 +838,7 @@ footer p {
   .hero-logo-mark {
     width: 142px;
     height: 158px;
-    margin: 0 0 20px 4px;
+    margin: 0 0 20px;
   }
 
   .hero-brand-name {

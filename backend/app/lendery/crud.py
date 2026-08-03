@@ -326,6 +326,50 @@ def update_component(
     return _commit(db, db_component)
 
 
+def report_component_missing(
+    db: Session,
+    component_id: int,
+    *,
+    note: str | None,
+    reported_by: str,
+) -> models.Component | None:
+    db_component = get_component(db, component_id)
+    if db_component is None:
+        return None
+
+    db_component.missing_reported_at = datetime.now(timezone.utc)
+    db_component.missing_reported_by = reported_by
+    db_component.missing_note = note
+    db_component.missing_ignored_at = None
+    db_component.missing_ignored_by = None
+    return _commit(db, db_component)
+
+
+def resolve_component_missing(
+    db: Session,
+    component_id: int,
+    *,
+    resolution: str,
+    resolved_by: str,
+) -> models.Component | None:
+    db_component = get_component(db, component_id)
+    if db_component is None:
+        return None
+
+    db_component.missing_reported_at = None
+    db_component.missing_reported_by = None
+
+    if resolution == "ignored":
+        db_component.missing_ignored_at = datetime.now(timezone.utc)
+        db_component.missing_ignored_by = resolved_by
+    else:
+        db_component.missing_note = None
+        db_component.missing_ignored_at = None
+        db_component.missing_ignored_by = None
+
+    return _commit(db, db_component)
+
+
 def delete_component(
     db: Session,
     component_id: int,

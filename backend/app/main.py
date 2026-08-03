@@ -98,6 +98,11 @@ def account_page() -> FileResponse:
     return FileResponse(FRONTEND_DIR / "account.html")
 
 
+@app.get("/dashboard", include_in_schema=False)
+def dashboard_page() -> FileResponse:
+    return FileResponse(FRONTEND_DIR / "dashboard.html")
+
+
 @app.get("/admin/users", include_in_schema=False)
 def users_admin_page() -> FileResponse:
     return FileResponse(FRONTEND_DIR / "admin-users.html")

@@ -385,6 +385,54 @@ def delete_component(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.post(
+    "/components/{component_id}/missing-report",
+    response_model=schemas.ComponentResponse,
+)
+def report_component_missing(
+    component_id: int,
+    value: schemas.ComponentMissingReport,
+    db: DatabaseSession,
+    viewer=Depends(require_lendery_view),
+):
+    component = crud.report_component_missing(
+        db,
+        component_id,
+        note=value.note,
+        reported_by=viewer.username,
+    )
+    if component is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Component not found",
+        )
+    return component
+
+
+@router.delete(
+    "/components/{component_id}/missing-report",
+    response_model=schemas.ComponentResponse,
+)
+def resolve_component_missing(
+    component_id: int,
+    db: DatabaseSession,
+    manager=Depends(require_lendery_manage),
+    resolution: Literal["resolved", "ignored"] = "resolved",
+):
+    component = crud.resolve_component_missing(
+        db,
+        component_id,
+        resolution=resolution,
+        resolved_by=manager.username,
+    )
+    if component is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Component not found",
+        )
+    return component
+
+
 @router.get(
     "/maintenance",
     response_model=list[schemas.MaintenanceQueueEntry],

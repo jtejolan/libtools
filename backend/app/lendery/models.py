@@ -120,6 +120,20 @@ class Component(Base):
 
     check_in_notes: Mapped[str | None] = mapped_column(Text())
 
+    missing_reported_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+
+    missing_reported_by: Mapped[str | None] = mapped_column(String(80))
+
+    missing_note: Mapped[str | None] = mapped_column(Text())
+
+    missing_ignored_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+
+    missing_ignored_by: Mapped[str | None] = mapped_column(String(80))
+
     item: Mapped["LenderyItem"] = relationship(
         back_populates="components"
     )
