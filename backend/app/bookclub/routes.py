@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.exc import IntegrityError
 
-from bookclub import catalogue, crud, schemas
+from bookclub import catalogue, crud, models, schemas
 from bookclub.access import require_selected_club
 from dependencies import DatabaseSession
 
@@ -445,6 +445,7 @@ def preview_emails(
         "transfer": "onboarding_transfer",
         "none": "onboarding_no_copy",
     }
+    templates: dict[str, models.BookClubTemplate | None] = {}
     for participation in crud.list_participation(db, meeting_id):
         if selected is not None and participation.member_id not in selected:
             continue
@@ -453,7 +454,9 @@ def preview_emails(
             if request.email_type == "onboarding"
             else "monthly_reminder"
         )
-        template = crud.get_template(db, template_key)
+        if template_key not in templates:
+            templates[template_key] = crud.get_template(db, template_key)
+        template = templates[template_key]
         if template is None:
             raise _not_found(f"Template {template_key} not found")
         rendered = crud.render_template(

@@ -54,24 +54,29 @@ def dashboard_summary(user: auth.CurrentUser, db: DatabaseSession):
     from lendery import crud as lendery_crud
     from lendery.models import Component, LenderyItem
 
-    inventory_items = list(
-        db.scalars(
-            select(LenderyItem).where(LenderyItem.lifecycle_status != "removed")
-        )
-    )
-    checked_out_items = sum(
-        item.availability_status == "checked_out" for item in inventory_items
-    )
+    inventory_counts = db.execute(
+        select(
+            func.count(LenderyItem.id),
+            func.count(LenderyItem.id).filter(
+                LenderyItem.availability_status == "checked_out"
+            ),
+        ).where(LenderyItem.lifecycle_status != "removed")
+    ).one()
+    total_items, checked_out_items = inventory_counts
 
     attention_count = None
     if auth.has_tool_access(db, user, "lendery_manage"):
         open_cases = lendery_crud.list_open_maintenance_cases(db)
         open_case_item_ids = {case.item_id for case in open_cases}
-        unresolved_unavailable = sum(
-            item.availability_status == "unavailable"
-            and item.id not in open_case_item_ids
-            for item in inventory_items
-        )
+        unavailable_filters = [
+            LenderyItem.lifecycle_status != "removed",
+            LenderyItem.availability_status == "unavailable",
+        ]
+        if open_case_item_ids:
+            unavailable_filters.append(LenderyItem.id.not_in(open_case_item_ids))
+        unresolved_unavailable = db.scalar(
+            select(func.count(LenderyItem.id)).where(*unavailable_filters)
+        ) or 0
         missing_components = (
             db.scalar(
                 select(func.count(Component.id))
@@ -89,7 +94,9 @@ def dashboard_summary(user: auth.CurrentUser, db: DatabaseSession):
     club_count = 0
     next_meeting = None
     if has_bookclub_access:
-        club_count = len(list(db.scalars(accessible_club_statement(user))))
+        club_count = db.scalar(
+            select(func.count()).select_from(accessible_club_statement(user).subquery())
+        ) or 0
         meeting_statement = (
             select(BookClubMeeting, BookClub.name)
             .join(BookClub, BookClub.id == BookClubMeeting.club_id)
@@ -120,7 +127,7 @@ def dashboard_summary(user: auth.CurrentUser, db: DatabaseSession):
 
     return schemas.DashboardSummary(
         lendery=schemas.DashboardLenderySummary(
-            total_items=len(inventory_items),
+            total_items=total_items,
             checked_out_items=checked_out_items,
             attention_count=attention_count,
         ),

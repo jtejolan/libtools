@@ -120,16 +120,13 @@ def parse_availability(payload: Any) -> AvailabilityResult:
     )
 
 
-def check_availability(
-    library_url: str,
-    *,
-    client: httpx.Client | None = None,
-) -> AvailabilityResult:
-    metadata_id = metadata_id_from_url(library_url)
-    endpoint = AVAILABILITY_ENDPOINT.format(metadata_id=metadata_id)
-    owns_client = client is None
-    if client is None:
-        client = httpx.Client(
+_shared_client: httpx.Client | None = None
+
+
+def _default_client() -> httpx.Client:
+    global _shared_client
+    if _shared_client is None:
+        _shared_client = httpx.Client(
             timeout=httpx.Timeout(8.0),
             follow_redirects=False,
             headers={
@@ -137,6 +134,18 @@ def check_availability(
                 "User-Agent": "LenderyAvailability/1.0",
             },
         )
+    return _shared_client
+
+
+def check_availability(
+    library_url: str,
+    *,
+    client: httpx.Client | None = None,
+) -> AvailabilityResult:
+    metadata_id = metadata_id_from_url(library_url)
+    endpoint = AVAILABILITY_ENDPOINT.format(metadata_id=metadata_id)
+    if client is None:
+        client = _default_client()
 
     try:
         response = client.get(endpoint)
@@ -148,6 +157,3 @@ def check_availability(
         raise AvailabilityCheckError(
             "Could not retrieve availability from BiblioCommons"
         ) from exc
-    finally:
-        if owns_client:
-            client.close()
