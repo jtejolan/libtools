@@ -206,26 +206,28 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
     def test_lendery_page_uses_current_autofill_assets(self) -> None:
         response = self.client.get("/lendery")
         self.assertEqual(response.status_code, 200)
-        self.assertIn('/static/lendery.js?v=20', response.text)
-        self.assertIn('/static/lendery.css?v=21', response.text)
-        self.assertIn('class="mobile-dashboard-link" href="/dashboard"', response.text)
+        self.assertIn('/static/lendery.js?v=31', response.text)
+        self.assertIn('/static/lendery.css?v=31', response.text)
+        self.assertIn('<option value="alphabetical">Alphabetical</option>', response.text)
+        self.assertIn('value="recently-active">Most recently used', response.text)
+        self.assertIn('value="recently-added">Recently added', response.text)
+        self.assertIn('class="dashboard-link" href="/dashboard"', response.text)
         self.assertIn('class="mobile-return-top" href="#lendery-top"', response.text)
 
     def test_removed_item_is_preserved_and_can_be_restored(self) -> None:
-        item = self.create_linked_item("RETIRED-1")
+        item = self.create_linked_item("REMOVAL-1")
 
-        retired = self.client.patch(
-            f"/lendery/items/{item['id']}",
-            json={
-                "lifecycle_status": "retired",
-                "lifecycle_note": "Motor cannot be repaired",
-            },
+        missing_reason = self.client.post(
+            f"/lendery/items/{item['id']}/remove",
+            json={"reason": "   "},
         )
-        self.assertEqual(retired.status_code, 200, retired.text)
-        self.assertEqual(retired.json()["lifecycle_status"], "retired")
+        self.assertEqual(missing_reason.status_code, 422, missing_reason.text)
 
-        removed = self.client.delete(f"/lendery/items/{item['id']}")
-        self.assertEqual(removed.status_code, 204, removed.text)
+        removed = self.client.post(
+            f"/lendery/items/{item['id']}/remove",
+            json={"reason": "Motor cannot be repaired"},
+        )
+        self.assertEqual(removed.status_code, 200, removed.text)
         self.assertEqual(self.client.get("/lendery/items").json(), [])
 
         removed_items = self.client.get(
@@ -237,31 +239,40 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
             removed_items[0]["lifecycle_note"], "Motor cannot be repaired"
         )
 
-        restored = self.client.patch(
-            f"/lendery/items/{item['id']}",
-            json={"lifecycle_status": "active"},
-        )
+        restored = self.client.post(f"/lendery/items/{item['id']}/restore")
         self.assertEqual(restored.status_code, 200, restored.text)
         self.assertEqual(restored.json()["lifecycle_status"], "active")
         self.assertEqual(len(self.client.get("/lendery/items").json()), 1)
 
-    def test_lifecycle_filters_keep_removed_items_out_of_inventory(self) -> None:
-        broken = self.create_linked_item("BROKEN-1")
-        removed = self.create_linked_item("REMOVED-1")
-        self.client.patch(
-            f"/lendery/items/{broken['id']}",
-            json={"lifecycle_status": "broken"},
+    def test_component_activity_updates_item_activity_time(self) -> None:
+        item = self.create_linked_item("ACTIVITY-1")
+
+        component = self.client.post(
+            f"/lendery/items/{item['id']}/components",
+            json={"name": "Charging cable", "quantity": 1},
         )
-        self.client.delete(f"/lendery/items/{removed['id']}")
+        refreshed = self.client.get(f"/lendery/items/{item['id']}")
+
+        self.assertEqual(component.status_code, 201, component.text)
+        self.assertEqual(refreshed.status_code, 200, refreshed.text)
+        self.assertNotEqual(refreshed.json()["updated_at"], item["updated_at"])
+
+    def test_lifecycle_filters_keep_removed_items_out_of_inventory(self) -> None:
+        active = self.create_linked_item("ACTIVE-1")
+        removed = self.create_linked_item("REMOVED-1")
+        self.client.post(
+            f"/lendery/items/{removed['id']}/remove",
+            json={"reason": "Withdrawn from the collection"},
+        )
 
         inventory = self.client.get("/lendery/items").json()
-        broken_items = self.client.get(
-            "/lendery/items?lifecycle=broken"
+        removed_items = self.client.get(
+            "/lendery/items?lifecycle=removed"
         ).json()
         all_items = self.client.get("/lendery/items?lifecycle=all").json()
 
-        self.assertEqual([entry["id"] for entry in inventory], [broken["id"]])
-        self.assertEqual([entry["id"] for entry in broken_items], [broken["id"]])
+        self.assertEqual([entry["id"] for entry in inventory], [active["id"]])
+        self.assertEqual([entry["id"] for entry in removed_items], [removed["id"]])
         self.assertEqual(len(all_items), 2)
 
     def test_existing_sqlite_items_receive_lifecycle_columns(self) -> None:
@@ -271,13 +282,15 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
                 connection.execute(
                     text(
                         "CREATE TABLE lendery_items ("
-                        "id INTEGER PRIMARY KEY, name VARCHAR(200) NOT NULL)"
+                        "id INTEGER PRIMARY KEY, name VARCHAR(200) NOT NULL, "
+                        "lifecycle_status VARCHAR(20) NOT NULL)"
                     )
                 )
                 connection.execute(
                     text(
-                        "INSERT INTO lendery_items (id, name) "
-                        "VALUES (1, 'Legacy drill')"
+                        "INSERT INTO lendery_items "
+                        "(id, name, lifecycle_status) "
+                        "VALUES (1, 'Legacy drill', 'retired')"
                     )
                 )
 
@@ -324,7 +337,10 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
         )
         self.assertEqual(rejected.status_code, 409, rejected.text)
 
-        self.client.delete(f"/lendery/items/{item['id']}")
+        self.client.post(
+            f"/lendery/items/{item['id']}/remove",
+            json={"reason": "Duplicate record"},
+        )
         deleted = self.client.delete(
             f"/lendery/items/{item['id']}/permanent"
         )

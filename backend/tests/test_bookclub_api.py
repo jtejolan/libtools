@@ -123,15 +123,22 @@ class BookClubApiTests(unittest.TestCase):
         return response.json()
 
     def test_homepage_links_to_bookclub_api(self) -> None:
-        homepage = self.client.get("/")
-        self.assertEqual(homepage.status_code, 200)
-        self.assertIn('href="/bookclub"', homepage.text)
-        self.assertIn("Available now", homepage.text)
+        with TestClient(app) as visitor:
+            homepage = visitor.get("/")
+            self.assertEqual(homepage.status_code, 200)
+            self.assertIn('href="/bookclub"', homepage.text)
+            self.assertIn("Available now", homepage.text)
+            self.assertIn('id="home-account-link"', homepage.text)
+            self.assertIn('/static/home.js?v=4', homepage.text)
+            self.assertEqual(
+                homepage.headers["cache-control"],
+                "private, no-store",
+            )
 
         entrypoint = self.client.get("/bookclub")
         self.assertEqual(entrypoint.status_code, 200)
         self.assertIn("Book Club Manager", entrypoint.text)
-        self.assertIn('/static/bookclub.js?v=7', entrypoint.text)
+        self.assertIn('/static/bookclub.js?v=10', entrypoint.text)
 
     @patch("bookclub.catalogue.fetch_catalogue_book")
     def test_imports_a_vaughan_catalogue_book(self, fetch_book) -> None:

@@ -4,9 +4,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select
 from starlette.middleware.sessions import SessionMiddleware
@@ -14,7 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from database import Base, SessionLocal, engine, migrate_existing_database
 from dependencies import DatabaseSession
 from accounts import models as account_models
-from accounts.auth import require_platform_admin
+from accounts.auth import get_current_user, require_platform_admin
 from accounts.bootstrap import (
     initialize_platform_accounts,
     remove_legacy_lendery_accounts,
@@ -29,6 +29,13 @@ from lendery import models
 from lendery.routes import router as lendery_router
 
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
+
+
+def public_homepage_response() -> FileResponse:
+    return FileResponse(
+        FRONTEND_DIR / "index.html",
+        headers={"Cache-Control": "private, no-store"},
+    )
 
 
 @asynccontextmanager
@@ -74,8 +81,24 @@ app.mount(
 
 
 @app.get("/", include_in_schema=False)
-def homepage() -> FileResponse:
-    return FileResponse(FRONTEND_DIR / "index.html")
+def homepage(
+    request: Request,
+    db: DatabaseSession,
+) -> Response:
+    try:
+        get_current_user(request, db)
+    except HTTPException:
+        return public_homepage_response()
+    return RedirectResponse(
+        "/dashboard",
+        status_code=302,
+        headers={"Cache-Control": "private, no-store"},
+    )
+
+
+@app.get("/home", include_in_schema=False)
+def public_homepage() -> FileResponse:
+    return public_homepage_response()
 
 
 @app.get("/lendery", include_in_schema=False)

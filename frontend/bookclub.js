@@ -16,6 +16,7 @@ const state = {
   meetingQuery: "",
   bookQuery: "",
 };
+let pendingDashboardAction = new URLSearchParams(window.location.search).get("action");
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -31,6 +32,13 @@ const escapeHtml = (value = "") =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+
+const formatUsername = (value = "") => {
+  const characters = Array.from(String(value));
+  return characters.length
+    ? characters[0].toLocaleUpperCase() + characters.slice(1).join("").toLocaleLowerCase()
+    : "";
+};
 
 const request = async (url, options = {}) => {
   const response = await fetch(url, {
@@ -73,7 +81,7 @@ const showLogin = () => {
 const applyUser = (user) => {
   state.user = user;
   $("#user-badge").textContent = user.role === "admin" ? "Administrator" : "Member";
-  $("#account-menu-name").textContent = user.username;
+  $("#account-menu-name").textContent = formatUsername(user.username);
 };
 
 const applyClub = (club) => {
@@ -96,12 +104,33 @@ const showClubPicker = () => {
   if (!clubDialog.open) clubDialog.showModal();
 };
 
+const finishDashboardAction = () => {
+  pendingDashboardAction = null;
+  const url = new URL(window.location.href);
+  url.searchParams.delete("action");
+  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+};
+
+const runDashboardAction = async () => {
+  if (!pendingDashboardAction || !state.club) return;
+  const action = pendingDashboardAction;
+  finishDashboardAction();
+  if (action === "add-member") {
+    await setView("members");
+    openMemberDialog();
+  } else if (action === "add-book") {
+    await setView("books");
+    openBookDialog();
+  }
+};
+
 const chooseClub = async (clubId) => {
   const club = await request(`/bookclub/clubs/${clubId}/select`, { method: "POST" });
   applyClub(club);
   clubDialog.close();
   await loadCoreData();
   await setView("meetings");
+  await runDashboardAction();
 };
 
 const loadClubs = async () => {
@@ -117,6 +146,7 @@ const loadClubs = async () => {
     applyClub(selected);
     await loadCoreData();
     await setView("meetings");
+    await runDashboardAction();
   } else if (state.clubs.length === 1) {
     await chooseClub(state.clubs[0].id);
   } else {

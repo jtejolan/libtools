@@ -1,3 +1,17 @@
+const updateHomepageAccountLink = async () => {
+  try {
+    const response = await fetch("/auth/me", { cache: "no-store" });
+    if (!response.ok) return;
+    const link = document.querySelector("#home-account-link");
+    link.href = "/dashboard";
+    link.innerHTML = 'Dashboard <span aria-hidden="true">→</span>';
+  } catch {
+    // Keep the public login link when session status cannot be checked.
+  }
+};
+
+updateHomepageAccountLink();
+
 const bookQuotes = [
   {
     quote: "Call me Ishmael.",

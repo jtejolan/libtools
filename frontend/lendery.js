@@ -4,7 +4,7 @@ const state = {
   query: "",
   category: "",
   availabilityFilter: "",
-  availabilitySort: "",
+  inventorySort: "alphabetical",
   selectedId: null,
   checkedComponents: new Set(),
   physicalManualChecked: false,
@@ -18,11 +18,12 @@ const state = {
 const AVAILABILITY_STALE_MS = 30 * 60 * 1000;
 const AUTO_REFRESH_CONCURRENCY = 3;
 const AVAILABILITY_STATUS_VERSION = 2;
+let pendingDashboardAction = new URLSearchParams(window.location.search).get("action");
 
 const grid = document.querySelector("#inventory-grid");
 const filters = document.querySelector("#category-filters");
 const availabilityFilters = document.querySelector("#availability-filters");
-const availabilitySort = document.querySelector("#availability-sort");
+const inventorySort = document.querySelector("#inventory-sort");
 const searchInput = document.querySelector("#search-input");
 const dialog = document.querySelector("#item-dialog");
 const itemForm = document.querySelector("#item-form");
@@ -44,6 +45,7 @@ const maintenanceFormError = document.querySelector("#maintenance-form-error");
 const needsAttentionCountBadge = document.querySelector("#needs-attention-count");
 const needsAttentionDialog = document.querySelector("#needs-attention-dialog");
 const needsAttentionContent = document.querySelector("#needs-attention-content");
+const needsAttentionTitle = document.querySelector("#needs-attention-title");
 const categoryOptions = document.querySelector("#category-options");
 const inventoryNav = document.querySelector("#inventory-nav");
 const removedItemsButton = document.querySelector("#removed-items-button");
@@ -55,6 +57,13 @@ const escapeHtml = (value = "") =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+
+const formatUsername = (value = "") => {
+  const characters = Array.from(String(value));
+  return characters.length
+    ? characters[0].toLocaleUpperCase() + characters.slice(1).join("").toLocaleLowerCase()
+    : "";
+};
 
 const safeUrl = (value) => {
   if (!value) return "";
@@ -108,11 +117,30 @@ const uploadComponentPhoto = async (componentId, file) => {
 const canManage = () =>
   state.user?.role === "admin" || state.user?.tools?.includes("lendery_manage");
 
+const finishDashboardAction = () => {
+  pendingDashboardAction = null;
+  const url = new URL(window.location.href);
+  url.searchParams.delete("action");
+  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+};
+
+const runDashboardAction = async () => {
+  if (!pendingDashboardAction || !canManage()) return;
+  const action = pendingDashboardAction;
+  finishDashboardAction();
+  if (action === "add-item") {
+    openItemDialog();
+  } else if (action === "report-issue") {
+    renderReportIssueDialog();
+    needsAttentionDialog.showModal();
+  }
+};
+
 const applyUser = (user) => {
   state.user = user;
   accountActions.hidden = false;
   roleBadge.textContent = canManage() ? "Lendery editor" : "Lendery viewer";
-  accountMenuName.textContent = user.username;
+  accountMenuName.textContent = formatUsername(user.username);
   document.querySelectorAll("[data-admin-only]").forEach((element) => {
     element.hidden = !canManage();
   });
@@ -159,14 +187,6 @@ const itemInitials = (name) =>
     .map((word) => word[0])
     .join("")
     .toUpperCase();
-
-const lifecycleInfo = (status) =>
-  ({
-    active: { label: "Active", description: "Ready to lend" },
-    broken: { label: "Broken", description: "Out of service while repair is considered" },
-    retired: { label: "Retired", description: "Permanently out of lending service" },
-    removed: { label: "Removed", description: "No longer in the physical collection" },
-  })[status || "active"];
 
 const availabilityInfo = (item) => {
   if (!item.library_url) {
@@ -280,7 +300,7 @@ const renderMaintenanceEvent = (entry) => {
       ${entry.note ? `<p>${escapeHtml(entry.note)}</p>` : ""}
       ${details.length ? `<small>${escapeHtml(details.join(" · "))}</small>` : ""}
       ${vendorUrl ? `<a href="${escapeHtml(vendorUrl)}" target="_blank" rel="noreferrer">Open order source ↗</a>` : ""}
-      <small>Recorded by ${escapeHtml(entry.created_by_name)}${entry.status_after ? ` · ${escapeHtml(maintenanceStatusLabel(entry.status_after))}` : ""}</small>
+      <small>Recorded by ${escapeHtml(formatUsername(entry.created_by_name))}${entry.status_after ? ` · ${escapeHtml(maintenanceStatusLabel(entry.status_after))}` : ""}</small>
     </div>
   </li>`;
 };
@@ -309,7 +329,7 @@ const renderMaintenanceSection = (cases) => `
                     ${repairCase.component_name ? `<small>${escapeHtml(repairCase.component_name)}</small>` : ""}
                   </div>
                   ${repairCase.description ? `<p>${escapeHtml(repairCase.description)}</p>` : ""}
-                  <small>Opened ${escapeHtml(formatMaintenanceDate(repairCase.opened_at))} by ${escapeHtml(repairCase.opened_by_name)}</small>
+                  <small>Opened ${escapeHtml(formatMaintenanceDate(repairCase.opened_at))} by ${escapeHtml(formatUsername(repairCase.opened_by_name))}</small>
                   ${
                     repairCase.events.length
                       ? `<ol class="maintenance-timeline">${repairCase.events.map(renderMaintenanceEvent).join("")}</ol>`
@@ -367,10 +387,7 @@ const unresolvedUnavailableItems = () => {
   const flagged = new Set(state.maintenanceQueue.map((entry) => entry.item_id));
   return state.items.filter(
     (item) =>
-      ((item.lifecycle_status === "active" &&
-        item.availability_status === "unavailable") ||
-        item.lifecycle_status === "broken") &&
-      !flagged.has(item.id),
+      item.availability_status === "unavailable" && !flagged.has(item.id),
   );
 };
 
@@ -408,6 +425,7 @@ const renderNeedsAttentionButton = () => {
 };
 
 const renderNeedsAttentionDialog = () => {
+  needsAttentionTitle.textContent = "Needs attention";
   const cases = state.maintenanceQueue;
   const flagged = unresolvedUnavailableItems();
   const missingReports = missingComponentReports();
@@ -423,7 +441,7 @@ const renderNeedsAttentionDialog = () => {
             </div>
           </div>
           <small>${escapeHtml(entry.item_name)} · ${escapeHtml(entry.item_barcode)}${entry.component_name ? ` · ${escapeHtml(entry.component_name)}` : ""}</small><br />
-          <small>Opened ${escapeHtml(formatMaintenanceDate(entry.opened_at))} by ${escapeHtml(entry.opened_by_name)}</small>
+          <small>Opened ${escapeHtml(formatMaintenanceDate(entry.opened_at))} by ${escapeHtml(formatUsername(entry.opened_by_name))}</small>
         </button>`,
     )
     .join("");
@@ -433,7 +451,7 @@ const renderNeedsAttentionDialog = () => {
       (item) => `
         <div class="needs-attention-row unavailable-flag">
           <div>
-            <span class="maintenance-status">${item.lifecycle_status === "broken" ? "Broken" : "Unavailable"}</span>
+            <span class="maintenance-status">Unavailable</span>
             <h4>${escapeHtml(item.name)}</h4>
             <small>${escapeHtml(item.barcode)}</small>
           </div>
@@ -453,7 +471,7 @@ const renderNeedsAttentionDialog = () => {
             </div>
           </div>
           <small>${escapeHtml(item.name)} · ${escapeHtml(item.barcode)}</small><br />
-          <small>Reported ${escapeHtml(formatMaintenanceDate(component.missing_reported_at))} by ${escapeHtml(component.missing_reported_by)}${component.missing_note ? ` · “${escapeHtml(component.missing_note)}”` : ""}</small>
+          <small>Reported ${escapeHtml(formatMaintenanceDate(component.missing_reported_at))} by ${escapeHtml(formatUsername(component.missing_reported_by))}${component.missing_note ? ` · “${escapeHtml(component.missing_note)}”` : ""}</small>
         </button>`,
     )
     .join("");
@@ -478,7 +496,7 @@ const renderNeedsAttentionDialog = () => {
     ${
       flagged.length
         ? `<div class="needs-attention-group">
-            <h3>Unavailable or broken, no issue logged</h3>
+            <h3>Unavailable, no issue logged</h3>
             <div class="needs-attention-list">${flaggedRows}</div>
           </div>`
         : ""
@@ -491,14 +509,28 @@ const renderNeedsAttentionDialog = () => {
   `;
 };
 
+const renderReportIssueDialog = () => {
+  needsAttentionTitle.textContent = "Choose an item";
+  const rows = state.items
+    .map(
+      (item) => `<div class="needs-attention-row">
+        <div><h4>${escapeHtml(item.name)}</h4><small>${escapeHtml(item.barcode)} · ${escapeHtml(item.category)}</small></div>
+        <button class="needs-attention-log-issue" type="button" data-log-issue="${item.id}">Log an issue</button>
+      </div>`,
+    )
+    .join("");
+  needsAttentionContent.innerHTML = state.items.length
+    ? `<div class="needs-attention-group"><p>Select the item with the problem.</p><div class="needs-attention-list">${rows}</div></div>`
+    : '<div class="maintenance-empty-state"><strong>No items yet</strong><span>Add an inventory item before reporting an issue.</span></div>';
+};
+
 const visibleItems = () => {
   const query = state.query.toLowerCase().trim();
   const items = state.items.filter((item) => {
     const matchesCategory = !state.category || item.category === state.category;
     const matchesAvailability =
       !state.availabilityFilter ||
-      (item.lifecycle_status === "active" &&
-        item.availability_status === state.availabilityFilter);
+      item.availability_status === state.availabilityFilter;
     const matchesQuery =
       !query ||
       [item.name, item.barcode, item.category, item.description]
@@ -507,43 +539,31 @@ const visibleItems = () => {
     return matchesCategory && matchesAvailability && matchesQuery;
   });
 
-  if (!state.availabilitySort) return items;
-
-  const availableFirst = {
-    available: 0,
-    checked_out: 1,
-    unavailable: 2,
+  const byName = (left, right) =>
+    left.name.localeCompare(right.name, undefined, { sensitivity: "base" }) ||
+    left.id - right.id;
+  const timestamp = (value) => {
+    const parsed = value ? new Date(value).getTime() : 0;
+    return Number.isNaN(parsed) ? 0 : parsed;
   };
-  const checkedOutFirst = {
-    checked_out: 0,
-    available: 1,
-    unavailable: 2,
-  };
-  const unavailableFirst = {
-    unavailable: 0,
-    available: 1,
-    checked_out: 2,
-  };
-  const order = {
-    "available-first": availableFirst,
-    "checked-out-first": checkedOutFirst,
-    "unavailable-first": unavailableFirst,
-  }[state.availabilitySort];
-  return [...items].sort(
-    (left, right) =>
-      (order[left.availability_status] ?? 4) -
-        (order[right.availability_status] ?? 4) ||
-      left.id - right.id,
-  );
+  return [...items].sort((left, right) => {
+    if (state.inventorySort === "recently-active") {
+      return timestamp(right.updated_at) - timestamp(left.updated_at) ||
+        byName(left, right);
+    }
+    if (state.inventorySort === "recently-added") {
+      return timestamp(right.created_at) - timestamp(left.created_at) ||
+        byName(left, right);
+    }
+    return byName(left, right);
+  });
 };
 
 const renderStats = () => {
   document.querySelector("#total-stat").textContent = state.items.length;
 
   const checkedOutCount = state.items.filter(
-    (item) =>
-      item.lifecycle_status === "active" &&
-      item.availability_status === "checked_out",
+    (item) => item.availability_status === "checked_out",
   ).length;
   const percent = state.items.length
     ? Math.round((checkedOutCount / state.items.length) * 100)
@@ -580,9 +600,7 @@ const renderAvailabilityControls = () => {
     .map(([status, label]) => {
       const count = status
         ? state.items.filter(
-            (item) =>
-              item.lifecycle_status === "active" &&
-              item.availability_status === status,
+            (item) => item.availability_status === status,
           ).length
         : state.items.length;
       return `
@@ -596,12 +614,20 @@ const renderAvailabilityControls = () => {
         </button>`;
     })
     .join("");
-  availabilitySort.value = state.availabilitySort;
+  inventorySort.value = state.inventorySort;
 };
 
 const renderItems = () => {
   const items = visibleItems();
   if (!items.length) {
+    if (state.inventoryView === "removed") {
+      grid.innerHTML = `
+        <div class="empty-state">
+          <h3>No items yet</h3>
+        </div>`;
+      return;
+    }
+
     const hasFilters = Boolean(
       state.query || state.category || state.availabilityFilter
     );
@@ -632,7 +658,6 @@ const renderItems = () => {
     .map((item) => {
       const imageUrl = safeUrl(item.image_url);
       const availability = availabilityInfo(item);
-      const lifecycle = lifecycleInfo(item.lifecycle_status);
       const componentLabel =
         item.components.length === 1 ? "1 part" : `${item.components.length} parts`;
       return `
@@ -644,11 +669,6 @@ const renderItems = () => {
                 : `<span class="item-placeholder" aria-hidden="true">${escapeHtml(itemInitials(item.name))}</span>`
             }
             <span class="category-badge ${categoryTintClass(item.category)}">${escapeHtml(item.category || "Uncategorized")}</span>
-            ${
-              item.lifecycle_status !== "active"
-                ? `<span class="lifecycle-badge ${escapeHtml(item.lifecycle_status)}">${escapeHtml(lifecycle.label)}</span>`
-                : ""
-            }
             ${
               attentionIds.has(item.id)
                 ? `<span class="attention-flag" title="Needs attention"><i aria-hidden="true">⚑</i></span>`
@@ -824,8 +844,6 @@ const openItemDialog = (item = null) => {
       "purchase_url",
       "library_url",
       "notes",
-      "lifecycle_status",
-      "lifecycle_note",
     ]) {
       itemForm.elements[field].value = item[field] ?? "";
     }
@@ -908,7 +926,6 @@ const renderDrawer = (item) => {
   const manualUrl = safeUrl(item.manual_url);
   const libraryUrl = safeUrl(item.library_url);
   const availability = availabilityInfo(item);
-  const lifecycle = lifecycleInfo(item.lifecycle_status);
   const components = item.components || [];
   const checkedCount = components.filter((component) =>
     state.checkedComponents.has(component.id),
@@ -934,14 +951,14 @@ const renderDrawer = (item) => {
       </div>
       <p class="drawer-description">${escapeHtml(item.description || "No description has been added yet.")}</p>
 
-      <section class="lifecycle-panel ${escapeHtml(item.lifecycle_status)}">
-        <div>
-          <p class="drawer-category">Inventory status</p>
-          <h3>${escapeHtml(lifecycle.label)}</h3>
-          <p>${escapeHtml(lifecycle.description)}</p>
-          ${item.lifecycle_note ? `<small>${escapeHtml(item.lifecycle_note)}</small>` : ""}
-        </div>
-      </section>
+      ${
+        item.lifecycle_status === "removed"
+          ? `<section class="removal-reason-panel">
+              <p class="drawer-category">Removal reason</p>
+              <p>${escapeHtml(item.lifecycle_note || "No reason recorded.")}</p>
+            </section>`
+          : ""
+      }
 
       <section class="availability-panel ${availability.status}" aria-label="Pierre Berton availability">
         <div class="availability-heading">
@@ -973,7 +990,13 @@ const renderDrawer = (item) => {
 
       <dl class="detail-list">
         <div><dt>Barcode</dt><dd>${escapeHtml(item.barcode)}</dd></div>
-        <div><dt>Parts</dt><dd>${components.length === 1 ? "1 part" : `${components.length} parts`}</dd></div>
+        <div><dt>Components</dt><dd>${
+          components.length === 0
+            ? "None tracked"
+            : components.length === 1
+              ? "1 component"
+              : `${components.length} components`
+        }</dd></div>
         <div><dt>Manual</dt><dd>${manualUrl ? `<a href="${escapeHtml(manualUrl)}" target="_blank" rel="noreferrer">Open manual ↗</a>` : "Not added"}</dd></div>
         <div><dt>Last updated</dt><dd>${escapeHtml(formatMaintenanceDate(item.updated_at))}</dd></div>
       </dl>
@@ -1073,7 +1096,7 @@ const renderDrawer = (item) => {
                               ? `<div class="missing-report-status">
                                   <span class="missing-badge">Reported missing</span>
                                   ${component.missing_note ? `<p>“${escapeHtml(component.missing_note)}”</p>` : ""}
-                                  <small>By ${escapeHtml(component.missing_reported_by || "a viewer")} · ${escapeHtml(formatMaintenanceDate(component.missing_reported_at))}</small>
+                                  <small>By ${escapeHtml(component.missing_reported_by ? formatUsername(component.missing_reported_by) : "a viewer")} · ${escapeHtml(formatMaintenanceDate(component.missing_reported_at))}</small>
                                   ${
                                     canManage()
                                       ? `<div class="missing-report-actions">
@@ -1138,7 +1161,7 @@ const renderDrawer = (item) => {
             </div>
             <input class="component-note-input" name="check_in_notes" maxlength="500" placeholder="Return note, e.g. check for charger" aria-label="Check-in note" />
             <label class="optional-check"><input name="optional" type="checkbox" /> Optional part</label>
-            <button type="submit">＋ Add part</button>
+            <button type="submit">＋ Add</button>
           </div>
         </form>`
             : ""
@@ -1330,7 +1353,7 @@ itemForm.elements.library_url.addEventListener("keydown", (event) => {
 
 document.addEventListener("click", async (event) => {
   const addTrigger = event.target.closest(
-    "#nav-add-item, #header-add-item, #panel-add-item, #empty-add-item",
+    "#nav-add-item, #panel-add-item, #empty-add-item",
   );
   if (addTrigger) {
     if (!canManage()) return;
@@ -1391,7 +1414,7 @@ document.addEventListener("click", async (event) => {
     state.query = "";
     state.category = "";
     state.availabilityFilter = "";
-    state.availabilitySort = "";
+    state.inventorySort = "alphabetical";
     searchInput.value = "";
     renderFilters();
     renderAvailabilityControls();
@@ -1478,9 +1501,20 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("#delete-item")) {
     if (!canManage()) return;
     const item = state.items.find((candidate) => candidate.id === state.selectedId);
-    if (!item || !window.confirm(`Move “${item.name}” to Removed Items? Its record and history will be kept.`)) return;
+    if (!item) return;
+    const reason = window.prompt(
+      `Why are you removing “${item.name}”? Its record and history will be kept in Removed Items.`,
+    );
+    if (reason === null) return;
+    if (!reason.trim()) {
+      showToast("Enter a reason before removing the item.");
+      return;
+    }
     try {
-      await request(`/lendery/items/${item.id}`, { method: "DELETE" });
+      await request(`/lendery/items/${item.id}/remove`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
       state.items = state.items.filter((candidate) => candidate.id !== item.id);
       closeDrawer();
       renderAll();
@@ -1497,13 +1531,7 @@ document.addEventListener("click", async (event) => {
     const item = state.items.find((candidate) => candidate.id === state.selectedId);
     if (!item) return;
     try {
-      await request(`/lendery/items/${item.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          lifecycle_status: "active",
-          lifecycle_note: "Restored to inventory",
-        }),
-      });
+      await request(`/lendery/items/${item.id}/restore`, { method: "POST" });
       state.items = state.items.filter((candidate) => candidate.id !== item.id);
       closeDrawer();
       renderAll();
@@ -1540,8 +1568,21 @@ document.addEventListener("click", async (event) => {
   const removeComponent = event.target.closest("[data-component-id]");
   if (removeComponent) {
     if (!canManage()) return;
+    const componentId = Number(removeComponent.dataset.componentId);
+    const item = state.items.find(
+      (candidate) => candidate.id === state.selectedId,
+    );
+    const component = item?.components.find(
+      (candidate) => candidate.id === componentId,
+    );
+    const componentName = component?.name || "this component";
+    if (
+      !window.confirm(
+        `Delete “${componentName}”? Its photo, checklist details, and missing-part history will be permanently deleted. This cannot be undone.`,
+      )
+    ) return;
     try {
-      await request(`/lendery/components/${removeComponent.dataset.componentId}`, {
+      await request(`/lendery/components/${componentId}`, {
         method: "DELETE",
       });
       await refreshSelectedItem();
@@ -1820,8 +1861,8 @@ searchInput.addEventListener("keydown", (event) => {
   openItemByBarcode(barcode);
 });
 
-availabilitySort.addEventListener("change", (event) => {
-  state.availabilitySort = event.target.value;
+inventorySort.addEventListener("change", (event) => {
+  state.inventorySort = event.target.value;
   renderItems();
 });
 
@@ -1857,6 +1898,8 @@ loginForm.addEventListener("submit", async (event) => {
     event.target.reset();
     loginDialog.close();
     await loadItems();
+    searchInput.focus({ preventScroll: true });
+    await runDashboardAction();
   } catch (error) {
     loginError.textContent = error.message;
   } finally {
@@ -1905,6 +1948,8 @@ const initialize = async () => {
     const user = await request("/auth/me");
     applyUser(user);
     await loadItems();
+    searchInput.focus({ preventScroll: true });
+    await runDashboardAction();
   } catch (error) {
     if (error.status !== 401) {
       showToast(error.message);

@@ -21,7 +21,7 @@ AvailabilityStatus = Literal[
     "unknown",
 ]
 
-LifecycleStatus = Literal["active", "broken", "retired", "removed"]
+LifecycleStatus = Literal["active", "removed"]
 
 INTERNAL_COMPONENT_IMAGE_PATTERN = re.compile(
     r"/lendery/components/\d+/image"
@@ -153,10 +153,6 @@ class LenderyItemBase(BaseModel):
 
     physical_manual_included: bool = False
 
-    lifecycle_status: LifecycleStatus = "active"
-
-    lifecycle_note: str | None = Field(default=None, max_length=1000)
-
     @field_validator("library_url")
     @classmethod
     def library_url_must_be_a_vaughan_record(
@@ -195,15 +191,12 @@ class LenderyItemUpdate(BaseModel):
     library_url: HttpUrl | None = None
     physical_manual_included: bool | None = None
     physical_manual_missing: bool | None = None
-    lifecycle_status: LifecycleStatus | None = None
-    lifecycle_note: str | None = Field(default=None, max_length=1000)
 
     @field_validator(
         "name",
         "barcode",
         "physical_manual_included",
         "physical_manual_missing",
-        "lifecycle_status",
     )
     @classmethod
     def required_values_cannot_be_null(cls, value: object) -> object:
@@ -230,11 +223,25 @@ class LenderyItemResponse(LenderyItemBase):
     availability_checked_at: datetime | None = None
     availability_error: str | None = None
     physical_manual_missing: bool = False
+    lifecycle_status: LifecycleStatus = "active"
+    lifecycle_note: str | None = None
     lifecycle_changed_at: datetime
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class LenderyItemRemoval(BaseModel):
+    reason: str = Field(min_length=1, max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def reason_cannot_be_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("removal reason cannot be blank")
+        return value
 
 
 class CatalogueItemImportRequest(BaseModel):

@@ -20,8 +20,8 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/lendery.css?v=21" />
-    <script src="/static/lendery.js?v=20" defer></script>
+    <link rel="stylesheet" href="/static/lendery.css?v=31" />
+    <script src="/static/lendery.js?v=31" defer></script>
   </head>
   <body id="lendery-top">
     <div class="app-shell">
@@ -35,11 +35,6 @@
           <span>Library Tools</span>
         </a>
 
-        <a class="mobile-dashboard-link" href="/dashboard">
-          <span aria-hidden="true">▦</span>
-          <span>Dashboard</span>
-        </a>
-
         <div class="product-name">
           <span class="product-icon" aria-hidden="true">
             <img src="/static/assets/lendery-logo-symbol-v3.png?v=4" alt="" />
@@ -50,37 +45,33 @@
           </div>
         </div>
 
+        <a class="dashboard-link" href="/dashboard">
+          <span aria-hidden="true">←</span>
+          <span>Back to dashboard</span>
+        </a>
+
         <nav aria-label="Lendery navigation">
           <p class="nav-label">Workspace</p>
           <a class="nav-item active" id="inventory-nav" href="/lendery">
             <span aria-hidden="true">▦</span>
             <span>Inventory</span>
           </a>
-          <button class="nav-item" id="removed-items-button" type="button" data-admin-only hidden>
-            <span aria-hidden="true">⌫</span>
-            <span>Removed items</span>
+          <button class="nav-item" id="nav-add-item" type="button" data-admin-only hidden>
+            <span aria-hidden="true">＋</span>
+            <span>Add Item</span>
           </button>
           <button class="nav-item" id="needs-attention-button" type="button" data-admin-only hidden>
             <span aria-hidden="true">⚑</span>
-            <span>Needs attention</span>
+            <span>Needs Attention</span>
             <span class="needs-attention-count" id="needs-attention-count" hidden></span>
           </button>
-          <button class="nav-item" id="nav-add-item" type="button" data-admin-only hidden>
-            <span aria-hidden="true">＋</span>
-            <span>Add an item</span>
+          <button class="nav-item" id="removed-items-button" type="button" data-admin-only hidden>
+            <span aria-hidden="true">⌫</span>
+            <span>Removed Items</span>
           </button>
-          <p class="nav-label">Library Tools</p>
-          <a class="nav-item" href="/bookclub">
-            <span aria-hidden="true">▥</span>
-            <span>Book Club Manager</span>
-          </a>
-          <a class="nav-item" href="/">
-            <span aria-hidden="true">⌂</span>
-            <span>All tools</span>
-          </a>
-          <a class="nav-item" href="/docs#/lendery" data-platform-admin-only hidden>
-            <span aria-hidden="true">↗</span>
-            <span>API docs</span>
+          <a class="nav-item" id="export-items-csv" href="/lendery/items/export.csv" data-admin-only hidden>
+            <span aria-hidden="true">⇩</span>
+            <span>Export CSV</span>
           </a>
         </nav>
 
@@ -90,30 +81,26 @@
         </div>
       </aside>
 
+      <div class="account-actions" id="account-actions" hidden>
+        <span class="role-badge" id="role-badge"></span>
+        <details class="account-menu" id="account-menu">
+          <summary class="account-menu-trigger">
+            <span id="account-menu-name">Account</span>
+            <span aria-hidden="true">⌄</span>
+          </summary>
+          <div class="account-menu-panel">
+            <a href="/account">My account</a>
+            <button id="logout-button" type="button">Log out</button>
+          </div>
+        </details>
+      </div>
+
       <main class="workspace">
         <header class="topbar">
           <div class="breadcrumb">
             <span>Lendery</span>
             <i>/</i>
             <strong>Inventory</strong>
-          </div>
-          <div class="topbar-actions">
-            <button class="primary-button" id="header-add-item" type="button" data-admin-only hidden>
-              <span aria-hidden="true">＋</span> Add item
-            </button>
-            <div class="account-actions" id="account-actions" hidden>
-              <span class="role-badge" id="role-badge"></span>
-              <details class="account-menu" id="account-menu">
-                <summary class="account-menu-trigger">
-                  <span id="account-menu-name">Account</span>
-                  <span aria-hidden="true">⌄</span>
-                </summary>
-                <div class="account-menu-panel">
-                  <a href="/account">My account</a>
-                  <button id="logout-button" type="button">Log out</button>
-                </div>
-              </details>
-            </div>
           </div>
         </header>
 
@@ -175,9 +162,6 @@
                     autocomplete="off"
                   />
                 </label>
-                <a class="secondary-button" id="export-items-csv" href="/lendery/items/export.csv" data-admin-only hidden>
-                  <span aria-hidden="true">⇩</span> Export CSV
-                </a>
                 <button class="secondary-button" id="panel-add-item" type="button" data-admin-only hidden>
                   <span aria-hidden="true">＋</span> Add item
                 </button>
@@ -196,11 +180,10 @@
               ></div>
               <label class="sort-control">
                 <span>Sort</span>
-                <select id="availability-sort" aria-label="Sort inventory">
-                  <option value="">Shelf order</option>
-                  <option value="available-first">Available first</option>
-                  <option value="checked-out-first">Checked out first</option>
-                  <option value="unavailable-first">Unavailable first</option>
+                <select id="inventory-sort" aria-label="Sort inventory">
+                  <option value="alphabetical">Alphabetical</option>
+                  <option value="recently-active">Most recently used</option>
+                  <option value="recently-added">Recently added</option>
                 </select>
               </label>
             </div>
@@ -283,19 +266,6 @@
             <span>Staff notes</span>
             <textarea name="notes" rows="2" placeholder="Private handling or circulation notes"></textarea>
           </label>
-          <label class="field">
-            <span>Inventory status</span>
-            <select name="lifecycle_status">
-              <option value="active">Active — ready to lend</option>
-              <option value="broken">Broken — may be repaired</option>
-              <option value="retired">Retired — permanently out of service</option>
-              <option value="removed">Removed — no longer in the collection</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Status note</span>
-            <input name="lifecycle_note" maxlength="1000" placeholder="Reason, disposal method, or other detail" />
-          </label>
           <label class="optional-check field-wide"><input name="physical_manual_included" type="checkbox" /> Includes a physical manual</label>
         </div>
 
@@ -353,7 +323,7 @@
         <div class="dialog-heading">
           <div>
             <p class="eyebrow"><span></span> Inventory-wide</p>
-            <h2>Needs attention</h2>
+            <h2 id="needs-attention-title">Needs attention</h2>
           </div>
           <button class="icon-button" type="button" data-close-needs-attention aria-label="Close">×</button>
         </div>
@@ -392,6 +362,7 @@
         <p class="form-error" id="login-error" role="alert"></p>
         <button class="primary-button auth-submit" type="submit">Sign in</button>
         <a class="text-button auth-account-link" href="/account">Open my Libtools account</a>
+        <a class="text-button auth-account-link" href="/">← Back to Library Tools</a>
       </form>
     </dialog>
 

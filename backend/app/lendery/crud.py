@@ -37,6 +37,10 @@ def _commit(db: Session, instance: Any) -> Any:
     return instance
 
 
+def _touch_item(item: models.LenderyItem) -> None:
+    item.updated_at = datetime.now(timezone.utc)
+
+
 def get_item(
     db: Session,
     item_id: int,
@@ -192,10 +196,6 @@ def update_item(
         "library_url" in update_data
         and update_data["library_url"] != db_item.library_url
     )
-    lifecycle_changed = (
-        "lifecycle_status" in update_data
-        and update_data["lifecycle_status"] != db_item.lifecycle_status
-    )
     for field in (
         "name",
         "description",
@@ -209,14 +209,9 @@ def update_item(
         "library_url",
         "physical_manual_included",
         "physical_manual_missing",
-        "lifecycle_status",
-        "lifecycle_note",
     ):
         if field in update_data:
             setattr(db_item, field, update_data[field])
-
-    if lifecycle_changed:
-        db_item.lifecycle_changed_at = datetime.now(timezone.utc)
 
     db_item.updated_at = datetime.now(timezone.utc)
 
@@ -264,6 +259,7 @@ def refresh_item_availability(
 def delete_item(
     db: Session,
     item_id: int,
+    reason: str,
 ) -> bool:
     db_item = get_item(db, item_id)
     if db_item is None:
@@ -271,10 +267,23 @@ def delete_item(
 
     db_item.lifecycle_status = "removed"
     db_item.lifecycle_changed_at = datetime.now(timezone.utc)
-    if not db_item.lifecycle_note:
-        db_item.lifecycle_note = "Moved to removed items"
+    db_item.lifecycle_note = reason
+    _touch_item(db_item)
     _commit(db, db_item)
     return True
+
+
+def restore_item(
+    db: Session,
+    item_id: int,
+) -> models.LenderyItem | None:
+    db_item = get_item(db, item_id)
+    if db_item is None:
+        return None
+    db_item.lifecycle_status = "active"
+    db_item.lifecycle_changed_at = datetime.now(timezone.utc)
+    _touch_item(db_item)
+    return _commit(db, db_item)
 
 
 def permanently_delete_item(
@@ -340,6 +349,7 @@ def create_component(
         item=db_item,
         **component.model_dump(mode="json"),
     )
+    _touch_item(db_item)
     db.add(db_component)
     return _commit(db, db_component)
 
@@ -365,6 +375,7 @@ def update_component(
         if field in update_data:
             setattr(db_component, field, update_data[field])
 
+    _touch_item(db_component.item)
     return _commit(db, db_component)
 
 
@@ -384,6 +395,7 @@ def report_component_missing(
     db_component.missing_note = note
     db_component.missing_ignored_at = None
     db_component.missing_ignored_by = None
+    _touch_item(db_component.item)
     return _commit(db, db_component)
 
 
@@ -409,6 +421,7 @@ def resolve_component_missing(
         db_component.missing_ignored_at = None
         db_component.missing_ignored_by = None
 
+    _touch_item(db_component.item)
     return _commit(db, db_component)
 
 
@@ -420,6 +433,7 @@ def delete_component(
     if db_component is None:
         return False
 
+    _touch_item(db_component.item)
     try:
         db.delete(db_component)
         db.commit()
@@ -501,6 +515,7 @@ def create_maintenance_case(
     )
     if value.status in {"resolved", "cancelled"}:
         case.resolved_at = datetime.now(timezone.utc)
+    _touch_item(item)
     db.add(case)
     _commit(db, case)
     return get_maintenance_case(db, case.id)
@@ -524,6 +539,7 @@ def update_maintenance_case(
             if case.status in {"resolved", "cancelled"}
             else None
         )
+    _touch_item(case.item)
     _commit(db, case)
     return get_maintenance_case(db, case.id)
 
@@ -561,6 +577,7 @@ def add_maintenance_event(
             if status_after in {"resolved", "cancelled"}
             else None
         )
+    _touch_item(case.item)
     db.add(event)
     _commit(db, event)
     return get_maintenance_case(db, case.id)

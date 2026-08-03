@@ -1,7 +1,8 @@
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from accounts import auth, models, schemas
@@ -44,6 +45,91 @@ def logout(request: Request) -> Response:
 @router.get("/me", response_model=schemas.UserResponse)
 def me(user: auth.CurrentUser, db: DatabaseSession):
     return auth.user_response(db, user)
+
+
+@router.get("/dashboard-summary", response_model=schemas.DashboardSummary)
+def dashboard_summary(user: auth.CurrentUser, db: DatabaseSession):
+    from bookclub.access import accessible_club_statement
+    from bookclub.models import BookClub, BookClubAccess, BookClubMeeting
+    from lendery import crud as lendery_crud
+    from lendery.models import Component, LenderyItem
+
+    inventory_items = list(
+        db.scalars(
+            select(LenderyItem).where(LenderyItem.lifecycle_status != "removed")
+        )
+    )
+    checked_out_items = sum(
+        item.availability_status == "checked_out" for item in inventory_items
+    )
+
+    attention_count = None
+    if auth.has_tool_access(db, user, "lendery_manage"):
+        open_cases = lendery_crud.list_open_maintenance_cases(db)
+        open_case_item_ids = {case.item_id for case in open_cases}
+        unresolved_unavailable = sum(
+            item.availability_status == "unavailable"
+            and item.id not in open_case_item_ids
+            for item in inventory_items
+        )
+        missing_components = (
+            db.scalar(
+                select(func.count(Component.id))
+                .join(LenderyItem, Component.item_id == LenderyItem.id)
+                .where(
+                    Component.missing_reported_at.is_not(None),
+                    LenderyItem.lifecycle_status != "removed",
+                )
+            )
+            or 0
+        )
+        attention_count = len(open_cases) + unresolved_unavailable + missing_components
+
+    has_bookclub_access = auth.has_tool_access(db, user, "bookclub")
+    club_count = 0
+    next_meeting = None
+    if has_bookclub_access:
+        club_count = len(list(db.scalars(accessible_club_statement(user))))
+        meeting_statement = (
+            select(BookClubMeeting, BookClub.name)
+            .join(BookClub, BookClub.id == BookClubMeeting.club_id)
+            .where(BookClubMeeting.meeting_date >= date.today())
+        )
+        if user.role != "admin":
+            meeting_statement = meeting_statement.join(
+                BookClubAccess, BookClubAccess.club_id == BookClub.id
+            ).where(BookClubAccess.user_id == user.id)
+        meeting_row = db.execute(
+            meeting_statement.order_by(
+                BookClubMeeting.meeting_date,
+                BookClubMeeting.id,
+            ).limit(1)
+        ).first()
+        if meeting_row is not None:
+            meeting, club_name = meeting_row
+            next_meeting = schemas.DashboardMeetingSummary(
+                club_id=meeting.club_id,
+                club_name=club_name,
+                meeting_id=meeting.id,
+                meeting_date=meeting.meeting_date,
+                days_until=(meeting.meeting_date - date.today()).days,
+                meeting_time=meeting.meeting_time,
+                location=meeting.location,
+                book_title=meeting.book_title,
+            )
+
+    return schemas.DashboardSummary(
+        lendery=schemas.DashboardLenderySummary(
+            total_items=len(inventory_items),
+            checked_out_items=checked_out_items,
+            attention_count=attention_count,
+        ),
+        bookclub=schemas.DashboardBookClubSummary(
+            has_access=has_bookclub_access,
+            club_count=club_count,
+            next_meeting=next_meeting,
+        ),
+    )
 
 
 @router.put("/password", status_code=status.HTTP_204_NO_CONTENT)

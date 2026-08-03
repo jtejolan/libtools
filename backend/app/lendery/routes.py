@@ -35,7 +35,7 @@ AvailabilityFilter = Literal[
     "unavailable",
 ]
 LifecycleFilter = Literal[
-    "inventory", "active", "broken", "retired", "removed", "all"
+    "inventory", "active", "removed", "all"
 ]
 
 
@@ -198,15 +198,52 @@ def update_item(
 )
 def delete_item(
     item_id: int,
+    removal: schemas.LenderyItemRemoval,
     db: DatabaseSession,
     _manager=Depends(require_lendery_manage),
 ) -> Response:
-    if not crud.delete_item(db, item_id):
+    if not crud.delete_item(db, item_id, removal.reason):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Item not found",
         )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/items/{item_id}/remove",
+    response_model=schemas.LenderyItemResponse,
+)
+def remove_item(
+    item_id: int,
+    removal: schemas.LenderyItemRemoval,
+    db: DatabaseSession,
+    _manager=Depends(require_lendery_manage),
+):
+    if not crud.delete_item(db, item_id, removal.reason):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item not found",
+        )
+    return crud.get_item(db, item_id)
+
+
+@router.post(
+    "/items/{item_id}/restore",
+    response_model=schemas.LenderyItemResponse,
+)
+def restore_item(
+    item_id: int,
+    db: DatabaseSession,
+    _manager=Depends(require_lendery_manage),
+):
+    item = crud.restore_item(db, item_id)
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item not found",
+        )
+    return item
 
 
 @router.delete(

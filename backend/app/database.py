@@ -223,6 +223,13 @@ def migrate_existing_database() -> None:
             )
             connection.execute(
                 text(
+                    "UPDATE lendery_items SET lifecycle_status = 'active' "
+                    "WHERE lifecycle_status IS NULL OR "
+                    "lifecycle_status NOT IN ('active', 'removed')"
+                )
+            )
+            connection.execute(
+                text(
                     "UPDATE lendery_items SET created_at = CURRENT_TIMESTAMP "
                     "WHERE created_at IS NULL"
                 )

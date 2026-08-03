@@ -1,4 +1,5 @@
 import unittest
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -8,8 +9,10 @@ from sqlalchemy.pool import StaticPool
 
 from accounts.models import LibtoolsUser, ToolAccess
 from accounts.bootstrap import initialize_platform_accounts
+from bookclub.models import BookClub, BookClubBook, BookClubMeeting
 from database import Base
 from dependencies import get_db
+from lendery.models import Component, LenderyItem, MaintenanceCase
 from main import app
 from security import hash_password
 
@@ -76,6 +79,17 @@ class PlatformAccountTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
+
+    def test_signed_in_homepage_redirects_to_dashboard(self) -> None:
+        response = self.admin.get("/", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["location"], "/dashboard")
+        self.assertEqual(response.headers["cache-control"], "private, no-store")
+
+        public_homepage = self.admin.get("/home")
+        self.assertEqual(public_homepage.status_code, 200)
+        self.assertIn("Library Tools", public_homepage.text)
 
     def test_account_creation_login_and_offline_recovery(self) -> None:
         created = self.create_user("Taylor")
@@ -210,6 +224,116 @@ class PlatformAccountTests(unittest.TestCase):
             )
         finally:
             client.close()
+
+    def test_dashboard_summary_combines_live_workspace_data(self) -> None:
+        meeting_date = date.today() + timedelta(days=5)
+        with self.sessions() as db:
+            admin = db.scalar(
+                select(LibtoolsUser).where(LibtoolsUser.username == "admin")
+            )
+            unavailable = LenderyItem(
+                name="Unavailable projector",
+                barcode="DASH-1",
+                availability_status="unavailable",
+            )
+            missing_part = LenderyItem(
+                name="Kit with missing part",
+                barcode="DASH-2",
+                availability_status="available",
+            )
+            checked_out = LenderyItem(
+                name="Repair queue item",
+                barcode="DASH-3",
+                availability_status="checked_out",
+            )
+            removed = LenderyItem(
+                name="Removed item",
+                barcode="DASH-4",
+                lifecycle_status="removed",
+                availability_status="unavailable",
+            )
+            db.add_all([unavailable, missing_part, checked_out, removed])
+            db.flush()
+            db.add(
+                Component(
+                    item_id=missing_part.id,
+                    name="Power cable",
+                    missing_reported_at=datetime.now(timezone.utc),
+                )
+            )
+            db.add(
+                MaintenanceCase(
+                    item_id=checked_out.id,
+                    title="Replace cracked case",
+                    status="open",
+                    opened_by_user_id=admin.id,
+                    opened_by_name=admin.username,
+                )
+            )
+            club = BookClub(name="Tuesday Readers", slug="tuesday-readers")
+            db.add(club)
+            db.flush()
+            book = BookClubBook(
+                club_id=club.id,
+                title="Kindred",
+                author="Octavia E. Butler",
+            )
+            db.add(book)
+            db.flush()
+            db.add(
+                BookClubMeeting(
+                    club_id=club.id,
+                    meeting_date=meeting_date,
+                    meeting_time="7:00 PM",
+                    location="Meeting Room A",
+                    book_id=book.id,
+                    book_title=book.title,
+                    book_author=book.author,
+                )
+            )
+            db.commit()
+
+        response = self.admin.get("/auth/dashboard-summary")
+        self.assertEqual(response.status_code, 200, response.text)
+        summary = response.json()
+        self.assertEqual(summary["lendery"]["total_items"], 3)
+        self.assertEqual(summary["lendery"]["checked_out_items"], 1)
+        self.assertEqual(summary["lendery"]["attention_count"], 3)
+        self.assertEqual(summary["bookclub"]["club_count"], 1)
+        self.assertEqual(summary["bookclub"]["next_meeting"]["days_until"], 5)
+        self.assertEqual(
+            summary["bookclub"]["next_meeting"]["book_title"], "Kindred"
+        )
+
+    def test_dashboard_summary_hides_editor_attention_from_viewers(self) -> None:
+        created = self.admin.post(
+            "/api/admin/users",
+            json={
+                "username": "Dashboard Viewer",
+                "password": "viewer-password",
+                "confirm_password": "viewer-password",
+                "tools": [],
+            },
+        )
+        self.assertEqual(created.status_code, 201, created.text)
+        viewer = TestClient(app)
+        try:
+            self.assertEqual(
+                viewer.post(
+                    "/auth/login",
+                    json={
+                        "username": "Dashboard Viewer",
+                        "password": "viewer-password",
+                    },
+                ).status_code,
+                200,
+            )
+            response = viewer.get("/auth/dashboard-summary")
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertIsNone(response.json()["lendery"]["attention_count"])
+            self.assertFalse(response.json()["bookclub"]["has_access"])
+        finally:
+            viewer.close()
 
     def test_book_club_records_are_isolated_by_account(self) -> None:
         first = self.create_user("First Facilitator")

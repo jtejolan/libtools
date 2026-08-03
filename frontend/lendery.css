@@ -74,6 +74,7 @@ a {
 
 .app-shell {
   min-height: 100vh;
+  position: relative;
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
 }
@@ -111,13 +112,17 @@ a {
   object-fit: contain;
 }
 
-.mobile-dashboard-link,
+.brand > span:last-child {
+  position: relative;
+  top: 6px;
+}
+
 .mobile-return-top {
   display: none;
 }
 
 .product-name {
-  margin: 0 0 30px;
+  margin: 0 0 10px;
   padding: 16px 14px;
   display: flex;
   align-items: center;
@@ -161,6 +166,27 @@ a {
   font-family: var(--serif);
   font-size: 22px;
   font-weight: 500;
+}
+
+.dashboard-link {
+  min-height: 38px;
+  margin: 0 0 12px;
+  padding: 0 13px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid rgba(244, 238, 223, 0.18);
+  border-radius: 6px;
+  color: rgba(244, 238, 223, 0.68);
+  font-size: 13px;
+  font-weight: 700;
+  transition: color 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.dashboard-link:hover {
+  color: var(--paper);
+  border-color: rgba(244, 238, 223, 0.35);
+  background: rgba(244, 238, 223, 0.1);
 }
 
 .sidebar nav {
@@ -276,10 +302,13 @@ a {
 }
 
 .account-actions {
+  position: absolute;
+  z-index: 30;
+  top: 18px;
+  right: 44px;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
 }
 
 .role-badge {
@@ -518,6 +547,40 @@ h1 {
   border-left: none;
 }
 
+.stat-cell strong {
+  display: inline-block;
+  font-family: var(--serif);
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink);
+  opacity: 0;
+  animation: stat-phase-in 700ms ease forwards;
+}
+
+.stat-cell:nth-child(1) strong {
+  animation-delay: 0ms;
+}
+
+.stat-cell:nth-child(2) strong {
+  animation-delay: 90ms;
+}
+
+.stat-cell:nth-child(3) strong {
+  animation-delay: 180ms;
+}
+
+@keyframes stat-phase-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 button.stat-cell {
   cursor: pointer;
   transition: background 0.15s ease;
@@ -533,14 +596,6 @@ button.stat-cell:hover {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.stat-cell strong {
-  font-family: var(--serif);
-  font-size: 32px;
-  font-weight: 600;
-  line-height: 1;
-  color: var(--ink);
 }
 
 .stat-figure {
@@ -801,11 +856,30 @@ button.stat-cell:hover {
   transform: perspective(1200px) rotateX(var(--tilt-x, 0deg))
     rotateY(var(--tilt-y, 0deg)) translateY(var(--tilt-lift, 0px));
   transition: transform 220ms ease, box-shadow 180ms ease;
+  opacity: 0;
+  animation: card-phase-in 260ms ease forwards;
 }
 
 .item-card:hover {
   --tilt-lift: -4px;
   box-shadow: 0 14px 30px rgba(24, 59, 51, 0.1);
+}
+
+.item-card:nth-child(1) { animation-delay: 0ms; }
+.item-card:nth-child(2) { animation-delay: 25ms; }
+.item-card:nth-child(3) { animation-delay: 50ms; }
+.item-card:nth-child(4) { animation-delay: 75ms; }
+.item-card:nth-child(5) { animation-delay: 100ms; }
+.item-card:nth-child(6) { animation-delay: 125ms; }
+.item-card:nth-child(n + 7) { animation-delay: 150ms; }
+
+@keyframes card-phase-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .item-image {
@@ -2558,38 +2632,16 @@ button.needs-attention-row:hover {
   background: rgba(131, 157, 107, 0.18) !important;
 }
 
-.lifecycle-badge {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  padding: 5px 9px;
-  border-radius: 99px;
-  color: var(--paper);
-  background: var(--danger);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.lifecycle-badge.retired { background: #6f6659; }
-.lifecycle-badge.removed { background: #393734; }
-
-.lifecycle-panel {
+.removal-reason-panel {
   margin: 18px 0;
   padding: 16px;
   border: 1px solid var(--line);
-  border-left: 4px solid var(--moss);
+  border-left: 4px solid #6f6659;
   border-radius: 6px;
   background: var(--cream);
 }
 
-.lifecycle-panel.broken { border-left-color: var(--danger); }
-.lifecycle-panel.retired,
-.lifecycle-panel.removed { border-left-color: #6f6659; }
-.lifecycle-panel h3,
-.lifecycle-panel p { margin: 0; }
-.lifecycle-panel small { display: block; margin-top: 8px; color: var(--muted); }
+.removal-reason-panel p { margin: 0; }
 
 .toast {
   max-width: min(370px, calc(100% - 30px));
@@ -2636,6 +2688,7 @@ button.needs-attention-row:hover {
 
   .brand > span:last-child,
   .product-name div,
+  .dashboard-link > span:nth-child(2),
   .nav-item > span:nth-child(2),
   .nav-item .needs-attention-count,
   .nav-label,
@@ -2645,6 +2698,11 @@ button.needs-attention-row:hover {
 
   .product-name {
     padding: 14px 10px;
+    justify-content: center;
+  }
+
+  .dashboard-link {
+    padding: 0;
     justify-content: center;
   }
 
@@ -2676,19 +2734,8 @@ button.needs-attention-row:hover {
     padding: 0;
   }
 
-  .mobile-dashboard-link {
-    min-height: 38px;
-    margin-left: auto;
-    padding: 0 13px;
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    border: 1px solid rgba(244, 238, 223, 0.35);
-    border-radius: 999px;
-    color: var(--cream);
-    background: rgba(244, 238, 223, 0.1);
-    font-size: 13px;
-    font-weight: 700;
+  .dashboard-link {
+    display: none;
   }
 
   .brand > span:last-child {
@@ -2702,8 +2749,9 @@ button.needs-attention-row:hover {
   }
 
   .topbar {
-    height: 66px;
-    padding: 0 18px;
+    height: 0;
+    padding: 0;
+    border: 0;
   }
 
   .breadcrumb {
@@ -2711,8 +2759,14 @@ button.needs-attention-row:hover {
   }
 
   .topbar-actions {
-    width: 100%;
-    justify-content: space-between;
+    width: 0;
+  }
+
+  .account-actions {
+    position: fixed;
+    z-index: 30;
+    top: 12px;
+    right: 17px;
   }
 
   .role-badge {
@@ -2863,6 +2917,12 @@ button.needs-attention-row:hover {
 
   .maintenance-order-url {
     grid-column: auto;
+  }
+}
+
+@media (max-width: 380px) {
+  .brand > span:last-child {
+    display: none;
   }
 }
 

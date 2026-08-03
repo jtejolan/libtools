@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -60,6 +60,34 @@ class UserCreatedResponse(UserResponse):
 
 class CurrentUserResponse(UserResponse):
     model_config = ConfigDict(from_attributes=True)
+
+
+class DashboardLenderySummary(BaseModel):
+    total_items: int
+    checked_out_items: int
+    attention_count: int | None = None
+
+
+class DashboardMeetingSummary(BaseModel):
+    club_id: int
+    club_name: str
+    meeting_id: int
+    meeting_date: date
+    days_until: int
+    meeting_time: str | None = None
+    location: str | None = None
+    book_title: str
+
+
+class DashboardBookClubSummary(BaseModel):
+    has_access: bool
+    club_count: int
+    next_meeting: DashboardMeetingSummary | None = None
+
+
+class DashboardSummary(BaseModel):
+    lendery: DashboardLenderySummary
+    bookclub: DashboardBookClubSummary
 
 
 class ChangePasswordRequest(PasswordPair):
