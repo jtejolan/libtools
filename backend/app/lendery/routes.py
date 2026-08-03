@@ -34,6 +34,9 @@ AvailabilityFilter = Literal[
     "checked_out",
     "unavailable",
 ]
+LifecycleFilter = Literal[
+    "inventory", "active", "broken", "retired", "removed", "all"
+]
 
 
 @router.post(
@@ -81,6 +84,7 @@ def list_items(
     offset: Offset = 0,
     limit: Limit = 100,
     availability: AvailabilityFilter | None = None,
+    lifecycle: LifecycleFilter = "inventory",
 ):
     status_filter = {
         "in": "available",
@@ -91,6 +95,7 @@ def list_items(
         offset=offset,
         limit=limit,
         availability_status=status_filter,
+        lifecycle_status=lifecycle,
     )
 
 
@@ -200,6 +205,29 @@ def delete_item(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Item not found",
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/items/{item_id}/permanent",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def permanently_delete_item(
+    item_id: int,
+    db: DatabaseSession,
+    _manager=Depends(require_lendery_manage),
+) -> Response:
+    result = crud.permanently_delete_item(db, item_id)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item not found",
+        )
+    if result is False:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only an item in Removed Items can be permanently deleted",
         )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

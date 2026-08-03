@@ -197,6 +197,14 @@ def migrate_existing_database() -> None:
             "availability_error": "TEXT",
             "physical_manual_included": "BOOLEAN NOT NULL DEFAULT FALSE",
             "physical_manual_missing": "BOOLEAN NOT NULL DEFAULT FALSE",
+            "lifecycle_status": "VARCHAR(20) NOT NULL DEFAULT 'active'",
+            "lifecycle_note": "TEXT",
+            # SQLite cannot ALTER TABLE with a non-constant timestamp default.
+            # Existing rows are backfilled below; newly created rows receive
+            # the model's server default.
+            "lifecycle_changed_at": "TIMESTAMP",
+            "created_at": "TIMESTAMP",
+            "updated_at": "TIMESTAMP",
         }
         with engine.begin() as connection:
             for name, definition in columns.items():
@@ -207,6 +215,24 @@ def migrate_existing_database() -> None:
                             f"ADD COLUMN {name} {definition}"
                         )
                     )
+            connection.execute(
+                text(
+                    "UPDATE lendery_items SET lifecycle_changed_at = "
+                    "CURRENT_TIMESTAMP WHERE lifecycle_changed_at IS NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE lendery_items SET created_at = CURRENT_TIMESTAMP "
+                    "WHERE created_at IS NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE lendery_items SET updated_at = CURRENT_TIMESTAMP "
+                    "WHERE updated_at IS NULL"
+                )
+            )
 
     if "components" in tables:
         existing = {

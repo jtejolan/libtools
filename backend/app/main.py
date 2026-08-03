@@ -120,7 +120,11 @@ def health() -> dict[str, str]:
 
 @app.get("/api/public/stats", tags=["system"])
 def public_stats(db: DatabaseSession) -> dict[str, int]:
-    item_count = db.scalar(select(func.count(models.LenderyItem.id))) or 0
+    item_count = db.scalar(
+        select(func.count(models.LenderyItem.id)).where(
+            models.LenderyItem.lifecycle_status != "removed"
+        )
+    ) or 0
     club_count = (
         db.scalar(
             select(func.count(bookclub_models.BookClub.id)).where(

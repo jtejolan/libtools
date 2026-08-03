@@ -25,6 +25,7 @@
 
 html {
   min-width: 320px;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -95,17 +96,24 @@ a {
   padding: 0 9px 26px;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   font-family: var(--serif);
-  font-size: 18px;
+  font-size: 21px;
   font-weight: 600;
+  line-height: normal;
+  letter-spacing: -0.02em;
 }
 
 .brand-mark {
-  width: 27px;
-  height: 29px;
+  width: 29px;
+  height: 31px;
   display: block;
   object-fit: contain;
+}
+
+.mobile-dashboard-link,
+.mobile-return-top {
+  display: none;
 }
 
 .product-name {
@@ -2541,6 +2549,48 @@ button.needs-attention-row:hover {
   color: var(--danger);
 }
 
+.permanent-delete-item {
+  color: var(--danger);
+}
+
+.restore-item {
+  color: var(--forest);
+  background: rgba(131, 157, 107, 0.18) !important;
+}
+
+.lifecycle-badge {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 5px 9px;
+  border-radius: 99px;
+  color: var(--paper);
+  background: var(--danger);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.lifecycle-badge.retired { background: #6f6659; }
+.lifecycle-badge.removed { background: #393734; }
+
+.lifecycle-panel {
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--moss);
+  border-radius: 6px;
+  background: var(--cream);
+}
+
+.lifecycle-panel.broken { border-left-color: var(--danger); }
+.lifecycle-panel.retired,
+.lifecycle-panel.removed { border-left-color: #6f6659; }
+.lifecycle-panel h3,
+.lifecycle-panel p { margin: 0; }
+.lifecycle-panel small { display: block; margin-top: 8px; color: var(--muted); }
+
 .toast {
   max-width: min(370px, calc(100% - 30px));
   padding: 12px 17px;
@@ -2624,6 +2674,21 @@ button.needs-attention-row:hover {
 
   .brand {
     padding: 0;
+  }
+
+  .mobile-dashboard-link {
+    min-height: 38px;
+    margin-left: auto;
+    padding: 0 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid rgba(244, 238, 223, 0.35);
+    border-radius: 999px;
+    color: var(--cream);
+    background: rgba(244, 238, 223, 0.1);
+    font-size: 13px;
+    font-weight: 700;
   }
 
   .brand > span:last-child {
@@ -2712,11 +2777,28 @@ button.needs-attention-row:hover {
   }
 
   footer {
-    padding: 0 18px;
+    min-height: 108px;
+    padding: 18px;
+    gap: 14px;
   }
 
-  footer span:last-child {
+  footer > span:last-of-type {
     display: none;
+  }
+
+  .mobile-return-top {
+    min-height: 42px;
+    margin-left: auto;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid var(--forest);
+    border-radius: 999px;
+    color: var(--paper);
+    background: var(--forest);
+    font-size: 13px;
+    font-weight: 700;
   }
 
   .form-grid {

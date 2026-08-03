@@ -12,6 +12,7 @@ const state = {
   refreshingIds: new Set(),
   refreshPromises: new Map(),
   maintenanceQueue: [],
+  inventoryView: "inventory",
 };
 
 const AVAILABILITY_STALE_MS = 30 * 60 * 1000;
@@ -44,6 +45,8 @@ const needsAttentionCountBadge = document.querySelector("#needs-attention-count"
 const needsAttentionDialog = document.querySelector("#needs-attention-dialog");
 const needsAttentionContent = document.querySelector("#needs-attention-content");
 const categoryOptions = document.querySelector("#category-options");
+const inventoryNav = document.querySelector("#inventory-nav");
+const removedItemsButton = document.querySelector("#removed-items-button");
 
 const escapeHtml = (value = "") =>
   String(value)
@@ -156,6 +159,14 @@ const itemInitials = (name) =>
     .map((word) => word[0])
     .join("")
     .toUpperCase();
+
+const lifecycleInfo = (status) =>
+  ({
+    active: { label: "Active", description: "Ready to lend" },
+    broken: { label: "Broken", description: "Out of service while repair is considered" },
+    retired: { label: "Retired", description: "Permanently out of lending service" },
+    removed: { label: "Removed", description: "No longer in the physical collection" },
+  })[status || "active"];
 
 const availabilityInfo = (item) => {
   if (!item.library_url) {
@@ -355,7 +366,11 @@ const renderMaintenanceSection = (cases) => `
 const unresolvedUnavailableItems = () => {
   const flagged = new Set(state.maintenanceQueue.map((entry) => entry.item_id));
   return state.items.filter(
-    (item) => item.availability_status === "unavailable" && !flagged.has(item.id),
+    (item) =>
+      ((item.lifecycle_status === "active" &&
+        item.availability_status === "unavailable") ||
+        item.lifecycle_status === "broken") &&
+      !flagged.has(item.id),
   );
 };
 
@@ -418,7 +433,7 @@ const renderNeedsAttentionDialog = () => {
       (item) => `
         <div class="needs-attention-row unavailable-flag">
           <div>
-            <span class="maintenance-status">Unavailable</span>
+            <span class="maintenance-status">${item.lifecycle_status === "broken" ? "Broken" : "Unavailable"}</span>
             <h4>${escapeHtml(item.name)}</h4>
             <small>${escapeHtml(item.barcode)}</small>
           </div>
@@ -463,7 +478,7 @@ const renderNeedsAttentionDialog = () => {
     ${
       flagged.length
         ? `<div class="needs-attention-group">
-            <h3>Unavailable, no issue logged</h3>
+            <h3>Unavailable or broken, no issue logged</h3>
             <div class="needs-attention-list">${flaggedRows}</div>
           </div>`
         : ""
@@ -482,7 +497,8 @@ const visibleItems = () => {
     const matchesCategory = !state.category || item.category === state.category;
     const matchesAvailability =
       !state.availabilityFilter ||
-      item.availability_status === state.availabilityFilter;
+      (item.lifecycle_status === "active" &&
+        item.availability_status === state.availabilityFilter);
     const matchesQuery =
       !query ||
       [item.name, item.barcode, item.category, item.description]
@@ -525,7 +541,9 @@ const renderStats = () => {
   document.querySelector("#total-stat").textContent = state.items.length;
 
   const checkedOutCount = state.items.filter(
-    (item) => item.availability_status === "checked_out",
+    (item) =>
+      item.lifecycle_status === "active" &&
+      item.availability_status === "checked_out",
   ).length;
   const percent = state.items.length
     ? Math.round((checkedOutCount / state.items.length) * 100)
@@ -561,7 +579,11 @@ const renderAvailabilityControls = () => {
   availabilityFilters.innerHTML = definitions
     .map(([status, label]) => {
       const count = status
-        ? state.items.filter((item) => item.availability_status === status).length
+        ? state.items.filter(
+            (item) =>
+              item.lifecycle_status === "active" &&
+              item.availability_status === status,
+          ).length
         : state.items.length;
       return `
         <button
@@ -610,6 +632,7 @@ const renderItems = () => {
     .map((item) => {
       const imageUrl = safeUrl(item.image_url);
       const availability = availabilityInfo(item);
+      const lifecycle = lifecycleInfo(item.lifecycle_status);
       const componentLabel =
         item.components.length === 1 ? "1 part" : `${item.components.length} parts`;
       return `
@@ -622,12 +645,17 @@ const renderItems = () => {
             }
             <span class="category-badge ${categoryTintClass(item.category)}">${escapeHtml(item.category || "Uncategorized")}</span>
             ${
+              item.lifecycle_status !== "active"
+                ? `<span class="lifecycle-badge ${escapeHtml(item.lifecycle_status)}">${escapeHtml(lifecycle.label)}</span>`
+                : ""
+            }
+            ${
               attentionIds.has(item.id)
                 ? `<span class="attention-flag" title="Needs attention"><i aria-hidden="true">⚑</i></span>`
                 : ""
             }
             ${
-              item.library_url
+              item.library_url && item.lifecycle_status === "active"
                 ? `<span class="availability-badge ${availability.status}"><i></i>${escapeHtml(availability.shortLabel)}</span>`
                 : ""
             }
@@ -647,6 +675,14 @@ const renderItems = () => {
 };
 
 const renderAll = () => {
+  const removedView = state.inventoryView === "removed";
+  document.querySelector("#inventory-title").textContent = removedView
+    ? "Removed Items"
+    : "Lendery Items";
+  inventoryNav.classList.toggle("active", !removedView);
+  removedItemsButton.classList.toggle("active", removedView);
+  document.querySelector(".stats-grid").hidden = removedView;
+  document.querySelector(".availability-controls").hidden = removedView;
   renderStats();
   renderFilters();
   renderAvailabilityControls();
@@ -660,7 +696,9 @@ const replaceItem = (item) => {
 };
 
 const refreshAvailabilityForItem = (item, { showErrors = false } = {}) => {
-  if (!item.library_url) return Promise.resolve(item);
+  if (!item.library_url || item.lifecycle_status !== "active") {
+    return Promise.resolve(item);
+  }
   const existing = state.refreshPromises.get(item.id);
   if (existing) return existing;
 
@@ -697,6 +735,7 @@ const refreshAvailabilityForItem = (item, { showErrors = false } = {}) => {
 };
 
 const availabilityIsStale = (item) => {
+  if (item.lifecycle_status !== "active") return false;
   if (!item.library_url || !item.availability_checked_at) {
     return Boolean(item.library_url);
   }
@@ -744,7 +783,9 @@ const loadMaintenanceQueue = async () => {
 
 const loadItems = async () => {
   try {
-    state.items = await request("/lendery/items?limit=100");
+    state.items = await request(
+      `/lendery/items?limit=100&lifecycle=${state.inventoryView}`,
+    );
     renderAll();
     refreshStaleAvailability();
     loadMaintenanceQueue();
@@ -783,6 +824,8 @@ const openItemDialog = (item = null) => {
       "purchase_url",
       "library_url",
       "notes",
+      "lifecycle_status",
+      "lifecycle_note",
     ]) {
       itemForm.elements[field].value = item[field] ?? "";
     }
@@ -863,9 +906,9 @@ const closeDrawer = () => {
 const renderDrawer = (item) => {
   const imageUrl = safeUrl(item.image_url);
   const manualUrl = safeUrl(item.manual_url);
-  const purchaseUrl = safeUrl(item.purchase_url);
   const libraryUrl = safeUrl(item.library_url);
   const availability = availabilityInfo(item);
+  const lifecycle = lifecycleInfo(item.lifecycle_status);
   const components = item.components || [];
   const checkedCount = components.filter((component) =>
     state.checkedComponents.has(component.id),
@@ -891,6 +934,15 @@ const renderDrawer = (item) => {
       </div>
       <p class="drawer-description">${escapeHtml(item.description || "No description has been added yet.")}</p>
 
+      <section class="lifecycle-panel ${escapeHtml(item.lifecycle_status)}">
+        <div>
+          <p class="drawer-category">Inventory status</p>
+          <h3>${escapeHtml(lifecycle.label)}</h3>
+          <p>${escapeHtml(lifecycle.description)}</p>
+          ${item.lifecycle_note ? `<small>${escapeHtml(item.lifecycle_note)}</small>` : ""}
+        </div>
+      </section>
+
       <section class="availability-panel ${availability.status}" aria-label="Pierre Berton availability">
         <div class="availability-heading">
           <div>
@@ -898,7 +950,7 @@ const renderDrawer = (item) => {
             <h3><i aria-hidden="true"></i>${escapeHtml(availability.label)}</h3>
           </div>
           ${
-            libraryUrl
+            libraryUrl && item.lifecycle_status === "active"
               ? `<button id="refresh-availability" type="button">Refresh</button>`
               : ""
           }
@@ -921,9 +973,9 @@ const renderDrawer = (item) => {
 
       <dl class="detail-list">
         <div><dt>Barcode</dt><dd>${escapeHtml(item.barcode)}</dd></div>
-        <div><dt>Record</dt><dd>#${item.id}</dd></div>
+        <div><dt>Parts</dt><dd>${components.length === 1 ? "1 part" : `${components.length} parts`}</dd></div>
         <div><dt>Manual</dt><dd>${manualUrl ? `<a href="${escapeHtml(manualUrl)}" target="_blank" rel="noreferrer">Open manual ↗</a>` : "Not added"}</dd></div>
-        <div><dt>Purchase info</dt><dd>${purchaseUrl ? `<a href="${escapeHtml(purchaseUrl)}" target="_blank" rel="noreferrer">Open source ↗</a>` : "Not added"}</dd></div>
+        <div><dt>Last updated</dt><dd>${escapeHtml(formatMaintenanceDate(item.updated_at))}</dd></div>
       </dl>
 
       ${item.notes ? `<p class="drawer-description"><strong>Staff notes:</strong> ${escapeHtml(item.notes)}</p>` : ""}
@@ -1096,7 +1148,12 @@ const renderDrawer = (item) => {
       ${
         canManage()
           ? `<div class="drawer-actions">
-        <button class="delete-item" id="delete-item" type="button">Delete item</button>
+        ${
+          item.lifecycle_status === "removed"
+            ? `<button class="permanent-delete-item" id="permanent-delete-item" type="button">Delete permanently</button>
+               <button class="restore-item" id="restore-item" type="button">Restore to inventory</button>`
+            : `<button class="delete-item" id="delete-item" type="button">Move to removed</button>`
+        }
         <button class="edit-item" id="edit-item" type="button">Edit item</button>
       </div>`
           : ""
@@ -1207,9 +1264,19 @@ itemForm.addEventListener("submit", async (event) => {
       body: JSON.stringify(payload),
     });
 
+    const belongsInCurrentView =
+      state.inventoryView === "removed"
+        ? item.lifecycle_status === "removed"
+        : item.lifecycle_status !== "removed";
     const existingIndex = state.items.findIndex((candidate) => candidate.id === item.id);
-    if (existingIndex >= 0) state.items[existingIndex] = item;
-    else state.items.push(item);
+    if (!belongsInCurrentView) {
+      state.items = state.items.filter((candidate) => candidate.id !== item.id);
+      if (state.selectedId === item.id) closeDrawer();
+    } else if (existingIndex >= 0) {
+      state.items[existingIndex] = item;
+    } else {
+      state.items.push(item);
+    }
     dialog.close();
     renderAll();
     if (state.selectedId === item.id) renderDrawer(item);
@@ -1361,6 +1428,26 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
+  if (event.target.closest("#inventory-nav")) {
+    event.preventDefault();
+    state.inventoryView = "inventory";
+    closeDrawer();
+    await loadItems();
+    return;
+  }
+
+  if (event.target.closest("#removed-items-button")) {
+    if (!canManage()) return;
+    state.inventoryView = "removed";
+    state.query = "";
+    state.category = "";
+    state.availabilityFilter = "";
+    searchInput.value = "";
+    closeDrawer();
+    await loadItems();
+    return;
+  }
+
   if (event.target.closest("#new-maintenance-case")) {
     openMaintenanceDialog();
     return;
@@ -1391,13 +1478,59 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("#delete-item")) {
     if (!canManage()) return;
     const item = state.items.find((candidate) => candidate.id === state.selectedId);
-    if (!item || !window.confirm(`Delete “${item.name}”? This cannot be undone.`)) return;
+    if (!item || !window.confirm(`Move “${item.name}” to Removed Items? Its record and history will be kept.`)) return;
     try {
       await request(`/lendery/items/${item.id}`, { method: "DELETE" });
       state.items = state.items.filter((candidate) => candidate.id !== item.id);
       closeDrawer();
       renderAll();
-      showToast("Item deleted.");
+      showToast("Item moved to Removed Items.");
+    } catch (error) {
+      showToast(error.message);
+    }
+    return;
+  }
+
+
+  if (event.target.closest("#restore-item")) {
+    if (!canManage()) return;
+    const item = state.items.find((candidate) => candidate.id === state.selectedId);
+    if (!item) return;
+    try {
+      await request(`/lendery/items/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          lifecycle_status: "active",
+          lifecycle_note: "Restored to inventory",
+        }),
+      });
+      state.items = state.items.filter((candidate) => candidate.id !== item.id);
+      closeDrawer();
+      renderAll();
+      showToast("Item restored to inventory.");
+    } catch (error) {
+      showToast(error.message);
+    }
+    return;
+  }
+
+  if (event.target.closest("#permanent-delete-item")) {
+    if (!canManage()) return;
+    const item = state.items.find((candidate) => candidate.id === state.selectedId);
+    if (
+      !item ||
+      !window.confirm(
+        `Permanently delete “${item.name}”? Its components, photos, notes, and repair history will be erased. This cannot be undone.`,
+      )
+    ) return;
+    try {
+      await request(`/lendery/items/${item.id}/permanent`, {
+        method: "DELETE",
+      });
+      state.items = state.items.filter((candidate) => candidate.id !== item.id);
+      closeDrawer();
+      renderAll();
+      showToast("Item permanently deleted.");
     } catch (error) {
       showToast(error.message);
     }

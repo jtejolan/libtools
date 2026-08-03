@@ -49,7 +49,8 @@ def get_item_by_barcode(
     barcode: str,
 ) -> models.LenderyItem | None:
     statement = select(models.LenderyItem).where(
-        models.LenderyItem.barcode == barcode
+        models.LenderyItem.barcode == barcode,
+        models.LenderyItem.lifecycle_status != "removed",
     )
     return db.scalar(statement)
 
@@ -60,11 +61,18 @@ def list_items(
     offset: int = 0,
     limit: int = 100,
     availability_status: str | None = None,
+    lifecycle_status: str | None = "inventory",
 ) -> list[models.LenderyItem]:
     statement = select(models.LenderyItem)
     if availability_status is not None:
         statement = statement.where(
             models.LenderyItem.availability_status == availability_status
+        )
+    if lifecycle_status == "inventory":
+        statement = statement.where(models.LenderyItem.lifecycle_status != "removed")
+    elif lifecycle_status not in (None, "all"):
+        statement = statement.where(
+            models.LenderyItem.lifecycle_status == lifecycle_status
         )
     statement = (
         statement
@@ -101,6 +109,9 @@ def items_csv(db: Session) -> str:
             "library_url",
             "availability_status",
             "availability_checked_at",
+            "lifecycle_status",
+            "lifecycle_note",
+            "lifecycle_changed_at",
             "component_count",
             "open_maintenance_case_count",
             "physical_manual_included",
@@ -131,6 +142,9 @@ def items_csv(db: Session) -> str:
                     if item.availability_checked_at
                     else ""
                 ),
+                item.lifecycle_status,
+                item.lifecycle_note or "",
+                item.lifecycle_changed_at.isoformat(),
                 len(item.components),
                 open_cases,
                 item.physical_manual_included,
@@ -178,6 +192,10 @@ def update_item(
         "library_url" in update_data
         and update_data["library_url"] != db_item.library_url
     )
+    lifecycle_changed = (
+        "lifecycle_status" in update_data
+        and update_data["lifecycle_status"] != db_item.lifecycle_status
+    )
     for field in (
         "name",
         "description",
@@ -191,9 +209,16 @@ def update_item(
         "library_url",
         "physical_manual_included",
         "physical_manual_missing",
+        "lifecycle_status",
+        "lifecycle_note",
     ):
         if field in update_data:
             setattr(db_item, field, update_data[field])
+
+    if lifecycle_changed:
+        db_item.lifecycle_changed_at = datetime.now(timezone.utc)
+
+    db_item.updated_at = datetime.now(timezone.utc)
 
     if library_url_changed:
         db_item.availability_status = "unknown"
@@ -215,7 +240,7 @@ def refresh_item_availability(
     db: Session,
     db_item: models.LenderyItem,
 ) -> models.LenderyItem:
-    if not db_item.library_url:
+    if not db_item.library_url or db_item.lifecycle_status != "active":
         return db_item
 
     checked_at = datetime.now(timezone.utc)
@@ -244,8 +269,25 @@ def delete_item(
     if db_item is None:
         return False
 
-    component_ids = [component.id for component in db_item.components]
+    db_item.lifecycle_status = "removed"
+    db_item.lifecycle_changed_at = datetime.now(timezone.utc)
+    if not db_item.lifecycle_note:
+        db_item.lifecycle_note = "Moved to removed items"
+    _commit(db, db_item)
+    return True
 
+
+def permanently_delete_item(
+    db: Session,
+    item_id: int,
+) -> bool | None:
+    db_item = get_item(db, item_id)
+    if db_item is None:
+        return None
+    if db_item.lifecycle_status != "removed":
+        return False
+
+    component_ids = [component.id for component in db_item.components]
     try:
         db.delete(db_item)
         db.commit()
@@ -422,7 +464,9 @@ def list_open_maintenance_cases(db: Session) -> list[models.MaintenanceCase]:
     statement = (
         select(models.MaintenanceCase)
         .options(joinedload(models.MaintenanceCase.item))
+        .join(models.MaintenanceCase.item)
         .where(models.MaintenanceCase.status.in_(OPEN_MAINTENANCE_STATUSES))
+        .where(models.LenderyItem.lifecycle_status != "removed")
         .order_by(models.MaintenanceCase.opened_at)
     )
     return list(db.scalars(statement))

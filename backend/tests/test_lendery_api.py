@@ -6,11 +6,11 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from PIL import Image
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from database import Base
+from database import Base, migrate_existing_database
 from accounts.models import LibtoolsUser
 from lendery.availability import AvailabilityResult
 from lendery.component_images import component_image_path
@@ -206,8 +206,135 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
     def test_lendery_page_uses_current_autofill_assets(self) -> None:
         response = self.client.get("/lendery")
         self.assertEqual(response.status_code, 200)
-        self.assertIn('/static/lendery.js?v=17', response.text)
-        self.assertIn('/static/lendery.css?v=18', response.text)
+        self.assertIn('/static/lendery.js?v=20', response.text)
+        self.assertIn('/static/lendery.css?v=21', response.text)
+        self.assertIn('class="mobile-dashboard-link" href="/dashboard"', response.text)
+        self.assertIn('class="mobile-return-top" href="#lendery-top"', response.text)
+
+    def test_removed_item_is_preserved_and_can_be_restored(self) -> None:
+        item = self.create_linked_item("RETIRED-1")
+
+        retired = self.client.patch(
+            f"/lendery/items/{item['id']}",
+            json={
+                "lifecycle_status": "retired",
+                "lifecycle_note": "Motor cannot be repaired",
+            },
+        )
+        self.assertEqual(retired.status_code, 200, retired.text)
+        self.assertEqual(retired.json()["lifecycle_status"], "retired")
+
+        removed = self.client.delete(f"/lendery/items/{item['id']}")
+        self.assertEqual(removed.status_code, 204, removed.text)
+        self.assertEqual(self.client.get("/lendery/items").json(), [])
+
+        removed_items = self.client.get(
+            "/lendery/items?lifecycle=removed"
+        ).json()
+        self.assertEqual(len(removed_items), 1)
+        self.assertEqual(removed_items[0]["id"], item["id"])
+        self.assertEqual(
+            removed_items[0]["lifecycle_note"], "Motor cannot be repaired"
+        )
+
+        restored = self.client.patch(
+            f"/lendery/items/{item['id']}",
+            json={"lifecycle_status": "active"},
+        )
+        self.assertEqual(restored.status_code, 200, restored.text)
+        self.assertEqual(restored.json()["lifecycle_status"], "active")
+        self.assertEqual(len(self.client.get("/lendery/items").json()), 1)
+
+    def test_lifecycle_filters_keep_removed_items_out_of_inventory(self) -> None:
+        broken = self.create_linked_item("BROKEN-1")
+        removed = self.create_linked_item("REMOVED-1")
+        self.client.patch(
+            f"/lendery/items/{broken['id']}",
+            json={"lifecycle_status": "broken"},
+        )
+        self.client.delete(f"/lendery/items/{removed['id']}")
+
+        inventory = self.client.get("/lendery/items").json()
+        broken_items = self.client.get(
+            "/lendery/items?lifecycle=broken"
+        ).json()
+        all_items = self.client.get("/lendery/items?lifecycle=all").json()
+
+        self.assertEqual([entry["id"] for entry in inventory], [broken["id"]])
+        self.assertEqual([entry["id"] for entry in broken_items], [broken["id"]])
+        self.assertEqual(len(all_items), 2)
+
+    def test_existing_sqlite_items_receive_lifecycle_columns(self) -> None:
+        legacy_engine = create_engine("sqlite://", poolclass=StaticPool)
+        try:
+            with legacy_engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "CREATE TABLE lendery_items ("
+                        "id INTEGER PRIMARY KEY, name VARCHAR(200) NOT NULL)"
+                    )
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO lendery_items (id, name) "
+                        "VALUES (1, 'Legacy drill')"
+                    )
+                )
+
+            with patch("database.engine", legacy_engine):
+                migrate_existing_database()
+
+            columns = {
+                column["name"]
+                for column in inspect(legacy_engine).get_columns(
+                    "lendery_items"
+                )
+            }
+            self.assertIn("lifecycle_status", columns)
+            self.assertIn("lifecycle_changed_at", columns)
+            with legacy_engine.connect() as connection:
+                row = connection.execute(
+                    text(
+                        "SELECT lifecycle_status, lifecycle_changed_at "
+                        "FROM lendery_items WHERE id = 1"
+                    )
+                ).one()
+            self.assertEqual(row.lifecycle_status, "active")
+            self.assertIsNotNone(row.lifecycle_changed_at)
+        finally:
+            legacy_engine.dispose()
+
+    def test_only_removed_items_can_be_permanently_deleted(self) -> None:
+        item = self.create_linked_item("DELETE-FOREVER-1")
+        component = self.client.post(
+            f"/lendery/items/{item['id']}/components",
+            json={"name": "Power cord", "quantity": 1},
+        ).json()
+        self.client.post(
+            f"/lendery/components/{component['id']}/image",
+            files={
+                "image": ("cord.png", self.sample_png(100, 100), "image/png")
+            },
+        )
+        image_path = component_image_path(component["id"])
+        self.assertTrue(image_path.exists())
+
+        rejected = self.client.delete(
+            f"/lendery/items/{item['id']}/permanent"
+        )
+        self.assertEqual(rejected.status_code, 409, rejected.text)
+
+        self.client.delete(f"/lendery/items/{item['id']}")
+        deleted = self.client.delete(
+            f"/lendery/items/{item['id']}/permanent"
+        )
+
+        self.assertEqual(deleted.status_code, 204, deleted.text)
+        self.assertEqual(
+            self.client.get(f"/lendery/items/{item['id']}").status_code,
+            404,
+        )
+        self.assertFalse(image_path.exists())
 
     @patch("lendery.availability.check_availability")
     def test_item_detail_refreshes_availability(self, check) -> None:

@@ -72,6 +72,14 @@ of its components. Editors can flag the manual missing from an item's return
 checklist; flagging opens a maintenance case automatically so it appears in
 the queue above, and "mark found" clears the flag.
 
+Collection lifecycle is tracked separately from catalogue availability. Items
+can be `active`, `broken`, `retired`, or `removed`. Broken items can return to
+active after repair, while retired items are permanently out of lending
+service. Removing an item is a soft deletion: components, notes, photos, and
+repair history remain in the editor-only Removed Items view and the record can
+be restored. An editor can permanently delete a record from Removed Items when
+it should no longer be retained.
+
 Editors can export the full inventory as CSV from `GET /lendery/items/export.csv`.
 
 ## Libtools accounts

@@ -88,6 +88,24 @@ class LenderyItem(Base):
         Boolean(), default=False, server_default="0"
     )
 
+    lifecycle_status: Mapped[str] = mapped_column(
+        String(20), default="active", server_default="active", index=True
+    )
+
+    lifecycle_note: Mapped[str | None] = mapped_column(Text())
+
+    lifecycle_changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now(), server_default=func.now()
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now(), server_default=func.now()
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now(), server_default=func.now()
+    )
+
     components: Mapped[list["Component"]] = relationship(
         back_populates="item",
         cascade="all, delete-orphan",
