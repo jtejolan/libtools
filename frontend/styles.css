@@ -802,28 +802,40 @@ footer p {
   }
 
   .site-header {
-    height: 76px;
+    height: 0;
+    position: relative;
+    justify-content: flex-end;
+    border-bottom: 0;
   }
 
-  .site-header .brand span {
+  .site-header .brand {
     display: none;
   }
 
   .site-header nav {
+    position: absolute;
+    z-index: 10;
+    top: 14px;
+    right: 0;
     gap: 12px;
     font-size: 12px;
   }
 
-  nav > a:first-child {
-    display: none;
-  }
-
   .nav-docs {
-    padding: 9px 13px;
+    min-height: 42px;
+    padding: 0 17px;
+    display: inline-flex;
+    align-items: center;
+    border-color: var(--forest);
+    color: var(--paper);
+    background: var(--forest);
+    box-shadow: 0 8px 20px rgba(24, 59, 51, 0.18);
+    font-size: 13px;
+    font-weight: 700;
   }
 
   .hero {
-    padding-top: 58px;
+    padding-top: 36px;
     gap: 38px;
   }
 
