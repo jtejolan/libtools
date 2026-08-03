@@ -96,6 +96,7 @@ a { color:inherit; text-decoration:none; }
 .dash-bookclub.locked .live-empty span { color:var(--muted); }
 .dash-quick-actions { min-height:190px; grid-column:1/-1; background:linear-gradient(145deg,rgba(232,94,22,.12),transparent 58%),var(--paper); }
 .quick-actions-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.quick-actions-heading .dash-kicker,.dash-quote-heading .dash-kicker { margin-bottom:6px; }
 .quick-actions-grid { margin-top:22px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
 .quick-action { min-width:0; padding:15px; display:grid; grid-template-columns:38px minmax(0,1fr) auto; align-items:center; gap:12px; border:1px solid var(--line); border-radius:10px; background:rgba(255,255,255,.5); transition:transform .16s ease,border-color .16s ease,background .16s ease; }
 .quick-action:hover { transform:translateY(-2px); border-color:rgba(22,62,52,.3); background:rgba(255,255,255,.82); }
@@ -105,6 +106,18 @@ a { color:inherit; text-decoration:none; }
 .quick-action small { margin-top:2px; color:var(--muted); font-size:10px; }
 .quick-action b { color:var(--orange); font-size:17px; }
 .quick-actions-empty { grid-column:1/-1; padding:15px; border:1px dashed var(--line); border-radius:10px; }
+.dash-quote-card { min-height:230px; grid-column:1/-1; color:var(--cream); background:radial-gradient(circle at 94% 10%,rgba(227,170,66,.2),transparent 16rem),var(--forest); }
+.dash-quote-card .dash-kicker { color:var(--gold); }
+.dash-quote-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; }
+.dash-quote-mark { height:54px; color:rgba(227,170,66,.72); font-family:var(--serif); font-size:82px; line-height:.9; }
+.dash-quote-copy { margin-top:24px; transition:opacity .24s ease,transform .24s ease; }
+.dash-quote-copy.is-swapping { transform:translateY(4px); opacity:0; }
+.dash-quote-copy blockquote { max-width:900px; margin:0; font-family:var(--serif); font-size:clamp(23px,3vw,34px); font-weight:500; line-height:1.2; letter-spacing:-.015em; }
+.dash-quote-footer { margin-top:23px; display:flex; align-items:end; justify-content:space-between; gap:20px; }
+.dash-quote-footer cite { color:var(--gold); font-family:var(--serif); font-size:16px; font-style:normal; }
+.dash-quote-footer cite small { margin-top:2px; display:block; color:rgba(244,238,223,.62); font-family:var(--sans); font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+.dash-quote-footer button { min-height:38px; padding:0 13px; border:1px solid rgba(244,238,223,.25); border-radius:99px; color:var(--cream); background:rgba(244,238,223,.08); font-size:11px; font-weight:700; cursor:pointer; }
+.dash-quote-footer button:hover { border-color:rgba(244,238,223,.46); background:rgba(244,238,223,.14); }
 .status.muted { margin:0; color:var(--muted); background:rgba(116,111,98,.12); }
 .status.on-dark { color:var(--cream); background:rgba(244,238,223,.18); }
 .account-grid { margin-top:18px; display:grid; grid-template-columns:1fr 1fr; gap:18px; }
@@ -136,4 +149,6 @@ a { color:inherit; text-decoration:none; }
 @media(max-width:800px){.dash-card-feature,.dash-card-secondary{grid-column:1/-1}.dashboard{padding-top:38px}.dashboard-lede{font-size:14px}}
 @media(max-width:520px){.dash-card{padding:21px}.dash-card-feature{min-height:365px}.dash-card-identity{align-items:flex-start}.dash-card-icon{width:50px;height:50px}.dash-card h2{font-size:25px}.live-metric strong{font-size:66px}.meeting-countdown.is-today strong{font-size:48px}.dashboard-facts{grid-template-columns:1fr 1fr}.status{flex:0 0 auto}}
 @media(max-width:520px){.quick-actions-grid{grid-template-columns:1fr}.quick-action{padding:13px}.quick-action small{white-space:normal}.quick-actions-heading .status{display:none}}
+@media(max-width:520px){.dash-quote-card{min-height:270px}.dash-quote-mark{font-size:68px}.dash-quote-copy blockquote{font-size:23px}.dash-quote-footer{align-items:start;flex-direction:column}.dash-quote-footer button{align-self:stretch}}
 @media(max-width:520px){.site-header{gap:12px}.brand{font-size:17px}.brand img{width:25px;height:27px}.account-menu-trigger{max-width:112px}.account-menu-trigger span:first-child{max-width:72px}.account-menu-panel{min-width:160px}}
+@media(prefers-reduced-motion:reduce){.dash-quote-copy{transition:none}}

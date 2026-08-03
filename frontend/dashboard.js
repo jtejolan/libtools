@@ -184,6 +184,54 @@ const quickActionsCard = (tools, summary) => {
   </section>`;
 };
 
+const quoteCard = () => `<section class="dash-card dash-quote-card" aria-labelledby="dashboard-quote-heading">
+  <div class="dash-quote-heading">
+    <div><span class="dash-kicker">From the shelves</span><h2 id="dashboard-quote-heading">A little literary pause</h2></div>
+    <span class="dash-quote-mark" aria-hidden="true">“</span>
+  </div>
+  <div class="dash-quote-copy" id="dashboard-quote-copy" aria-live="polite">
+    <blockquote id="dashboard-quote-text"></blockquote>
+    <div class="dash-quote-footer">
+      <cite><span id="dashboard-quote-title"></span><small id="dashboard-quote-author"></small></cite>
+      <button id="next-dashboard-quote" type="button">Another quote <span aria-hidden="true">→</span></button>
+    </div>
+  </div>
+</section>`;
+
+const initializeDashboardQuotes = () => {
+  const quotes = (window.bookQuotes || []).filter(
+    (quote) => quote.quote.length <= 320,
+  );
+  const card = $(".dash-quote-card");
+  if (!quotes.length) {
+    card.hidden = true;
+    return;
+  }
+
+  const copy = $("#dashboard-quote-copy");
+  let index = Math.floor(Math.random() * quotes.length);
+  const renderQuote = (animate = true) => {
+    const update = () => {
+      const quote = quotes[index];
+      $("#dashboard-quote-text").textContent = quote.quote;
+      $("#dashboard-quote-title").textContent = quote.title;
+      $("#dashboard-quote-author").textContent = quote.author;
+      copy.classList.remove("is-swapping");
+    };
+    if (!animate) return update();
+    copy.classList.add("is-swapping");
+    window.setTimeout(update, 240);
+  };
+  const nextQuote = () => {
+    index = (index + 1) % quotes.length;
+    renderQuote();
+  };
+
+  renderQuote(false);
+  $("#next-dashboard-quote").addEventListener("click", nextQuote);
+  if (quotes.length > 1) window.setInterval(nextQuote, 12000);
+};
+
 const renderDashboard = (user, summary) => {
   const displayName = formatUsername(user.username);
   $("#welcome-heading").textContent = `${timeOfDayGreeting()}, ${displayName}`;
@@ -198,7 +246,9 @@ const renderDashboard = (user, summary) => {
     lenderyCard(tools, summary),
     bookclubCard(tools, summary),
     quickActionsCard(tools, summary),
+    quoteCard(),
   ].join("");
+  initializeDashboardQuotes();
 };
 
 $("#logout").addEventListener("click", async () => {

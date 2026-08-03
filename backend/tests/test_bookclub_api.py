@@ -129,7 +129,7 @@ class BookClubApiTests(unittest.TestCase):
             self.assertIn('href="/bookclub"', homepage.text)
             self.assertIn("Available now", homepage.text)
             self.assertIn('id="home-account-link"', homepage.text)
-            self.assertIn('/static/home.js?v=4', homepage.text)
+            self.assertIn('/static/home.js?v=5', homepage.text)
             self.assertIn('/static/styles.css?v=21', homepage.text)
             self.assertEqual(
                 homepage.headers["cache-control"],
