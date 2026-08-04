@@ -75,6 +75,9 @@ const applyUser = (user) => {
   $("#user-badge").textContent = user.role === "admin" ? "Administrator" : "Member";
   $("#account-menu-name").textContent = capitalizeFirst(user.name);
   $("#account-menu-username").textContent = `@${user.username}`;
+  document.querySelectorAll("[data-platform-admin-only]").forEach((element) => {
+    element.hidden = user.role !== "admin";
+  });
 };
 
 const applyClub = (club) => {

@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/static/bookclub.css?v=16" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub.js?v=14" defer></script>
+    <script src="/static/bookclub.js?v=15" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -60,6 +60,8 @@
               </summary>
               <div class="account-menu-panel">
                 <p class="account-menu-username" id="account-menu-username"></p>
+                <a href="/admin/accounts" data-platform-admin-only hidden>Manage users</a>
+                <a href="https://lendery.libtools.app/" target="_blank" rel="noopener" data-platform-admin-only hidden>Quick check</a>
                 <a href="/account">My account</a>
                 <button id="logout-button" type="button">Log out</button>
               </div>

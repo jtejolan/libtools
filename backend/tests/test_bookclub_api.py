@@ -137,7 +137,7 @@ class BookClubApiTests(unittest.TestCase):
         entrypoint = self.client.get("/bookclub")
         self.assertEqual(entrypoint.status_code, 200)
         self.assertIn("Book Club Manager", entrypoint.text)
-        self.assertIn('/static/bookclub.js?v=14', entrypoint.text)
+        self.assertIn('/static/bookclub.js?v=15', entrypoint.text)
         self.assertIn('/static/bookclub.css?v=16', entrypoint.text)
         self.assertIn('href="/signup">Create an account</a>', entrypoint.text)
         self.assertEqual(entrypoint.headers["cache-control"], "no-store")

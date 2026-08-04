@@ -344,6 +344,7 @@ const renderDashboard = (user, summary) => {
   $("#dashboard-account-name").textContent = displayName;
   $("#dashboard-account-username").textContent = `@${user.username}`;
   $("#admin-link").hidden = user.role !== "admin";
+  $("#quick-check-link").hidden = user.role !== "admin";
   const tools = new Set(user.tools);
   if (user.role === "admin") {
     tools.add("bookclub");
