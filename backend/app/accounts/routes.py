@@ -54,6 +54,19 @@ def _deliver_password_reset(request: Request, user: models.LibtoolsUser, token: 
         return False
 
 
+def _deliver_password_changed(user: models.LibtoolsUser) -> bool:
+    if user.email is None:
+        return False
+    try:
+        return email_delivery.send_password_changed_email(
+            recipient=user.email,
+            username=user.username,
+        )
+    except Exception:
+        logger.exception("Could not hand off a password-changed confirmation email")
+        return False
+
+
 @router.post(
     "/register",
     response_model=schemas.RegistrationResponse,
@@ -276,6 +289,7 @@ def change_password(
     account_tokens.revoke_tokens(db, user, account_tokens.PASSWORD_RESET)
     db.commit()
     request.session["libtools_session_version"] = user.session_version
+    _deliver_password_changed(user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -409,6 +423,7 @@ def confirm_password_reset(
     user.must_change_password = False
     user.session_version += 1
     db.commit()
+    _deliver_password_changed(user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
