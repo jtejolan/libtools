@@ -813,6 +813,92 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
         self.assertIsNone(refreshed.json()["image_url"])
         self.assertFalse(component_image_path(component["id"]).exists())
 
+    def test_public_barcode_lookup_requires_no_auth_and_hides_staff_fields(
+        self,
+    ) -> None:
+        item = self.client.post(
+            "/lendery/items",
+            json={
+                "name": "Carpet cleaner",
+                "barcode": "PUBLIC-1",
+                "notes": "Staff-only note",
+                "purchase_price": 199.99,
+                "purchase_url": "https://vendor.example.com/carpet-cleaner",
+                "category": "Cleaning",
+            },
+        ).json()
+        component = self.client.post(
+            f"/lendery/items/{item['id']}/components",
+            json={
+                "name": "Hose attachment",
+                "quantity": 1,
+                "check_in_notes": "Staff-only check-in note",
+            },
+        ).json()
+        self.client.post(
+            f"/lendery/components/{component['id']}/missing-report",
+            json={"note": "Reported missing by a staff member"},
+        )
+
+        anonymous = TestClient(app)
+        try:
+            response = anonymous.get(
+                f"/api/public/lendery/items/barcode/{item['barcode']}"
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            body = response.json()
+
+            self.assertEqual(body["name"], "Carpet cleaner")
+            self.assertEqual(body["barcode"], "PUBLIC-1")
+            self.assertEqual(body["category"], "Cleaning")
+            self.assertEqual(len(body["components"]), 1)
+            self.assertEqual(body["components"][0]["name"], "Hose attachment")
+
+            for leaked_field in (
+                "id",
+                "notes",
+                "purchase_price",
+                "purchase_url",
+                "lifecycle_note",
+                "availability_status",
+                "availability_error",
+                "library_url",
+            ):
+                self.assertNotIn(leaked_field, body)
+            for leaked_component_field in (
+                "id",
+                "check_in_notes",
+                "missing_reported_at",
+                "missing_reported_by",
+                "missing_note",
+            ):
+                self.assertNotIn(leaked_component_field, body["components"][0])
+        finally:
+            anonymous.close()
+
+    def test_public_barcode_lookup_404s_for_unknown_and_removed_items(
+        self,
+    ) -> None:
+        item = self.create_linked_item(barcode="PUBLIC-2")
+        self.client.post(
+            f"/lendery/items/{item['id']}/remove",
+            json={"reason": "Retired"},
+        )
+
+        anonymous = TestClient(app)
+        try:
+            missing = anonymous.get(
+                "/api/public/lendery/items/barcode/does-not-exist"
+            )
+            self.assertEqual(missing.status_code, 404)
+
+            removed = anonymous.get(
+                f"/api/public/lendery/items/barcode/{item['barcode']}"
+            )
+            self.assertEqual(removed.status_code, 404)
+        finally:
+            anonymous.close()
+
 
 if __name__ == "__main__":
     unittest.main()

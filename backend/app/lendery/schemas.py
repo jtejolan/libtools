@@ -122,6 +122,22 @@ class ComponentResponse(ComponentBase):
 class ComponentMissingReport(BaseModel):
     note: str | None = Field(default=None, max_length=500)
 
+
+class PublicComponentResponse(BaseModel):
+    """Narrow, hand-picked component fields safe for anonymous visitors.
+
+    Deliberately excludes id and every missing_*/check_in_notes field —
+    those are staff workflow state, not patron-facing information.
+    """
+
+    name: str
+    quantity: int
+    description: str | None = None
+    image_url: str | None = None
+    optional: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
 ##Lendery Item Schemas##
 
 
@@ -228,6 +244,27 @@ class LenderyItemResponse(LenderyItemBase):
     lifecycle_changed_at: datetime
     created_at: datetime
     updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PublicLenderyItemResponse(BaseModel):
+    """Narrow, hand-picked item fields safe for anonymous visitors.
+
+    Deliberately excludes id, notes, purchase_price, purchase_url,
+    lifecycle_note, availability_error, and everything catalogue/
+    availability-related — those are staff-only or not relevant to a
+    visitor who already has the physical item in hand.
+    """
+
+    name: str
+    description: str | None = None
+    barcode: str
+    image_url: str | None = None
+    category: str | None = None
+    manual_url: str | None = None
+    physical_manual_included: bool = False
+    components: list[PublicComponentResponse] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 

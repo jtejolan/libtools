@@ -25,6 +25,8 @@ router = APIRouter(
     dependencies=[Depends(require_lendery_view)],
 )
 
+public_router = APIRouter(prefix="/api/public/lendery", tags=["public lendery"])
+
 Offset = Annotated[int, Query(ge=0)]
 Limit = Annotated[int, Query(ge=1, le=100)]
 AvailabilityFilter = Literal[
@@ -845,3 +847,35 @@ def add_maintenance_event(
             detail="Maintenance case not found",
         )
     return case
+
+
+@public_router.get(
+    "/items/barcode/{barcode}",
+    response_model=schemas.PublicLenderyItemResponse,
+)
+def public_item_by_barcode(barcode: str, db: DatabaseSession):
+    item = crud.get_item_by_barcode(db, barcode)
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item not found",
+        )
+    return schemas.PublicLenderyItemResponse(
+        name=item.name,
+        description=item.description,
+        barcode=item.barcode,
+        image_url=item.image_url,
+        category=item.category,
+        manual_url=item.manual_url,
+        physical_manual_included=item.physical_manual_included,
+        components=[
+            schemas.PublicComponentResponse(
+                name=component.name,
+                quantity=component.quantity,
+                description=component.description,
+                image_url=component.image_url,
+                optional=component.optional,
+            )
+            for component in item.components
+        ],
+    )

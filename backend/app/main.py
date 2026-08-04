@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.routing import Host
 
 from database import Base, SessionLocal, engine, migrate_existing_database
 from dependencies import DatabaseSession
@@ -26,6 +27,7 @@ from bookclub.club_routes import public_router as public_bookclub_router
 from bookclub.club_routes import router as bookclub_club_router
 from bookclub.routes import router as bookclub_router
 from lendery import models
+from lendery.routes import public_router as public_lendery_router
 from lendery.routes import router as lendery_router
 
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
@@ -73,6 +75,7 @@ app.include_router(lendery_router)
 app.include_router(bookclub_club_router)
 app.include_router(bookclub_router)
 app.include_router(public_bookclub_router)
+app.include_router(public_lendery_router)
 app.mount(
     "/static",
     StaticFiles(directory=FRONTEND_DIR),
@@ -216,3 +219,32 @@ def api_docs(_admin=Depends(require_platform_admin)):
 @app.get("/openapi.json", include_in_schema=False)
 def openapi_schema(_admin=Depends(require_platform_admin)) -> JSONResponse:
     return JSONResponse(app.openapi())
+
+
+# lendery.libtools.app is a small, standalone, always-public micro-site —
+# no auth, no session middleware, no relation to the staff app (which stays
+# at libtools.app/lendery, untouched). It's a self-contained ASGI app with
+# its own static mount and its own copy of the public API router, so
+# relative fetch()/asset paths in its static pages resolve correctly
+# without needing CORS.
+
+lendery_public_app = FastAPI(docs_url=None, openapi_url=None)
+lendery_public_app.include_router(public_lendery_router)
+lendery_public_app.mount(
+    "/static",
+    StaticFiles(directory=FRONTEND_DIR),
+    name="static",
+)
+
+
+@lendery_public_app.get("/", include_in_schema=False)
+def lendery_quick_check_page() -> FileResponse:
+    return FileResponse(
+        FRONTEND_DIR / "check.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+# Inserted at the front so this is matched before the generic (any-host)
+# routes above, which would otherwise shadow it for the same paths.
+app.router.routes.insert(0, Host("lendery.libtools.app", app=lendery_public_app))
