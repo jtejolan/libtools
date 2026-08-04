@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from dependencies import DatabaseSession, get_db
 from accounts.auth import require_lendery_manage, require_lendery_view
 from bookclub.catalogue import CatalogueImportError
-from lendery import catalogue, component_images, crud, schemas
+from lendery import availability, catalogue, component_images, crud, schemas
 
 
 router = APIRouter(
@@ -135,15 +135,29 @@ def create_item(
 )
 def import_item(
     value: schemas.CatalogueItemImportRequest,
+    db: DatabaseSession,
     _manager=Depends(require_lendery_manage),
 ):
     try:
-        return catalogue.fetch_catalogue_item(str(value.library_url))
+        result = catalogue.fetch_catalogue_item(str(value.library_url))
     except CatalogueImportError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         ) from exc
+
+    # Best-effort only: a duplicate copy's specific barcode can't always be
+    # guessed (see suggest_unclaimed_barcode), and any failure fetching
+    # live availability shouldn't block the catalogue-detail import above.
+    try:
+        payload = availability.fetch_availability_payload(str(value.library_url))
+        result["barcode"] = availability.suggest_unclaimed_barcode(
+            payload, crud.get_all_barcodes(db)
+        )
+    except availability.AvailabilityCheckError:
+        result["barcode"] = None
+
+    return result
 
 
 @router.get(

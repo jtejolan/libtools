@@ -4,6 +4,7 @@ import unittest
 from io import BytesIO
 from unittest.mock import patch
 
+import httpx
 from fastapi.testclient import TestClient
 from PIL import Image
 from sqlalchemy import create_engine, inspect, text
@@ -12,12 +13,35 @@ from sqlalchemy.pool import StaticPool
 
 from database import Base, migrate_existing_database
 from accounts.models import LibtoolsUser
-from lendery.availability import AvailabilityResult
+from lendery.availability import AvailabilityCheckError, AvailabilityResult
 from lendery.component_images import component_image_path
 from lendery.models import ItemActivity
 from lendery.routes import get_db
 from main import app
 from security import hash_password
+
+
+def _availability_payload(*entries: dict) -> dict:
+    return {
+        "availability": {
+            "metadataId": "S130C603511",
+            "errorClassification": None,
+        },
+        "entities": {
+            "bibItems": {
+                str(index): entry for index, entry in enumerate(entries)
+            },
+            "availabilities": {"S130C603511": {"statusType": "AVAILABLE"}},
+        },
+    }
+
+
+def _bib_item(barcode: str, status_type: str, status: str) -> dict:
+    return {
+        "itemId": f"603511|{barcode}||1",
+        "branch": {"code": "9", "name": "Pierre Berton Resource Library"},
+        "availability": {"status": status, "statusType": status_type},
+    }
 
 
 class LenderyAvailabilityApiTests(unittest.TestCase):
@@ -170,9 +194,9 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
         self.assertEqual(body["availability_status"], "not_held")
         check.assert_called_once()
 
-    @patch("lendery.catalogue.fetch_catalogue_item")
-    def test_imports_item_details_from_vaughan_catalogue(self, fetch_item) -> None:
-        fetch_item.return_value = {
+    @staticmethod
+    def _catalogue_item_fixture() -> dict:
+        return {
             "name": "ThermoMaven 3000FT Smart Wireless Meat Thermometer",
             "description": "Monitor food from up to 3000 feet away.",
             "image_url": (
@@ -186,6 +210,16 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
                 "https://vaughanpl.bibliocommons.com/v2/record/S130C772570"
             ),
         }
+
+    @patch("lendery.availability.fetch_availability_payload")
+    @patch("lendery.catalogue.fetch_catalogue_item")
+    def test_imports_item_details_from_vaughan_catalogue(
+        self, fetch_item, fetch_availability
+    ) -> None:
+        fetch_item.return_value = self._catalogue_item_fixture()
+        fetch_availability.return_value = _availability_payload(
+            _bib_item("33288098578375", "AVAILABLE", "AVAILABLE"),
+        )
         response = self.client.post(
             "/lendery/items/import",
             json={
@@ -201,9 +235,77 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
             "ThermoMaven 3000FT Smart Wireless Meat Thermometer",
         )
         self.assertTrue(response.json()["manual_url"].endswith(".pdf"))
+        self.assertEqual(response.json()["barcode"], "33288098578375")
         fetch_item.assert_called_once_with(
             "https://vaughanpl.bibliocommons.com/v2/record/S130C772570"
         )
+
+    @patch("lendery.availability.fetch_availability_payload")
+    @patch("lendery.catalogue.fetch_catalogue_item")
+    def test_import_leaves_barcode_blank_when_multiple_copies_are_untracked(
+        self, fetch_item, fetch_availability
+    ) -> None:
+        fetch_item.return_value = self._catalogue_item_fixture()
+        fetch_availability.return_value = _availability_payload(
+            _bib_item("BARCODE-A", "AVAILABLE", "AVAILABLE"),
+            _bib_item("BARCODE-B", "UNAVAILABLE", "CHECKED_OUT"),
+        )
+        response = self.client.post(
+            "/lendery/items/import",
+            json={
+                "library_url": (
+                    "https://vaughanpl.bibliocommons.com/v2/record/S130C772570"
+                )
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertIsNone(response.json()["barcode"])
+
+    @patch("lendery.availability.fetch_availability_payload")
+    @patch("lendery.catalogue.fetch_catalogue_item")
+    def test_import_leaves_barcode_blank_when_the_candidate_is_already_tracked(
+        self, fetch_item, fetch_availability
+    ) -> None:
+        self.create_linked_item("33288098578375")
+        fetch_item.return_value = self._catalogue_item_fixture()
+        fetch_availability.return_value = _availability_payload(
+            _bib_item("33288098578375", "AVAILABLE", "AVAILABLE"),
+        )
+        response = self.client.post(
+            "/lendery/items/import",
+            json={
+                "library_url": (
+                    "https://vaughanpl.bibliocommons.com/v2/record/S130C772570"
+                )
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertIsNone(response.json()["barcode"])
+
+    @patch("lendery.availability.fetch_availability_payload")
+    @patch("lendery.catalogue.fetch_catalogue_item")
+    def test_import_succeeds_without_a_barcode_suggestion_when_availability_check_fails(
+        self, fetch_item, fetch_availability
+    ) -> None:
+        fetch_item.return_value = self._catalogue_item_fixture()
+        fetch_availability.side_effect = AvailabilityCheckError("boom")
+        response = self.client.post(
+            "/lendery/items/import",
+            json={
+                "library_url": (
+                    "https://vaughanpl.bibliocommons.com/v2/record/S130C772570"
+                )
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(
+            response.json()["name"],
+            "ThermoMaven 3000FT Smart Wireless Meat Thermometer",
+        )
+        self.assertIsNone(response.json()["barcode"])
 
     def test_lendery_page_uses_current_autofill_assets(self) -> None:
         response = self.client.get("/lendery")
@@ -435,21 +537,32 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
         self.assertEqual(body["total_copies_at_branch"], 2)
         self.assertIsNotNone(body["availability_checked_at"])
 
-    @patch("lendery.availability.check_availability")
-    def test_in_and_out_filters_use_saved_status(self, check) -> None:
+    def test_in_and_out_filters_use_saved_status(self) -> None:
         created_in = self.create_linked_item("IN-1")
-        check.return_value = AvailabilityResult("available", 1, 1)
-        self.client.get(f"/lendery/items/{created_in['id']}")
-
         created_out = self.create_linked_item("OUT-1")
-        check.return_value = AvailabilityResult("checked_out", 0, 1)
-        self.client.get(f"/lendery/items/{created_out['id']}")
-
         created_unavailable = self.create_linked_item("UNAVAILABLE-1")
-        check.return_value = AvailabilityResult("unavailable", 0, 0)
-        self.client.get(
-            f"/lendery/items/{created_unavailable['id']}"
+
+        # One shared title-level BiblioCommons payload, as in the real
+        # duplicate-copy case: all three Lendery rows point at the same
+        # library_url/bib, but each bibItems entry carries a different
+        # physical barcode, so each item must resolve to its own status.
+        shared_payload = _availability_payload(
+            _bib_item("IN-1", "AVAILABLE", "AVAILABLE"),
+            _bib_item("OUT-1", "UNAVAILABLE", "CHECKED_OUT"),
+            _bib_item("UNAVAILABLE-1", "UNAVAILABLE", "DAMAGED"),
         )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=shared_payload)
+
+        mock_client = httpx.Client(transport=httpx.MockTransport(handler))
+        with patch(
+            "lendery.availability._default_client",
+            return_value=mock_client,
+        ):
+            self.client.get(f"/lendery/items/{created_in['id']}")
+            self.client.get(f"/lendery/items/{created_out['id']}")
+            self.client.get(f"/lendery/items/{created_unavailable['id']}")
 
         in_items = self.client.get(
             "/lendery/items?availability=in"

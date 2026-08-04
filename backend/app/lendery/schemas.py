@@ -311,6 +311,7 @@ class CatalogueItemImportResponse(BaseModel):
     image_url: HttpUrl | None = None
     manual_url: HttpUrl | None = None
     library_url: HttpUrl
+    barcode: str | None = None
 
 
 class ItemSuggestionCreate(BaseModel):

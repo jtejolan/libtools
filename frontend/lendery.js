@@ -989,7 +989,14 @@ const importLenderyItem = async () => {
         itemForm.elements[field].value = item[field] ?? "";
       },
     );
-    status.textContent = "Details added. Add a barcode, review, then save.";
+    const barcodeField = itemForm.elements.barcode;
+    if (item.barcode && !barcodeField.value.trim()) {
+      barcodeField.value = item.barcode;
+      status.textContent =
+        "Details added. We matched an untracked copy's barcode — double-check it against the item in hand, then save.";
+    } else {
+      status.textContent = "Details added. Add a barcode, review, then save.";
+    }
     status.className = "field-help success";
   } catch (error) {
     status.textContent = error.message;
@@ -1585,12 +1592,27 @@ itemForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!canManage()) return;
   formError.textContent = "";
+  const id = document.querySelector("#item-id").value;
+  const payload = formPayload();
+
+  if (payload.library_url) {
+    const duplicate = state.items.find(
+      (candidate) =>
+        candidate.library_url === payload.library_url &&
+        String(candidate.id) !== id,
+    );
+    if (
+      duplicate &&
+      !window.confirm(
+        `Another item already uses this catalogue link: “${duplicate.name}” (barcode ${duplicate.barcode}). Continue adding this as another copy?`,
+      )
+    ) return;
+  }
+
   const saveButton = document.querySelector("#save-item");
   saveButton.disabled = true;
-  const id = document.querySelector("#item-id").value;
 
   try {
-    const payload = formPayload();
     const item = await request(id ? `/lendery/items/${id}` : "/lendery/items", {
       method: id ? "PATCH" : "POST",
       body: JSON.stringify(payload),

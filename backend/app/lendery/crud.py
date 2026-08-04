@@ -266,6 +266,10 @@ def get_item_by_barcode(
     return db.scalar(statement)
 
 
+def get_all_barcodes(db: Session) -> set[str]:
+    return set(db.scalars(select(models.LenderyItem.barcode)))
+
+
 def list_items(
     db: Session,
     *,
@@ -673,7 +677,9 @@ def refresh_item_availability(
 
     checked_at = datetime.now(timezone.utc)
     try:
-        result = availability.check_availability(db_item.library_url)
+        result = availability.check_availability(
+            db_item.library_url, db_item.barcode
+        )
     except availability.AvailabilityCheckError as exc:
         db_item.availability_checked_at = checked_at
         db_item.availability_error = str(exc)

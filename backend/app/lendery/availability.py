@@ -34,6 +34,7 @@ class AvailabilityResult:
     status: AvailabilityStatus
     available_copies: int
     total_copies_at_branch: int
+    matched_specific_copy: bool = False
 
 
 def metadata_id_from_url(library_url: str) -> str:
@@ -50,7 +51,9 @@ def metadata_id_from_url(library_url: str) -> str:
     return match.group(1)
 
 
-def parse_availability(payload: Any) -> AvailabilityResult:
+def parse_availability(
+    payload: Any, barcode: str | None = None
+) -> AvailabilityResult:
     try:
         availability_summary = payload["availability"]
         error_classification = availability_summary["errorClassification"]
@@ -103,8 +106,37 @@ def parse_availability(payload: Any) -> AvailabilityResult:
         for item in branch_items
         if item.get("availability", {}).get("statusType") == "AVAILABLE"
     )
-    if available_copies:
-        status: AvailabilityStatus = "available"
+
+    # Two Lendery items can legitimately share a library_url (duplicate
+    # physical copies of the same catalogue title). BiblioCommons' itemId
+    # is shaped "{bibId}|{barcode}||{sequence}" and that barcode segment is
+    # the same physical barcode staff enter into Lendery, so when we can
+    # match it we report THIS copy's own status instead of "is any copy of
+    # the title available" — otherwise duplicates would be indistinguishable.
+    matched_item = None
+    if barcode:
+        for candidate in branch_items:
+            item_id = candidate.get("itemId")
+            if not isinstance(item_id, str):
+                continue
+            parts = item_id.split("|")
+            if len(parts) > 1 and parts[1] == barcode:
+                matched_item = candidate
+                break
+
+    if matched_item is not None:
+        copy_availability = matched_item.get("availability", {})
+        if copy_availability.get("statusType") == "AVAILABLE":
+            status: AvailabilityStatus = "available"
+        elif (
+            copy_availability.get("statusType") == "UNAVAILABLE"
+            and copy_availability.get("status") == "CHECKED_OUT"
+        ):
+            status = "checked_out"
+        else:
+            status = "unavailable"
+    elif available_copies:
+        status = "available"
     elif all(
         item.get("availability", {}).get("status") == "CHECKED_OUT"
         for item in branch_items
@@ -117,7 +149,41 @@ def parse_availability(payload: Any) -> AvailabilityResult:
         status=status,
         available_copies=available_copies,
         total_copies_at_branch=len(branch_items),
+        matched_specific_copy=matched_item is not None,
     )
+
+
+def suggest_unclaimed_barcode(
+    payload: Any, existing_barcodes: set[str]
+) -> str | None:
+    """Suggest a barcode for a new Lendery item from a raw BiblioCommons
+    availability payload: the one Pierre Berton copy whose barcode isn't
+    already tracked as another item's barcode. Returns None rather than
+    guessing when that isn't true of exactly one copy — zero untracked
+    copies, or more than one (too ambiguous to know which physical copy is
+    being added) — or when the payload is missing/malformed.
+    """
+    try:
+        bib_items = payload["entities"]["bibItems"]
+    except (KeyError, TypeError):
+        return None
+    if not isinstance(bib_items, dict):
+        return None
+
+    candidates = []
+    for item in bib_items.values():
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("branch", {}).get("code")) != TRACKED_BRANCH_CODE:
+            continue
+        item_id = item.get("itemId")
+        if not isinstance(item_id, str):
+            continue
+        parts = item_id.split("|")
+        if len(parts) > 1 and parts[1] and parts[1] not in existing_barcodes:
+            candidates.append(parts[1])
+
+    return candidates[0] if len(candidates) == 1 else None
 
 
 _shared_client: httpx.Client | None = None
@@ -137,11 +203,11 @@ def _default_client() -> httpx.Client:
     return _shared_client
 
 
-def check_availability(
+def fetch_availability_payload(
     library_url: str,
     *,
     client: httpx.Client | None = None,
-) -> AvailabilityResult:
+) -> Any:
     metadata_id = metadata_id_from_url(library_url)
     endpoint = AVAILABILITY_ENDPOINT.format(metadata_id=metadata_id)
     if client is None:
@@ -150,10 +216,20 @@ def check_availability(
     try:
         response = client.get(endpoint)
         response.raise_for_status()
-        return parse_availability(response.json())
+        return response.json()
     except AvailabilityCheckError:
         raise
     except (httpx.HTTPError, ValueError) as exc:
         raise AvailabilityCheckError(
             "Could not retrieve availability from BiblioCommons"
         ) from exc
+
+
+def check_availability(
+    library_url: str,
+    barcode: str | None = None,
+    *,
+    client: httpx.Client | None = None,
+) -> AvailabilityResult:
+    payload = fetch_availability_payload(library_url, client=client)
+    return parse_availability(payload, barcode)
