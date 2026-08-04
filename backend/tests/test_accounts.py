@@ -1,14 +1,16 @@
 import unittest
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from accounts.models import LibtoolsUser, ToolAccess
+from accounts.models import AccountToken, LibtoolsUser, ToolAccess
 from accounts.bootstrap import initialize_platform_accounts
+import database
 from bookclub.models import BookClub, BookClubBook, BookClubMeeting
 from database import Base
 from dependencies import get_db
@@ -51,6 +53,7 @@ class PlatformAccountTests(unittest.TestCase):
                 connection.execute(table.delete())
         with self.sessions() as db:
             admin = LibtoolsUser(
+                name="Admin",
                 username="admin",
                 password_hash=hash_password("admin-password"),
                 role="admin",
@@ -71,10 +74,11 @@ class PlatformAccountTests(unittest.TestCase):
         response = self.admin.post(
             "/api/admin/users",
             json={
+                "name": username,
                 "username": username,
                 "password": "starting-password",
                 "confirm_password": "starting-password",
-                "tools": ["bookclub"],
+                "tools": [],
             },
         )
         self.assertEqual(response.status_code, 201, response.text)
@@ -94,7 +98,7 @@ class PlatformAccountTests(unittest.TestCase):
     def test_account_creation_login_and_offline_recovery(self) -> None:
         created = self.create_user("Taylor")
         self.assertTrue(created["recovery_code"])
-        self.assertEqual(created["tools"], ["bookclub"])
+        self.assertEqual(created["tools"], ["bookclub", "storytime"])
 
         user = TestClient(app)
         try:
@@ -131,7 +135,391 @@ class PlatformAccountTests(unittest.TestCase):
         finally:
             user.close()
 
-    def test_initial_admin_bootstrap_assigns_each_tool_once(self) -> None:
+    def test_public_registration_creates_a_session_and_one_recovery_code(self) -> None:
+        client = TestClient(app)
+        try:
+            response = client.post(
+                "/auth/register",
+                json={
+                    "name": "New Reader",
+                    "username": "  New   Reader  ",
+                    "email": "",
+                    "password": "reader-password",
+                    "confirm_password": "reader-password",
+                },
+            )
+            self.assertEqual(response.status_code, 201, response.text)
+            created = response.json()
+            self.assertEqual(created["name"], "New Reader")
+            self.assertEqual(created["username"], "New Reader")
+            self.assertIsNone(created["email"])
+            self.assertFalse(created["email_verified"])
+            self.assertTrue(created["recovery_code"])
+            self.assertEqual(client.get("/auth/me").status_code, 200)
+            self.assertEqual(client.get("/lendery/items").status_code, 200)
+            self.assertEqual(
+                client.post(
+                    "/auth/register",
+                    json={
+                        "name": "New Reader Duplicate",
+                        "username": "new reader",
+                        "password": "another-password",
+                        "confirm_password": "another-password",
+                    },
+                ).status_code,
+                409,
+            )
+
+            with self.sessions() as db:
+                user = db.scalar(
+                    select(LibtoolsUser).where(
+                        LibtoolsUser.username == "New Reader"
+                    )
+                )
+                self.assertIsNotNone(user.recovery_code_hash)
+                self.assertNotIn(created["recovery_code"], user.recovery_code_hash)
+        finally:
+            client.close()
+
+    def test_registration_with_email_creates_single_use_verification_link(self) -> None:
+        client = TestClient(app)
+        try:
+            with patch(
+                "accounts.routes.email_delivery.send_verification_email",
+                return_value=True,
+            ) as send_email:
+                response = client.post(
+                    "/auth/register",
+                    json={
+                        "name": "Email Reader",
+                        "username": "Email Reader",
+                        "email": " Reader@Example.COM ",
+                        "password": "reader-password",
+                        "confirm_password": "reader-password",
+                    },
+                )
+            self.assertEqual(response.status_code, 201, response.text)
+            self.assertEqual(response.json()["email"], "reader@example.com")
+            self.assertFalse(response.json()["email_verified"])
+            self.assertTrue(response.json()["email_verification_required"])
+            self.assertTrue(response.json()["email_delivery_configured"])
+            verification_url = send_email.call_args.kwargs["verification_url"]
+            token = parse_qs(urlsplit(verification_url).query)["token"][0]
+
+            verified = client.post("/auth/verify-email", json={"token": token})
+            self.assertEqual(verified.status_code, 200, verified.text)
+            self.assertTrue(verified.json()["email_verified"])
+            self.assertEqual(
+                client.post("/auth/verify-email", json={"token": token}).status_code,
+                400,
+            )
+
+            duplicate = TestClient(app)
+            try:
+                duplicate_response = duplicate.post(
+                    "/auth/register",
+                    json={
+                        "name": "Other Reader",
+                        "username": "Other Reader",
+                        "email": "READER@example.com",
+                        "password": "reader-password",
+                        "confirm_password": "reader-password",
+                    },
+                )
+                self.assertEqual(duplicate_response.status_code, 409)
+            finally:
+                duplicate.close()
+        finally:
+            client.close()
+
+    def test_verified_email_password_reset_is_private_expiring_and_single_use(self) -> None:
+        client = TestClient(app)
+        try:
+            with patch(
+                "accounts.routes.email_delivery.send_verification_email",
+                return_value=True,
+            ) as verification_email:
+                registered = client.post(
+                    "/auth/register",
+                    json={
+                        "name": "Reset Reader",
+                        "username": "Reset Reader",
+                        "email": "reset@example.com",
+                        "password": "original-password",
+                        "confirm_password": "original-password",
+                    },
+                )
+            self.assertEqual(registered.status_code, 201, registered.text)
+            verification_token = parse_qs(
+                urlsplit(
+                    verification_email.call_args.kwargs["verification_url"]
+                ).query
+            )["token"][0]
+            self.assertEqual(
+                client.post(
+                    "/auth/verify-email", json={"token": verification_token}
+                ).status_code,
+                200,
+            )
+
+            with patch(
+                "accounts.routes.email_delivery.send_password_reset_email",
+                return_value=True,
+            ) as reset_email:
+                requested = client.post(
+                    "/auth/password-reset/request",
+                    json={"email": "RESET@example.com"},
+                )
+            self.assertEqual(requested.status_code, 200, requested.text)
+            reset_token = parse_qs(
+                urlsplit(reset_email.call_args.kwargs["reset_url"]).query
+            )["token"][0]
+            reset = client.post(
+                "/auth/password-reset/confirm",
+                json={
+                    "token": reset_token,
+                    "password": "replacement-password",
+                    "confirm_password": "replacement-password",
+                },
+            )
+            self.assertEqual(reset.status_code, 204, reset.text)
+            self.assertEqual(client.get("/auth/me").status_code, 401)
+            self.assertEqual(
+                client.post(
+                    "/auth/password-reset/confirm",
+                    json={
+                        "token": reset_token,
+                        "password": "another-password",
+                        "confirm_password": "another-password",
+                    },
+                ).status_code,
+                400,
+            )
+            self.assertEqual(
+                client.post(
+                    "/auth/login",
+                    json={
+                        "username": "Reset Reader",
+                        "password": "replacement-password",
+                    },
+                ).status_code,
+                200,
+            )
+        finally:
+            client.close()
+
+    def test_password_reset_request_does_not_disclose_account_state(self) -> None:
+        client = TestClient(app)
+        try:
+            with patch(
+                "accounts.routes.email_delivery.send_password_reset_email"
+            ) as send_email:
+                missing = client.post(
+                    "/auth/password-reset/request",
+                    json={"email": "missing@example.com"},
+                )
+            self.assertEqual(missing.status_code, 200, missing.text)
+            self.assertFalse(send_email.called)
+
+            client.post(
+                "/auth/register",
+                json={
+                    "name": "Unverified Reader",
+                    "username": "Unverified Reader",
+                    "email": "unverified@example.com",
+                    "password": "reader-password",
+                    "confirm_password": "reader-password",
+                },
+            )
+            with patch(
+                "accounts.routes.email_delivery.send_password_reset_email"
+            ) as send_email:
+                unverified = client.post(
+                    "/auth/password-reset/request",
+                    json={"email": "unverified@example.com"},
+                )
+            self.assertEqual(unverified.status_code, 200, unverified.text)
+            self.assertEqual(unverified.json()["message"], missing.json()["message"])
+            self.assertFalse(send_email.called)
+        finally:
+            client.close()
+
+    def test_administrator_can_reset_a_self_registered_account(self) -> None:
+        client = TestClient(app)
+        try:
+            registered = client.post(
+                "/auth/register",
+                json={
+                    "name": "Assisted Reader",
+                    "username": "Assisted Reader",
+                    "password": "original-password",
+                    "confirm_password": "original-password",
+                },
+            )
+            self.assertEqual(registered.status_code, 201, registered.text)
+            reset = self.admin.post(
+                f"/api/admin/users/{registered.json()['id']}/password",
+                json={
+                    "password": "temporary-password",
+                    "confirm_password": "temporary-password",
+                },
+            )
+            self.assertEqual(reset.status_code, 200, reset.text)
+            self.assertTrue(reset.json()["recovery_code"])
+            self.assertEqual(client.get("/auth/me").status_code, 401)
+
+            login = client.post(
+                "/auth/login",
+                json={
+                    "username": "Assisted Reader",
+                    "password": "temporary-password",
+                },
+            )
+            self.assertEqual(login.status_code, 200, login.text)
+            self.assertTrue(login.json()["must_change_password"])
+            changed = client.put(
+                "/auth/password",
+                json={
+                    "current_password": "temporary-password",
+                    "password": "permanent-password",
+                    "confirm_password": "permanent-password",
+                },
+            )
+            self.assertEqual(changed.status_code, 204, changed.text)
+            self.assertFalse(client.get("/auth/me").json()["must_change_password"])
+        finally:
+            client.close()
+
+    def test_expired_email_token_is_rejected(self) -> None:
+        client = TestClient(app)
+        try:
+            with patch(
+                "accounts.routes.email_delivery.send_verification_email",
+                return_value=True,
+            ) as send_email:
+                client.post(
+                    "/auth/register",
+                    json={
+                        "name": "Expired Reader",
+                        "username": "Expired Reader",
+                        "email": "expired@example.com",
+                        "password": "reader-password",
+                        "confirm_password": "reader-password",
+                    },
+                )
+            token = parse_qs(
+                urlsplit(send_email.call_args.kwargs["verification_url"]).query
+            )["token"][0]
+            with self.sessions() as db:
+                saved = db.scalar(
+                    select(AccountToken).where(
+                        AccountToken.purpose == "email_verification"
+                    )
+                )
+                saved.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+                db.commit()
+            self.assertEqual(
+                client.post("/auth/verify-email", json={"token": token}).status_code,
+                400,
+            )
+        finally:
+            client.close()
+
+    def test_account_pages_include_registration_and_reset_flows(self) -> None:
+        for path in (
+            "/login",
+            "/signup",
+            "/forgot-password",
+            "/reset-password?token=placeholder",
+            "/verify-email?token=placeholder",
+        ):
+            response = self.admin.get(path)
+            self.assertEqual(response.status_code, 200, path)
+            self.assertIn("Create your account", response.text)
+            self.assertIn("/static/account.js?v=10", response.text)
+
+        admin_page = self.admin.get("/admin/accounts")
+        self.assertEqual(admin_page.status_code, 200)
+        self.assertIn("Account management", admin_page.text)
+        self.assertIn('name="name"', admin_page.text)
+        self.assertIn("available to every account", admin_page.text)
+        self.assertNotIn('name="bookclub"', admin_page.text)
+        self.assertNotIn('name="storytime"', admin_page.text)
+        legacy_page = self.admin.get("/admin/users", follow_redirects=False)
+        self.assertEqual(legacy_page.status_code, 302)
+        self.assertEqual(legacy_page.headers["location"], "/admin/accounts")
+
+    def test_registration_requires_a_name_separate_from_username(self) -> None:
+        client = TestClient(app)
+        try:
+            missing = client.post(
+                "/auth/register",
+                json={
+                    "username": "nameless-reader",
+                    "password": "reader-password",
+                    "confirm_password": "reader-password",
+                },
+            )
+            self.assertEqual(missing.status_code, 422, missing.text)
+        finally:
+            client.close()
+
+    def test_account_migration_adds_email_fields_to_an_existing_database(self) -> None:
+        legacy_engine = create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        try:
+            with legacy_engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "CREATE TABLE libtools_users ("
+                        "id INTEGER PRIMARY KEY, "
+                        "username VARCHAR(80) NOT NULL, "
+                        "password_hash VARCHAR(500) NOT NULL, "
+                        "recovery_code_hash VARCHAR(500), "
+                        "role VARCHAR(20) NOT NULL DEFAULT 'user', "
+                        "active BOOLEAN NOT NULL DEFAULT 1, "
+                        "must_change_password BOOLEAN NOT NULL DEFAULT 0, "
+                        "created_at TIMESTAMP"
+                        ")"
+                    )
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO libtools_users "
+                        "(id, username, password_hash, role, active, "
+                        "must_change_password) VALUES "
+                        "(1, 'legacy-user', 'hash', 'user', 1, 0)"
+                    )
+                )
+            with patch.object(database, "engine", legacy_engine):
+                database.migrate_existing_database()
+
+            columns = {
+                column["name"]
+                for column in inspect(legacy_engine).get_columns("libtools_users")
+            }
+            self.assertTrue(
+                {"name", "email", "email_verified_at", "session_version"}.issubset(columns)
+            )
+            with legacy_engine.connect() as connection:
+                migrated_name = connection.execute(
+                    text("SELECT name FROM libtools_users WHERE id = 1")
+                ).scalar_one()
+            self.assertEqual(migrated_name, "legacy-user")
+            indexes = inspect(legacy_engine).get_indexes("libtools_users")
+            self.assertTrue(
+                any(
+                    index["unique"] and index["column_names"] == ["email"]
+                    for index in indexes
+                )
+            )
+        finally:
+            legacy_engine.dispose()
+
+    def test_initial_admin_bootstrap_assigns_lendery_editing_once(self) -> None:
         with self.engine.begin() as connection:
             for table in reversed(Base.metadata.sorted_tables):
                 connection.execute(table.delete())
@@ -158,13 +546,14 @@ class PlatformAccountTests(unittest.TestCase):
 
         self.assertEqual(
             assigned_tools,
-            ["bookclub", "lendery_manage", "storytime"],
+            ["lendery_manage"],
         )
 
     def test_lendery_view_is_default_and_edit_access_can_be_toggled(self) -> None:
         created = self.admin.post(
             "/api/admin/users",
             json={
+                "name": "Inventory Viewer",
                 "username": "Inventory Viewer",
                 "password": "viewer-password",
                 "confirm_password": "viewer-password",
@@ -172,7 +561,7 @@ class PlatformAccountTests(unittest.TestCase):
             },
         )
         self.assertEqual(created.status_code, 201, created.text)
-        self.assertEqual(created.json()["tools"], [])
+        self.assertEqual(created.json()["tools"], ["bookclub", "storytime"])
         client = TestClient(app)
         try:
             self.assertEqual(
@@ -200,7 +589,10 @@ class PlatformAccountTests(unittest.TestCase):
                 json={"tools": ["lendery_manage"]},
             )
             self.assertEqual(enabled.status_code, 200, enabled.text)
-            self.assertEqual(enabled.json()["tools"], ["lendery_manage"])
+            self.assertEqual(
+                enabled.json()["tools"],
+                ["bookclub", "lendery_manage", "storytime"],
+            )
             self.assertEqual(
                 client.post(
                     "/lendery/items",
@@ -298,6 +690,7 @@ class PlatformAccountTests(unittest.TestCase):
         summary = response.json()
         self.assertEqual(summary["lendery"]["total_items"], 3)
         self.assertEqual(summary["lendery"]["checked_out_items"], 1)
+        self.assertEqual(summary["lendery"]["available_items"], 1)
         self.assertEqual(summary["lendery"]["attention_count"], 3)
         self.assertEqual(summary["bookclub"]["club_count"], 1)
         self.assertEqual(summary["bookclub"]["next_meeting"]["days_until"], 5)
@@ -309,6 +702,7 @@ class PlatformAccountTests(unittest.TestCase):
         created = self.admin.post(
             "/api/admin/users",
             json={
+                "name": "Dashboard Viewer",
                 "username": "Dashboard Viewer",
                 "password": "viewer-password",
                 "confirm_password": "viewer-password",
@@ -331,7 +725,7 @@ class PlatformAccountTests(unittest.TestCase):
             response = viewer.get("/auth/dashboard-summary")
             self.assertEqual(response.status_code, 200, response.text)
             self.assertIsNone(response.json()["lendery"]["attention_count"])
-            self.assertFalse(response.json()["bookclub"]["has_access"])
+            self.assertTrue(response.json()["bookclub"]["has_access"])
         finally:
             viewer.close()
 

@@ -9,10 +9,14 @@ const state = {
   checkedComponents: new Set(),
   physicalManualChecked: false,
   maintenanceByItem: new Map(),
+  activityByItem: new Map(),
   refreshingIds: new Set(),
   refreshPromises: new Map(),
   maintenanceQueue: [],
   inventoryView: "inventory",
+  suggestions: [],
+  selectedSuggestionId: null,
+  suggestionSubmissionKey: null,
 };
 
 const AVAILABILITY_STALE_MS = 30 * 60 * 1000;
@@ -40,6 +44,7 @@ const accountActions = document.querySelector("#account-actions");
 const roleBadge = document.querySelector("#role-badge");
 const accountMenu = document.querySelector("#account-menu");
 const accountMenuName = document.querySelector("#account-menu-name");
+const accountMenuUsername = document.querySelector("#account-menu-username");
 const maintenanceDialog = document.querySelector("#maintenance-dialog");
 const maintenanceCaseForm = document.querySelector("#maintenance-case-form");
 const maintenanceFormError = document.querySelector("#maintenance-form-error");
@@ -50,6 +55,13 @@ const needsAttentionTitle = document.querySelector("#needs-attention-title");
 const categoryOptions = document.querySelector("#category-options");
 const inventoryNav = document.querySelector("#inventory-nav");
 const removedItemsButton = document.querySelector("#removed-items-button");
+const suggestionDialog = document.querySelector("#suggestion-dialog");
+const suggestionForm = document.querySelector("#suggestion-form");
+const suggestionFormError = document.querySelector("#suggestion-form-error");
+const suggestionsDialog = document.querySelector("#suggestions-dialog");
+const suggestionsList = document.querySelector("#suggestions-list");
+const suggestionDetail = document.querySelector("#suggestion-detail");
+const suggestionsCount = document.querySelector("#suggestions-count");
 
 const escapeHtml = (value = "") =>
   String(value)
@@ -59,10 +71,10 @@ const escapeHtml = (value = "") =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 
-const formatUsername = (value = "") => {
+const capitalizeFirst = (value = "") => {
   const characters = Array.from(String(value));
   return characters.length
-    ? characters[0].toLocaleUpperCase() + characters.slice(1).join("").toLocaleLowerCase()
+    ? characters[0].toLocaleUpperCase() + characters.slice(1).join("")
     : "";
 };
 
@@ -126,8 +138,14 @@ const finishDashboardAction = () => {
 };
 
 const runDashboardAction = async () => {
-  if (!pendingDashboardAction || !canManage()) return;
+  if (!pendingDashboardAction) return;
   const action = pendingDashboardAction;
+  if (action === "suggest-item") {
+    finishDashboardAction();
+    openSuggestionDialog();
+    return;
+  }
+  if (!canManage()) return;
   finishDashboardAction();
   if (action === "add-item") {
     openItemDialog();
@@ -155,7 +173,8 @@ const applyUser = (user) => {
   state.user = user;
   accountActions.hidden = false;
   roleBadge.textContent = canManage() ? "Lendery editor" : "Lendery viewer";
-  accountMenuName.textContent = formatUsername(user.username);
+  accountMenuName.textContent = capitalizeFirst(user.name);
+  accountMenuUsername.textContent = `@${user.username}`;
   document.querySelectorAll("[data-admin-only]").forEach((element) => {
     element.hidden = !canManage();
   });
@@ -167,13 +186,18 @@ const applyUser = (user) => {
 const showLogin = () => {
   state.user = null;
   state.maintenanceByItem.clear();
+  state.activityByItem.clear();
   state.maintenanceQueue = [];
+  state.suggestions = [];
+  state.selectedSuggestionId = null;
   accountActions.hidden = true;
   accountMenu.open = false;
   closeDrawer();
   if (dialog.open) dialog.close();
   if (maintenanceDialog.open) maintenanceDialog.close();
   if (needsAttentionDialog.open) needsAttentionDialog.close();
+  if (suggestionDialog.open) suggestionDialog.close();
+  if (suggestionsDialog.open) suggestionsDialog.close();
   if (!loginDialog.open) loginDialog.showModal();
 };
 
@@ -277,6 +301,16 @@ const formatMaintenanceDate = (value) => {
   return Number.isNaN(date.getTime()) ? "Date unavailable" : date.toLocaleString();
 };
 
+const formatSuggestionDate = (value) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "Submission time unavailable"
+    : date.toLocaleString(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+};
+
 const maintenanceStatusLabel = (status) =>
   ({
     open: "Open",
@@ -294,6 +328,56 @@ const maintenanceEventLabel = (type) =>
     part_installed: "Part installed",
     repair_completed: "Repair completed",
   })[type] || type;
+
+const activityEventLabel = (type) =>
+  ({
+    item_added: "Added to inventory",
+    marked_unavailable: "Marked unavailable",
+    returned_to_circulation: "Returned to circulation",
+    removed_from_collection: "Removed from collection",
+    permanently_deleted: "Record permanently deleted",
+    maintenance_opened: "Maintenance issue reported",
+    maintenance_status_changed: "Maintenance status changed",
+    issue_update: "Maintenance update",
+    part_ordered: "Part ordered",
+    part_received: "Part received",
+    part_installed: "Part installed",
+    repair_completed: "Repair completed",
+    component_added: "Component added",
+    component_removed: "Component removed",
+    component_missing: "Component reported missing",
+    component_returned: "Component returned",
+    component_report_ignored: "Missing report dismissed",
+  })[type] || type.replaceAll("_", " ");
+
+const renderActivitySection = (item, entries) => `
+  <section class="activity-section">
+    <div class="section-title-row">
+      <div><p class="drawer-category">Permanent record</p><h3>Item history</h3></div>
+      <a class="activity-export-link" href="/lendery/export?type=activity&amp;scope=item&amp;item_id=${item.id}">Export this item</a>
+    </div>
+    <p class="maintenance-intro">Operational changes are recorded here. Catalogue checkouts and returns are not included.</p>
+    ${
+      entries.length
+        ? `<ol class="activity-timeline">${entries.map((entry) => {
+            const details = [];
+            if (entry.component_name) details.push(entry.component_name);
+            if (entry.part_name) details.push(`${entry.quantity || 1} × ${entry.part_name}`);
+            if (entry.cost !== null && entry.cost !== undefined) details.push(`$${Number(entry.cost).toFixed(2)}`);
+            if (entry.from_status || entry.to_status) {
+              details.push([entry.from_status, entry.to_status].filter(Boolean).join(" → "));
+            }
+            return `<li class="activity-event"><span class="activity-event-mark" aria-hidden="true"></span><div>
+              <div class="activity-event-heading"><strong>${escapeHtml(activityEventLabel(entry.event_type))}</strong><time>${escapeHtml(formatMaintenanceDate(entry.occurred_at))}</time></div>
+              ${entry.reason ? `<p>${escapeHtml(entry.reason)}</p>` : ""}
+              ${entry.details ? `<p>${escapeHtml(entry.details)}</p>` : ""}
+              ${details.length ? `<small>${escapeHtml(details.join(" · "))}</small>` : ""}
+              ${entry.actor_name ? `<small>Recorded by ${escapeHtml(entry.actor_name)}</small>` : ""}
+            </div></li>`;
+          }).join("")}</ol>`
+        : '<div class="maintenance-empty-state"><strong>No history yet</strong><span>Future status, component, order, and repair events will appear here.</span></div>'
+    }
+  </section>`;
 
 const renderMaintenanceEvent = (entry) => {
   const details = [];
@@ -315,7 +399,7 @@ const renderMaintenanceEvent = (entry) => {
       ${entry.note ? `<p>${escapeHtml(entry.note)}</p>` : ""}
       ${details.length ? `<small>${escapeHtml(details.join(" · "))}</small>` : ""}
       ${vendorUrl ? `<a href="${escapeHtml(vendorUrl)}" target="_blank" rel="noreferrer">Open order source ↗</a>` : ""}
-      <small>Recorded by ${escapeHtml(formatUsername(entry.created_by_name))}${entry.status_after ? ` · ${escapeHtml(maintenanceStatusLabel(entry.status_after))}` : ""}</small>
+      <small>Recorded by ${escapeHtml(capitalizeFirst(entry.created_by_name))}${entry.status_after ? ` · ${escapeHtml(maintenanceStatusLabel(entry.status_after))}` : ""}</small>
     </div>
   </li>`;
 };
@@ -344,7 +428,7 @@ const renderMaintenanceSection = (cases) => `
                     ${repairCase.component_name ? `<small>${escapeHtml(repairCase.component_name)}</small>` : ""}
                   </div>
                   ${repairCase.description ? `<p>${escapeHtml(repairCase.description)}</p>` : ""}
-                  <small>Opened ${escapeHtml(formatMaintenanceDate(repairCase.opened_at))} by ${escapeHtml(formatUsername(repairCase.opened_by_name))}</small>
+                  <small>Opened ${escapeHtml(formatMaintenanceDate(repairCase.opened_at))} by ${escapeHtml(capitalizeFirst(repairCase.opened_by_name))}</small>
                   ${
                     repairCase.events.length
                       ? `<ol class="maintenance-timeline">${repairCase.events.map(renderMaintenanceEvent).join("")}</ol>`
@@ -402,7 +486,8 @@ const unresolvedUnavailableItems = () => {
   const flagged = new Set(state.maintenanceQueue.map((entry) => entry.item_id));
   return state.items.filter(
     (item) =>
-      item.availability_status === "unavailable" && !flagged.has(item.id),
+      (item.lifecycle_status === "unavailable" || item.availability_status === "unavailable")
+      && !flagged.has(item.id),
   );
 };
 
@@ -456,7 +541,7 @@ const renderNeedsAttentionDialog = () => {
             </div>
           </div>
           <small>${escapeHtml(entry.item_name)} · ${escapeHtml(entry.item_barcode)}${entry.component_name ? ` · ${escapeHtml(entry.component_name)}` : ""}</small><br />
-          <small>Opened ${escapeHtml(formatMaintenanceDate(entry.opened_at))} by ${escapeHtml(formatUsername(entry.opened_by_name))}</small>
+          <small>Opened ${escapeHtml(formatMaintenanceDate(entry.opened_at))} by ${escapeHtml(capitalizeFirst(entry.opened_by_name))}</small>
         </button>`,
     )
     .join("");
@@ -468,7 +553,7 @@ const renderNeedsAttentionDialog = () => {
           <div>
             <span class="maintenance-status">Unavailable</span>
             <h4>${escapeHtml(item.name)}</h4>
-            <small>${escapeHtml(item.barcode)}</small>
+            <small>${escapeHtml(item.barcode)}${item.lifecycle_status === "unavailable" && item.lifecycle_note ? ` · ${escapeHtml(item.lifecycle_note)}` : ""}</small>
           </div>
           <button class="needs-attention-log-issue" type="button" data-log-issue="${item.id}">Log an issue</button>
         </div>`,
@@ -486,7 +571,7 @@ const renderNeedsAttentionDialog = () => {
             </div>
           </div>
           <small>${escapeHtml(item.name)} · ${escapeHtml(item.barcode)}</small><br />
-          <small>Reported ${escapeHtml(formatMaintenanceDate(component.missing_reported_at))} by ${escapeHtml(formatUsername(component.missing_reported_by))}${component.missing_note ? ` · “${escapeHtml(component.missing_note)}”` : ""}</small>
+          <small>Reported ${escapeHtml(formatMaintenanceDate(component.missing_reported_at))} by ${escapeHtml(capitalizeFirst(component.missing_reported_by))}${component.missing_note ? ` · “${escapeHtml(component.missing_note)}”` : ""}</small>
         </button>`,
     )
     .join("");
@@ -694,9 +779,11 @@ const renderItems = () => {
                 : ""
             }
             ${
-              item.library_url && item.lifecycle_status === "active"
-                ? `<span class="availability-badge ${availability.status}"><i></i>${escapeHtml(availability.shortLabel)}</span>`
-                : ""
+              item.lifecycle_status === "unavailable"
+                ? '<span class="availability-badge unavailable"><i></i>Out of circulation</span>'
+                : item.library_url && item.lifecycle_status === "active"
+                  ? `<span class="availability-badge ${availability.status}"><i></i>${escapeHtml(availability.shortLabel)}</span>`
+                  : ""
             }
           </div>
           <div class="item-card-body">
@@ -940,6 +1027,149 @@ const closeDrawer = () => {
   state.physicalManualChecked = false;
 };
 
+const closeSecondaryViews = () => {
+  [dialog, maintenanceDialog, needsAttentionDialog, suggestionDialog, suggestionsDialog]
+    .filter((element) => element?.open)
+    .forEach((element) => element.close());
+  closeDrawer();
+};
+
+const clearInventoryFilters = ({ resetSort = false } = {}) => {
+  state.query = "";
+  state.category = "";
+  state.availabilityFilter = "";
+  if (resetSort) state.inventorySort = "alphabetical";
+  searchInput.value = "";
+};
+
+const showAllInventory = async ({ scroll = true, resetSort = false } = {}) => {
+  const needsInventoryLoad = state.inventoryView !== "inventory";
+  state.inventoryView = "inventory";
+  clearInventoryFilters({ resetSort });
+  closeSecondaryViews();
+  if (needsInventoryLoad) await loadItems();
+  else renderAll();
+  if (scroll) {
+    document.querySelector(".inventory-panel").scrollIntoView({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      block: "start",
+    });
+  }
+};
+
+const resetLenderyHome = async () => {
+  pendingDashboardAction = null;
+  pendingBarcodeLookup = null;
+  state.selectedSuggestionId = null;
+  accountMenu.open = false;
+  window.history.replaceState({}, "", "/lendery");
+  await showAllInventory({ scroll: false, resetSort: true });
+  window.scrollTo({
+    top: 0,
+    behavior: prefersReducedMotion ? "auto" : "smooth",
+  });
+};
+
+const newSubmissionKey = () =>
+  window.crypto?.randomUUID?.() ||
+  `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+
+const openSuggestionDialog = () => {
+  suggestionForm.reset();
+  suggestionFormError.textContent = "";
+  state.suggestionSubmissionKey = newSubmissionKey();
+  suggestionDialog.showModal();
+  suggestionForm.elements.item_name.focus();
+};
+
+const renderSuggestionsCount = () => {
+  const count = state.suggestions.length;
+  suggestionsCount.textContent = count > 99 ? "99+" : String(count);
+  suggestionsCount.hidden = count === 0;
+};
+
+const renderSuggestionDetail = () => {
+  const suggestion = state.suggestions.find(
+    (entry) => entry.id === state.selectedSuggestionId,
+  );
+  if (!suggestion) {
+    suggestionDetail.innerHTML = `<div class="suggestion-detail-empty">
+      <span aria-hidden="true">✦</span>
+      <p>Select a suggestion to review its details.</p>
+    </div>`;
+    return;
+  }
+  const productUrl = safeUrl(suggestion.product_url);
+  suggestionDetail.innerHTML = `
+    <article class="suggestion-record">
+      <p class="drawer-category">${escapeHtml(suggestion.category || "Uncategorized")}</p>
+      <h3>${escapeHtml(suggestion.item_name)}</h3>
+      <dl>
+        <div><dt>Why it was suggested</dt><dd>${escapeHtml(suggestion.description)}</dd></div>
+        ${suggestion.additional_notes ? `<div><dt>Additional notes</dt><dd>${escapeHtml(suggestion.additional_notes)}</dd></div>` : ""}
+        ${productUrl ? `<div><dt>Product link</dt><dd><a href="${escapeHtml(productUrl)}" target="_blank" rel="noreferrer">Open product page ↗</a></dd></div>` : ""}
+        <div><dt>Submitted by</dt><dd>${escapeHtml(suggestion.submitted_by_name)}</dd></div>
+        <div><dt>Submitted</dt><dd>${escapeHtml(formatSuggestionDate(suggestion.submitted_at))}</dd></div>
+      </dl>
+      <button class="delete-suggestion" type="button" data-delete-suggestion="${suggestion.id}">Delete once noted</button>
+    </article>`;
+};
+
+const renderSuggestions = () => {
+  renderSuggestionsCount();
+  if (!state.suggestions.length) {
+    suggestionsList.innerHTML = `<div class="suggestions-empty">
+      <strong>No suggestions yet</strong>
+      <span>New collection ideas will appear here.</span>
+    </div>`;
+    state.selectedSuggestionId = null;
+    renderSuggestionDetail();
+    return;
+  }
+  suggestionsList.innerHTML = state.suggestions
+    .map(
+      (suggestion) => `<button
+        class="suggestion-row ${state.selectedSuggestionId === suggestion.id ? "active" : ""}"
+        type="button"
+        data-suggestion-id="${suggestion.id}"
+      >
+        <strong>${escapeHtml(suggestion.item_name)}</strong>
+        <span>${escapeHtml(suggestion.category || "Uncategorized")} · ${escapeHtml(formatSuggestionDate(suggestion.submitted_at))}</span>
+      </button>`,
+    )
+    .join("");
+  renderSuggestionDetail();
+};
+
+const loadSuggestions = async ({ showErrors = false } = {}) => {
+  if (!canManage()) return;
+  try {
+    state.suggestions = await request("/lendery/suggestions");
+    if (
+      state.selectedSuggestionId &&
+      !state.suggestions.some((entry) => entry.id === state.selectedSuggestionId)
+    ) {
+      state.selectedSuggestionId = null;
+    }
+    renderSuggestions();
+  } catch (error) {
+    renderSuggestionsCount();
+    if (showErrors) {
+      suggestionsList.innerHTML = `<div class="suggestions-empty"><strong>Suggestions could not be loaded</strong><span>${escapeHtml(error.message)}</span></div>`;
+      showToast(error.message);
+    }
+  }
+};
+
+const openSuggestionsDialog = async () => {
+  if (!canManage()) return;
+  state.selectedSuggestionId = null;
+  suggestionsList.innerHTML = `<div class="loading-state"><span class="loading-mark"></span><p>Loading suggestions…</p></div>`;
+  renderSuggestionDetail();
+  suggestionsDialog.showModal();
+  await loadSuggestions({ showErrors: true });
+};
+
 const renderDrawer = (item) => {
   const imageUrl = safeUrl(item.image_url);
   const manualUrl = safeUrl(item.manual_url);
@@ -975,6 +1205,16 @@ const renderDrawer = (item) => {
           ? `<section class="removal-reason-panel">
               <p class="drawer-category">Removal reason</p>
               <p>${escapeHtml(item.lifecycle_note || "No reason recorded.")}</p>
+            </section>`
+          : ""
+      }
+
+      ${
+        item.lifecycle_status === "unavailable"
+          ? `<section class="removal-reason-panel unavailable-reason-panel">
+              <p class="drawer-category">Temporarily out of circulation</p>
+              <p>${escapeHtml(item.lifecycle_note || "No reason recorded.")}</p>
+              <small>Marked ${escapeHtml(formatMaintenanceDate(item.lifecycle_changed_at))}</small>
             </section>`
           : ""
       }
@@ -1023,6 +1263,8 @@ const renderDrawer = (item) => {
       ${item.notes ? `<p class="drawer-description"><strong>Staff notes:</strong> ${escapeHtml(item.notes)}</p>` : ""}
 
       ${canManage() ? renderMaintenanceSection(state.maintenanceByItem.get(item.id) || []) : ""}
+
+      ${canManage() ? renderActivitySection(item, state.activityByItem.get(item.id) || []) : ""}
 
       <section class="components-section">
         <div class="section-title-row">
@@ -1115,7 +1357,7 @@ const renderDrawer = (item) => {
                               ? `<div class="missing-report-status">
                                   <span class="missing-badge">Reported missing</span>
                                   ${component.missing_note ? `<p>“${escapeHtml(component.missing_note)}”</p>` : ""}
-                                  <small>By ${escapeHtml(component.missing_reported_by ? formatUsername(component.missing_reported_by) : "a viewer")} · ${escapeHtml(formatMaintenanceDate(component.missing_reported_at))}</small>
+                                  <small>By ${escapeHtml(component.missing_reported_by ? capitalizeFirst(component.missing_reported_by) : "a viewer")} · ${escapeHtml(formatMaintenanceDate(component.missing_reported_at))}</small>
                                   ${
                                     canManage()
                                       ? `<div class="missing-report-actions">
@@ -1194,7 +1436,12 @@ const renderDrawer = (item) => {
           item.lifecycle_status === "removed"
             ? `<button class="permanent-delete-item" id="permanent-delete-item" type="button">Delete permanently</button>
                <button class="restore-item" id="restore-item" type="button">Restore to inventory</button>`
-            : `<button class="delete-item" id="delete-item" type="button">Move to removed</button>`
+            : `${
+                item.lifecycle_status === "unavailable"
+                  ? `<button class="restore-item" id="restore-item" type="button">Return to circulation</button>`
+                  : `<button class="mark-unavailable-item" id="mark-unavailable-item" type="button">Mark unavailable</button>`
+              }
+               <button class="delete-item" id="delete-item" type="button">Move to removed</button>`
         }
         <button class="edit-item" id="edit-item" type="button">Edit item</button>
       </div>`
@@ -1218,8 +1465,12 @@ const openDrawer = async (itemId) => {
 
   if (canManage()) {
     try {
-      const cases = await request(`/lendery/items/${item.id}/maintenance`);
+      const [cases, activity] = await Promise.all([
+        request(`/lendery/items/${item.id}/maintenance`),
+        request(`/lendery/items/${item.id}/activity`),
+      ]);
       state.maintenanceByItem.set(item.id, cases);
+      state.activityByItem.set(item.id, activity);
       if (state.selectedId === item.id) renderDrawer(item);
     } catch (error) {
       showToast(error.message);
@@ -1275,8 +1526,12 @@ const openMaintenanceDialog = () => {
 };
 
 const reloadMaintenance = async (itemId) => {
-  const cases = await request(`/lendery/items/${itemId}/maintenance`);
+  const [cases, activity] = await Promise.all([
+    request(`/lendery/items/${itemId}/maintenance`),
+    request(`/lendery/items/${itemId}/activity`),
+  ]);
   state.maintenanceByItem.set(itemId, cases);
+  state.activityByItem.set(itemId, activity);
   const item = state.items.find((candidate) => candidate.id === itemId);
   if (item && state.selectedId === itemId) renderDrawer(item);
   loadMaintenanceQueue();
@@ -1285,11 +1540,46 @@ const reloadMaintenance = async (itemId) => {
 const refreshSelectedItem = async () => {
   if (!state.selectedId) return;
   const item = await request(`/lendery/items/${state.selectedId}`);
+  if (canManage()) {
+    const activity = await request(`/lendery/items/${state.selectedId}/activity`);
+    state.activityByItem.set(state.selectedId, activity);
+  }
   const index = state.items.findIndex((candidate) => candidate.id === item.id);
   if (index >= 0) state.items[index] = item;
   renderAll();
   renderDrawer(item);
 };
+
+suggestionForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  suggestionFormError.textContent = "";
+  const button = document.querySelector("#submit-suggestion");
+  const data = new FormData(suggestionForm);
+  button.disabled = true;
+  try {
+    await request("/lendery/suggestions", {
+      method: "POST",
+      body: JSON.stringify({
+        item_name: String(data.get("item_name")).trim(),
+        description: String(data.get("description")).trim(),
+        category: String(data.get("category")).trim() || null,
+        product_url: String(data.get("product_url")).trim() || null,
+        additional_notes:
+          String(data.get("additional_notes")).trim() || null,
+        submission_key: state.suggestionSubmissionKey,
+      }),
+    });
+    suggestionDialog.close();
+    suggestionForm.reset();
+    state.suggestionSubmissionKey = null;
+    if (canManage()) await loadSuggestions();
+    showToast("Thanks—your suggestion was sent to the Lendery team.");
+  } catch (error) {
+    suggestionFormError.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
 
 itemForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1371,6 +1661,83 @@ itemForm.elements.library_url.addEventListener("keydown", (event) => {
 });
 
 document.addEventListener("click", async (event) => {
+  if (event.target.closest("#lendery-home")) {
+    await resetLenderyHome();
+    return;
+  }
+
+  if (event.target.closest("#total-items-stat")) {
+    await showAllInventory();
+    return;
+  }
+
+  if (event.target.closest("#nav-suggest-item")) {
+    openSuggestionDialog();
+    return;
+  }
+
+  if (event.target.closest("#suggestions-button")) {
+    await openSuggestionsDialog();
+    return;
+  }
+
+  if (event.target.closest("[data-close-suggestion]")) {
+    suggestionDialog.close();
+    return;
+  }
+
+  if (event.target.closest("[data-close-suggestions]")) {
+    suggestionsDialog.close();
+    return;
+  }
+
+  const suggestionTrigger = event.target.closest("[data-suggestion-id]");
+  if (suggestionTrigger) {
+    if (!canManage()) return;
+    try {
+      const suggestion = await request(
+        `/lendery/suggestions/${suggestionTrigger.dataset.suggestionId}`,
+      );
+      const existingIndex = state.suggestions.findIndex(
+        (entry) => entry.id === suggestion.id,
+      );
+      if (existingIndex >= 0) state.suggestions[existingIndex] = suggestion;
+      state.selectedSuggestionId = suggestion.id;
+      renderSuggestions();
+    } catch (error) {
+      showToast(error.message);
+    }
+    return;
+  }
+
+  const deleteSuggestionTrigger = event.target.closest(
+    "[data-delete-suggestion]",
+  );
+  if (deleteSuggestionTrigger) {
+    if (!canManage()) return;
+    const suggestion = state.suggestions.find(
+      (entry) => entry.id === Number(deleteSuggestionTrigger.dataset.deleteSuggestion),
+    );
+    if (
+      !suggestion ||
+      !window.confirm(`Delete the suggestion “${suggestion.item_name}” once noted?`)
+    ) return;
+    try {
+      await request(`/lendery/suggestions/${suggestion.id}`, {
+        method: "DELETE",
+      });
+      state.suggestions = state.suggestions.filter(
+        (entry) => entry.id !== suggestion.id,
+      );
+      state.selectedSuggestionId = null;
+      renderSuggestions();
+      showToast("Suggestion deleted.");
+    } catch (error) {
+      showToast(error.message);
+    }
+    return;
+  }
+
   const addTrigger = event.target.closest(
     "#nav-add-item, #panel-add-item, #empty-add-item",
   );
@@ -1472,9 +1839,7 @@ document.addEventListener("click", async (event) => {
 
   if (event.target.closest("#inventory-nav")) {
     event.preventDefault();
-    state.inventoryView = "inventory";
-    closeDrawer();
-    await loadItems();
+    await showAllInventory({ scroll: false });
     return;
   }
 
@@ -1517,6 +1882,35 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
+  if (event.target.closest("#mark-unavailable-item")) {
+    if (!canManage()) return;
+    const item = state.items.find((candidate) => candidate.id === state.selectedId);
+    if (!item) return;
+    const reason = window.prompt(
+      `Why is “${item.name}” being taken out of circulation?`,
+    );
+    if (reason === null) return;
+    if (!reason.trim()) {
+      showToast("Enter a reason before marking the item unavailable.");
+      return;
+    }
+    try {
+      const changed = await request(`/lendery/items/${item.id}/unavailable`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      replaceItem(changed);
+      const activity = await request(`/lendery/items/${item.id}/activity`);
+      state.activityByItem.set(item.id, activity);
+      renderAll();
+      if (state.selectedId === item.id) renderDrawer(changed);
+      showToast("Item marked unavailable and added to its history.");
+    } catch (error) {
+      showToast(error.message);
+    }
+    return;
+  }
+
   if (event.target.closest("#delete-item")) {
     if (!canManage()) return;
     const item = state.items.find((candidate) => candidate.id === state.selectedId);
@@ -1550,11 +1944,24 @@ document.addEventListener("click", async (event) => {
     const item = state.items.find((candidate) => candidate.id === state.selectedId);
     if (!item) return;
     try {
-      await request(`/lendery/items/${item.id}/restore`, { method: "POST" });
-      state.items = state.items.filter((candidate) => candidate.id !== item.id);
-      closeDrawer();
+      const changed = await request(`/lendery/items/${item.id}/restore`, {
+        method: "POST",
+      });
+      if (state.inventoryView === "removed") {
+        state.items = state.items.filter((candidate) => candidate.id !== item.id);
+        closeDrawer();
+      } else {
+        replaceItem(changed);
+        const activity = await request(`/lendery/items/${item.id}/activity`);
+        state.activityByItem.set(item.id, activity);
+        if (state.selectedId === item.id) renderDrawer(changed);
+      }
       renderAll();
-      showToast("Item restored to inventory.");
+      showToast(
+        item.lifecycle_status === "unavailable"
+          ? "Item returned to circulation."
+          : "Item restored to inventory.",
+      );
     } catch (error) {
       showToast(error.message);
     }
@@ -1567,7 +1974,7 @@ document.addEventListener("click", async (event) => {
     if (
       !item ||
       !window.confirm(
-        `Permanently delete “${item.name}”? Its components, photos, notes, and repair history will be erased. This cannot be undone.`,
+        `Permanently delete “${item.name}”? Its item record, components, and photos will be erased. The permanent activity ledger will be retained. This cannot be undone.`,
       )
     ) return;
     try {
@@ -1859,6 +2266,8 @@ document.addEventListener("click", async (event) => {
         body: JSON.stringify({ physical_manual_missing: false }),
       });
       replaceItem(item);
+      const activity = await request(`/lendery/items/${itemId}/activity`);
+      state.activityByItem.set(itemId, activity);
       if (state.selectedId === itemId) renderDrawer(item);
       showToast("Physical manual marked as found.");
     } catch (error) {
@@ -1917,6 +2326,7 @@ loginForm.addEventListener("submit", async (event) => {
     event.target.reset();
     loginDialog.close();
     await loadItems();
+    if (canManage()) await loadSuggestions();
     searchInput.focus({ preventScroll: true });
     await runDashboardAction();
     await runPendingBarcodeLookup();
@@ -1968,6 +2378,7 @@ const initialize = async () => {
     const user = await request("/auth/me");
     applyUser(user);
     await loadItems();
+    if (canManage()) await loadSuggestions();
     searchInput.focus({ preventScroll: true });
     await runDashboardAction();
     await runPendingBarcodeLookup();

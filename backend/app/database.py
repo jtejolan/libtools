@@ -225,7 +225,7 @@ def migrate_existing_database() -> None:
                 text(
                     "UPDATE lendery_items SET lifecycle_status = 'active' "
                     "WHERE lifecycle_status IS NULL OR "
-                    "lifecycle_status NOT IN ('active', 'removed')"
+                    "lifecycle_status NOT IN ('active', 'unavailable', 'removed')"
                 )
             )
             connection.execute(
@@ -263,16 +263,132 @@ def migrate_existing_database() -> None:
                         )
                     )
 
+    if "lendery_item_activity" in tables and "lendery_items" in tables:
+        with engine.begin() as connection:
+            activity_count = connection.execute(
+                text("SELECT COUNT(*) FROM lendery_item_activity")
+            ).scalar_one()
+            if activity_count == 0:
+                connection.execute(
+                    text(
+                        "INSERT INTO lendery_item_activity ("
+                        "original_item_id, item_id, item_barcode, item_name, "
+                        "item_category, event_type, to_status, reason, "
+                        "source_type, source_id, occurred_at) "
+                        "SELECT id, id, barcode, name, category, 'item_added', "
+                        "'active', 'Existing inventory record', 'legacy_item', id, "
+                        "COALESCE(created_at, CURRENT_TIMESTAMP) "
+                        "FROM lendery_items"
+                    )
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO lendery_item_activity ("
+                        "original_item_id, item_id, item_barcode, item_name, "
+                        "item_category, event_type, from_status, to_status, reason, "
+                        "source_type, source_id, occurred_at) "
+                        "SELECT id, id, barcode, name, category, "
+                        "CASE WHEN lifecycle_status = 'removed' "
+                        "THEN 'removed_from_collection' ELSE 'marked_unavailable' END, "
+                        "'active', lifecycle_status, lifecycle_note, "
+                        "'legacy_lifecycle', id, "
+                        "COALESCE(lifecycle_changed_at, CURRENT_TIMESTAMP) "
+                        "FROM lendery_items "
+                        "WHERE lifecycle_status IN ('unavailable', 'removed')"
+                    )
+                )
+                if "components" in tables:
+                    connection.execute(
+                        text(
+                            "INSERT INTO lendery_item_activity ("
+                            "original_item_id, item_id, item_barcode, item_name, "
+                            "item_category, event_type, reason, component_name, "
+                            "quantity, actor_name, source_type, source_id, occurred_at) "
+                            "SELECT i.id, i.id, i.barcode, i.name, i.category, "
+                            "'component_missing', c.missing_note, c.name, c.quantity, "
+                            "c.missing_reported_by, 'legacy_component_missing', c.id, "
+                            "c.missing_reported_at FROM components c "
+                            "JOIN lendery_items i ON i.id = c.item_id "
+                            "WHERE c.missing_reported_at IS NOT NULL"
+                        )
+                    )
+                if "lendery_maintenance_cases" in tables:
+                    connection.execute(
+                        text(
+                            "INSERT INTO lendery_item_activity ("
+                            "original_item_id, item_id, item_barcode, item_name, "
+                            "item_category, event_type, to_status, reason, details, "
+                            "component_name, maintenance_case_id, actor_user_id, "
+                            "actor_name, source_type, source_id, occurred_at) "
+                            "SELECT i.id, i.id, i.barcode, i.name, i.category, "
+                            "'maintenance_opened', c.status, c.title, c.description, "
+                            "c.component_name, c.id, c.opened_by_user_id, "
+                            "c.opened_by_name, 'maintenance_case', c.id, c.opened_at "
+                            "FROM lendery_maintenance_cases c "
+                            "JOIN lendery_items i ON i.id = c.item_id"
+                        )
+                    )
+                if {
+                    "lendery_maintenance_cases",
+                    "lendery_maintenance_events",
+                }.issubset(tables):
+                    connection.execute(
+                        text(
+                            "INSERT INTO lendery_item_activity ("
+                            "original_item_id, item_id, item_barcode, item_name, "
+                            "item_category, event_type, to_status, reason, details, "
+                            "component_name, maintenance_case_id, part_name, quantity, "
+                            "cost, vendor_url, order_number, actor_user_id, actor_name, "
+                            "source_type, source_id, occurred_at) "
+                            "SELECT i.id, i.id, i.barcode, i.name, i.category, "
+                            "e.event_type, e.status_after, c.title, e.note, "
+                            "c.component_name, c.id, e.part_name, e.quantity, e.cost, "
+                            "e.vendor_url, e.order_number, e.created_by_user_id, "
+                            "e.created_by_name, 'maintenance_event', e.id, e.created_at "
+                            "FROM lendery_maintenance_events e "
+                            "JOIN lendery_maintenance_cases c ON c.id = e.case_id "
+                            "JOIN lendery_items i ON i.id = c.item_id"
+                        )
+                    )
+
     if "libtools_users" in tables:
         user_columns = {
             column["name"] for column in inspector.get_columns("libtools_users")
         }
-        if "session_version" not in user_columns:
-            with engine.begin() as connection:
+        has_unique_email = any(
+            index.get("unique") and index.get("column_names") == ["email"]
+            for index in inspector.get_indexes("libtools_users")
+        ) or any(
+            constraint.get("column_names") == ["email"]
+            for constraint in inspector.get_unique_constraints("libtools_users")
+        )
+        user_column_definitions = {
+            "session_version": "INTEGER NOT NULL DEFAULT 1",
+            "name": "VARCHAR(200)",
+            "email": "VARCHAR(320)",
+            "email_verified_at": "TIMESTAMP",
+            "quick_actions": "TEXT",
+        }
+        with engine.begin() as connection:
+            for name, definition in user_column_definitions.items():
+                if name in user_columns:
+                    continue
                 connection.execute(
                     text(
-                        "ALTER TABLE libtools_users ADD COLUMN "
-                        "session_version INTEGER NOT NULL DEFAULT 1"
+                        f"ALTER TABLE libtools_users ADD COLUMN {name} {definition}"
+                    )
+                )
+            connection.execute(
+                text(
+                    "UPDATE libtools_users SET name = username "
+                    "WHERE name IS NULL OR TRIM(name) = ''"
+                )
+            )
+            if not has_unique_email:
+                connection.execute(
+                    text(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS "
+                        "uq_libtools_users_email ON libtools_users(email)"
                     )
                 )
 

@@ -8,11 +8,10 @@ const escapeHtml = (value = "") =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 
-const formatUsername = (value = "") => {
+const capitalizeFirst = (value = "") => {
   const characters = Array.from(String(value));
   return characters.length
-    ? characters[0].toLocaleUpperCase() +
-        characters.slice(1).join("").toLocaleLowerCase()
+    ? characters[0].toLocaleUpperCase() + characters.slice(1).join("")
     : "";
 };
 
@@ -78,7 +77,11 @@ const lenderyCard = (tools, summary) => {
     ? metric === 0
       ? "All caught up"
       : `${metric === 1 ? "item needs" : "items need"} attention`
-    : `${metric === 1 ? "item" : "items"} in inventory`;
+    : `${metric === 1 ? "item" : "items"} in inventory${
+        inventory?.available_items != null
+          ? ` · ${inventory.available_items} available now`
+          : ""
+      }`;
 
   const bottomSection = `<form class="dash-scan-form" id="lendery-scan-form">
         <label for="lendery-scan-input">Scan an item barcode</label>
@@ -113,21 +116,6 @@ const meetingCountdown = (meeting) => {
 
 const bookclubCard = (tools, summary) => {
   const bookclub = summary?.bookclub;
-  const hasAccess = bookclub?.has_access ?? tools.has("bookclub");
-  if (!hasAccess) {
-    return `<div class="dash-card dash-card-feature dash-bookclub locked">
-      <div class="dash-card-top">
-        <div class="dash-card-identity">
-          <span class="dash-card-icon"><img src="/static/assets/book-club-manager-logo-v2.png?v=1" alt=""/></span>
-          <div><span class="dash-kicker">Reading community</span><h2>Book Club Manager</h2></div>
-        </div>
-        <span class="status muted">No access</span>
-      </div>
-      <div class="live-empty"><strong>Not assigned</strong><span>Ask an administrator for Book Club Manager access.</span></div>
-      <span class="dash-card-cta">Access required</span>
-    </div>`;
-  }
-
   const meeting = bookclub?.next_meeting;
   const meetingDetails = meeting
     ? `${meetingCountdown(meeting)}
@@ -155,37 +143,159 @@ const bookclubCard = (tools, summary) => {
   </a>`;
 };
 
-const quickActionsCard = (tools, summary) => {
-  const actions = [];
-  if (tools.has("lendery_manage")) {
-    actions.push(
-      ["/lendery?action=add-item", "＋", "Add a Lendery item", "Create a new inventory record"],
-      ["/lendery?action=report-issue", "!", "Report an inventory issue", "Choose an item and log the problem"],
-    );
-  }
-  if (summary?.bookclub?.has_access ?? tools.has("bookclub")) {
-    actions.push(
-      ["/bookclub?action=add-member", "＋", "Add a book club member", "Add someone to the selected club"],
-      ["/bookclub?action=add-book", "＋", "Add a book", "Add a title to the selected club"],
-    );
-  }
+const QUICK_ACTIONS = [
+  {
+    key: "lendery-suggest-item",
+    href: "/lendery?action=suggest-item",
+    icon: "✦",
+    label: "Suggest a Lendery item",
+    description: "Recommend something useful to borrow",
+  },
+  {
+    key: "lendery-add-item",
+    href: "/lendery?action=add-item",
+    icon: "＋",
+    label: "Add a Lendery item",
+    description: "Create a new inventory record",
+    permission: "lendery_manage",
+  },
+  {
+    key: "lendery-report-issue",
+    href: "/lendery?action=report-issue",
+    icon: "!",
+    label: "Report an inventory issue",
+    description: "Choose an item and log the problem",
+    permission: "lendery_manage",
+  },
+  {
+    key: "bookclub-add-member",
+    href: "/bookclub?action=add-member",
+    icon: "＋",
+    label: "Add a book club member",
+    description: "Add someone to the selected club",
+  },
+  {
+    key: "bookclub-add-book",
+    href: "/bookclub?action=add-book",
+    icon: "＋",
+    label: "Add a book",
+    description: "Add a title to the selected club",
+  },
+];
 
-  const actionMarkup = actions.length
-    ? actions
-        .map(
-          ([href, icon, label, description]) => `<a class="quick-action" href="${href}">
-            <span class="quick-action-icon" aria-hidden="true">${icon}</span>
-            <span><strong>${label}</strong><small>${description}</small></span>
-            <b aria-hidden="true">→</b>
-          </a>`,
-        )
-        .join("")
-    : '<p class="quick-actions-empty">No creation actions are available for your current access.</p>';
+const availableQuickActions = (tools) =>
+  QUICK_ACTIONS.filter(
+    (action) => !action.permission || tools.has(action.permission),
+  );
+
+const quickActionMarkup = (action) => `<a class="quick-action" href="${action.href}">
+  <span class="quick-action-icon" aria-hidden="true">${action.icon}</span>
+  <span><strong>${action.label}</strong><small>${action.description}</small></span>
+  <b aria-hidden="true">→</b>
+</a>`;
+
+const quickActionsCard = (tools, selectedKeys) => {
+  const available = availableQuickActions(tools);
+  const selected = selectedKeys
+    .map((key) => available.find((action) => action.key === key))
+    .filter(Boolean)
+    .slice(0, 4);
+  const selectedSet = new Set(selected.map((action) => action.key));
+  const actionMarkup = selected.length
+    ? selected.map(quickActionMarkup).join("")
+    : '<p class="quick-actions-empty">Choose the shortcuts that help you most.</p>';
+  const choices = available
+    .map(
+      (action) => `<label class="quick-action-choice">
+        <input type="checkbox" name="actions" value="${action.key}" ${selectedSet.has(action.key) ? "checked" : ""}/>
+        <span class="quick-action-icon" aria-hidden="true">${action.icon}</span>
+        <span><strong>${action.label}</strong><small>${action.description}</small></span>
+      </label>`,
+    )
+    .join("");
 
   return `<section class="dash-card dash-quick-actions" aria-labelledby="quick-actions-heading">
-    <div class="quick-actions-heading"><div><span class="dash-kicker">Shortcuts</span><h2 id="quick-actions-heading">Quick actions</h2></div><span class="status muted">Your access</span></div>
+    <div class="quick-actions-heading">
+      <div><span class="dash-kicker">Shortcuts</span><h2 id="quick-actions-heading">Quick actions</h2></div>
+      <button class="edit-quick-actions" type="button">Edit shortcuts</button>
+    </div>
     <div class="quick-actions-grid">${actionMarkup}</div>
+    <dialog class="quick-actions-dialog" id="quick-actions-dialog" aria-labelledby="quick-actions-dialog-title">
+      <form id="quick-actions-form">
+        <div class="quick-actions-dialog-heading">
+          <div><span class="dash-kicker">Make it yours</span><h2 id="quick-actions-dialog-title">Choose quick actions</h2></div>
+          <button type="button" class="quick-actions-close" data-close-quick-actions aria-label="Close">×</button>
+        </div>
+        <p>Select up to four shortcuts. Options that require Lendery edit access appear only when available to you.</p>
+        <div class="quick-action-choices">${choices}</div>
+        <p class="quick-actions-error" id="quick-actions-error" role="alert"></p>
+        <div class="quick-actions-dialog-footer">
+          <span id="quick-actions-count"></span>
+          <div><button class="quiet-button" type="button" data-close-quick-actions>Cancel</button><button class="primary-button" type="submit">Save shortcuts</button></div>
+        </div>
+      </form>
+    </dialog>
   </section>`;
+};
+
+const dashboardState = { user: null, summary: null, tools: null };
+
+const updateQuickActionsSelection = () => {
+  const form = $("#quick-actions-form");
+  if (!form) return;
+  const checked = [...form.querySelectorAll("input[name='actions']:checked")];
+  const atLimit = checked.length >= 4;
+  form.querySelectorAll("input[name='actions']").forEach((input) => {
+    input.disabled = atLimit && !input.checked;
+  });
+  $("#quick-actions-count").textContent = `${checked.length} of 4 selected`;
+  form.querySelector("button[type='submit']").disabled = checked.length === 0;
+};
+
+const refreshQuickActionsCard = () => {
+  const card = $(".dash-quick-actions");
+  card.outerHTML = quickActionsCard(
+    dashboardState.tools,
+    dashboardState.user.quick_actions,
+  );
+  initializeQuickActionsEditor();
+};
+
+const initializeQuickActionsEditor = () => {
+  const dialog = $("#quick-actions-dialog");
+  const form = $("#quick-actions-form");
+  if (!dialog || !form) return;
+  $(".edit-quick-actions").addEventListener("click", () => {
+    updateQuickActionsSelection();
+    dialog.showModal();
+  });
+  form.addEventListener("change", updateQuickActionsSelection);
+  form.querySelectorAll("[data-close-quick-actions]").forEach((button) => {
+    button.addEventListener("click", () => dialog.close());
+  });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const selected = [
+      ...form.querySelectorAll("input[name='actions']:checked"),
+    ].map((input) => input.value);
+    const saveButton = form.querySelector("button[type='submit']");
+    const errorMessage = $("#quick-actions-error");
+    errorMessage.textContent = "";
+    saveButton.disabled = true;
+    try {
+      const result = await request("/auth/quick-actions", {
+        method: "PUT",
+        body: JSON.stringify({ actions: selected }),
+      });
+      dashboardState.user.quick_actions = result.quick_actions;
+      dialog.close();
+      refreshQuickActionsCard();
+      toast("Quick actions updated.");
+    } catch (error) {
+      errorMessage.textContent = error.message;
+      saveButton.disabled = false;
+    }
+  });
 };
 
 const quoteCard = () => `<section class="dash-card dash-quote-card" aria-labelledby="dashboard-quote-heading">
@@ -237,23 +347,28 @@ const initializeDashboardQuotes = () => {
 };
 
 const renderDashboard = (user, summary) => {
-  const displayName = formatUsername(user.username);
+  const displayName = capitalizeFirst(user.name);
   $("#welcome-heading").textContent = `${timeOfDayGreeting()}, ${displayName}`;
   $("#dashboard-account-name").textContent = displayName;
+  $("#dashboard-account-username").textContent = `@${user.username}`;
   $("#admin-link").hidden = user.role !== "admin";
   const tools = new Set(user.tools);
   if (user.role === "admin") {
     tools.add("bookclub");
     tools.add("lendery_manage");
   }
+  dashboardState.user = user;
+  dashboardState.summary = summary;
+  dashboardState.tools = tools;
   $("#tool-grid").innerHTML = [
     lenderyCard(tools, summary),
     bookclubCard(tools, summary),
-    quickActionsCard(tools, summary),
+    quickActionsCard(tools, user.quick_actions || []),
     quoteCard(),
   ].join("");
   initializeDashboardQuotes();
   initializeLenderyScan();
+  initializeQuickActionsEditor();
 };
 
 const initializeLenderyScan = () => {

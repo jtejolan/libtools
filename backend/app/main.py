@@ -103,16 +103,50 @@ def public_homepage() -> FileResponse:
 
 @app.get("/lendery", include_in_schema=False)
 def lendery_app() -> FileResponse:
-    return FileResponse(FRONTEND_DIR / "lendery.html")
+    return FileResponse(
+        FRONTEND_DIR / "lendery.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/lendery/export", include_in_schema=False)
+def lendery_export_app() -> FileResponse:
+    return FileResponse(
+        FRONTEND_DIR / "lendery-export.html",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.get("/bookclub", include_in_schema=False)
 def bookclub_app() -> FileResponse:
-    return FileResponse(FRONTEND_DIR / "bookclub.html")
+    return FileResponse(
+        FRONTEND_DIR / "bookclub.html",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.get("/login", include_in_schema=False)
 def login_page() -> FileResponse:
+    return FileResponse(FRONTEND_DIR / "account.html")
+
+
+@app.get("/signup", include_in_schema=False)
+def signup_page() -> FileResponse:
+    return FileResponse(FRONTEND_DIR / "account.html")
+
+
+@app.get("/forgot-password", include_in_schema=False)
+def forgot_password_page() -> FileResponse:
+    return FileResponse(FRONTEND_DIR / "account.html")
+
+
+@app.get("/reset-password", include_in_schema=False)
+def reset_password_page() -> FileResponse:
+    return FileResponse(FRONTEND_DIR / "account.html")
+
+
+@app.get("/verify-email", include_in_schema=False)
+def verify_email_page() -> FileResponse:
     return FileResponse(FRONTEND_DIR / "account.html")
 
 
@@ -126,9 +160,21 @@ def dashboard_page() -> FileResponse:
     return FileResponse(FRONTEND_DIR / "dashboard.html")
 
 
+@app.get("/admin/accounts", include_in_schema=False)
+def accounts_admin_page() -> FileResponse:
+    return FileResponse(
+        FRONTEND_DIR / "admin-accounts.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @app.get("/admin/users", include_in_schema=False)
-def users_admin_page() -> FileResponse:
-    return FileResponse(FRONTEND_DIR / "admin-users.html")
+def users_admin_page() -> RedirectResponse:
+    return RedirectResponse(
+        "/admin/accounts",
+        status_code=302,
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.get("/clubs/{slug}", include_in_schema=False)

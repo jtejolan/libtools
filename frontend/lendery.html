@@ -20,8 +20,8 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/lendery.css?v=31" />
-    <script src="/static/lendery.js?v=31" defer></script>
+    <link rel="stylesheet" href="/static/lendery.css?v=37" />
+    <script src="/static/lendery.js?v=35" defer></script>
   </head>
   <body id="lendery-top">
     <div class="app-shell">
@@ -35,7 +35,7 @@
           <span>Library Tools</span>
         </a>
 
-        <div class="product-name">
+        <button class="product-name" id="lendery-home" type="button" aria-label="Lendery home">
           <span class="product-icon" aria-hidden="true">
             <img src="/static/assets/lendery-logo-symbol-v3.png?v=4" alt="" />
           </span>
@@ -43,7 +43,7 @@
             <small>Library inventory</small>
             <strong>Lendery</strong>
           </div>
-        </div>
+        </button>
 
         <a class="dashboard-link" href="/dashboard">
           <span aria-hidden="true">←</span>
@@ -56,6 +56,10 @@
             <span aria-hidden="true">▦</span>
             <span>Inventory</span>
           </a>
+          <button class="nav-item" id="nav-suggest-item" type="button">
+            <span aria-hidden="true">✦</span>
+            <span>Suggest an Item</span>
+          </button>
           <button class="nav-item" id="nav-add-item" type="button" data-admin-only hidden>
             <span aria-hidden="true">＋</span>
             <span>Add Item</span>
@@ -69,9 +73,14 @@
             <span aria-hidden="true">⌫</span>
             <span>Removed Items</span>
           </button>
-          <a class="nav-item" id="export-items-csv" href="/lendery/items/export.csv" data-admin-only hidden>
+          <button class="nav-item" id="suggestions-button" type="button" data-admin-only hidden>
+            <span aria-hidden="true">☼</span>
+            <span>Item Suggestions</span>
+            <span class="needs-attention-count" id="suggestions-count" hidden></span>
+          </button>
+          <a class="nav-item" id="export-items-csv" href="/lendery/export" data-admin-only hidden>
             <span aria-hidden="true">⇩</span>
-            <span>Export CSV</span>
+            <span>Export data</span>
           </a>
         </nav>
 
@@ -89,6 +98,7 @@
             <span aria-hidden="true">⌄</span>
           </summary>
           <div class="account-menu-panel">
+            <p class="account-menu-username" id="account-menu-username"></p>
             <a href="/account">My account</a>
             <button id="logout-button" type="button">Log out</button>
           </div>
@@ -116,10 +126,15 @@
           </div>
 
           <section class="stats-grid" aria-label="Inventory overview">
-            <div class="stat-cell">
+            <button
+              class="stat-cell stat-cell-action"
+              id="total-items-stat"
+              type="button"
+              aria-label="Show all inventory items"
+            >
               <span class="stat-label">Total items</span>
               <strong id="total-stat">—</strong>
-            </div>
+            </button>
             <button
               class="stat-cell stat-cell-action"
               type="button"
@@ -318,6 +333,67 @@
       </form>
     </dialog>
 
+    <dialog class="item-dialog suggestion-dialog" id="suggestion-dialog" aria-labelledby="suggestion-dialog-title">
+      <form id="suggestion-form">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow"><span></span> Shape the collection</p>
+            <h2 id="suggestion-dialog-title">Suggest an item</h2>
+          </div>
+          <button class="icon-button" type="button" data-close-suggestion aria-label="Close">×</button>
+        </div>
+        <p class="suggestion-intro">Know something useful the community could borrow? Tell the Lendery team about it—no purchasing details required.</p>
+        <div class="form-grid">
+          <label class="field field-wide">
+            <span>Item name <b>*</b></span>
+            <input name="item_name" required maxlength="200" placeholder="e.g. Portable induction cooktop" />
+          </label>
+          <label class="field field-wide">
+            <span>Description or reason <b>*</b></span>
+            <textarea name="description" required maxlength="4000" rows="4" placeholder="What is it, and why would it be helpful to borrow?"></textarea>
+          </label>
+          <label class="field">
+            <span>Category <small>Optional</small></span>
+            <input name="category" list="category-options" maxlength="100" placeholder="e.g. Kitchen" />
+          </label>
+          <label class="field">
+            <span>Product URL <small>Optional</small></span>
+            <input name="product_url" type="url" maxlength="500" placeholder="https://…" />
+          </label>
+          <label class="field field-wide">
+            <span>Additional notes <small>Optional</small></span>
+            <textarea name="additional_notes" maxlength="4000" rows="3" placeholder="Anything else the Lendery team should know?"></textarea>
+          </label>
+        </div>
+        <p class="form-error" id="suggestion-form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="text-button" type="button" data-close-suggestion>Cancel</button>
+          <button class="primary-button" id="submit-suggestion" type="submit">Send suggestion</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="item-dialog suggestions-dialog" id="suggestions-dialog" aria-labelledby="suggestions-dialog-title">
+      <div class="suggestions-shell">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow"><span></span> Collection ideas</p>
+            <h2 id="suggestions-dialog-title">Item suggestions</h2>
+          </div>
+          <button class="icon-button" type="button" data-close-suggestions aria-label="Close">×</button>
+        </div>
+        <div class="suggestions-layout">
+          <div class="suggestions-list" id="suggestions-list" aria-label="Submitted suggestions"></div>
+          <div class="suggestion-detail" id="suggestion-detail" aria-live="polite">
+            <div class="suggestion-detail-empty">
+              <span aria-hidden="true">✦</span>
+              <p>Select a suggestion to review its details.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
     <dialog class="item-dialog" id="needs-attention-dialog">
       <div>
         <div class="dialog-heading">
@@ -361,8 +437,12 @@
         </label>
         <p class="form-error" id="login-error" role="alert"></p>
         <button class="primary-button auth-submit" type="submit">Sign in</button>
-        <a class="text-button auth-account-link" href="/account">Open my Libtools account</a>
-        <a class="text-button auth-account-link" href="/">← Back to Library Tools</a>
+        <div class="auth-dialog-footer">
+          <p>New to Library Tools? <a href="/signup">Create an account</a></p>
+          <div class="auth-dialog-links">
+            <a href="/forgot-password">Forgot sign-in details?</a>
+          </div>
+        </div>
       </form>
     </dialog>
 

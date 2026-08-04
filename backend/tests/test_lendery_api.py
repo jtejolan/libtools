@@ -14,6 +14,7 @@ from database import Base, migrate_existing_database
 from accounts.models import LibtoolsUser
 from lendery.availability import AvailabilityResult
 from lendery.component_images import component_image_path
+from lendery.models import ItemActivity
 from lendery.routes import get_db
 from main import app
 from security import hash_password
@@ -63,6 +64,7 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
                 connection.execute(table.delete())
         with self.sessions() as db:
             user = LibtoolsUser(
+                    name="Admin",
                     username="admin",
                     password_hash=hash_password("admin-password"),
                     role="admin",
@@ -206,13 +208,26 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
     def test_lendery_page_uses_current_autofill_assets(self) -> None:
         response = self.client.get("/lendery")
         self.assertEqual(response.status_code, 200)
-        self.assertIn('/static/lendery.js?v=31', response.text)
-        self.assertIn('/static/lendery.css?v=31', response.text)
+        self.assertIn('/static/lendery.js?v=35', response.text)
+        self.assertIn('/static/lendery.css?v=37', response.text)
         self.assertIn('<option value="alphabetical">Alphabetical</option>', response.text)
         self.assertIn('value="recently-active">Most recently used', response.text)
         self.assertIn('value="recently-added">Recently added', response.text)
         self.assertIn('class="dashboard-link" href="/dashboard"', response.text)
         self.assertIn('class="mobile-return-top" href="#lendery-top"', response.text)
+        self.assertIn('href="/signup">Create an account</a>', response.text)
+        self.assertIn('id="lendery-home"', response.text)
+        self.assertIn('id="total-items-stat"', response.text)
+        self.assertIn('id="suggestion-form"', response.text)
+        self.assertIn('id="suggestions-dialog"', response.text)
+        self.assertIn('href="/lendery/export"', response.text)
+        self.assertEqual(response.headers["cache-control"], "no-store")
+
+        export_page = self.client.get("/lendery/export")
+        self.assertEqual(export_page.status_code, 200)
+        self.assertIn('id="export-form"', export_page.text)
+        self.assertIn("Item history", export_page.text)
+        self.assertEqual(export_page.headers["cache-control"], "no-store")
 
     def test_removed_item_is_preserved_and_can_be_restored(self) -> None:
         item = self.create_linked_item("REMOVAL-1")
@@ -314,6 +329,53 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
                 ).one()
             self.assertEqual(row.lifecycle_status, "active")
             self.assertIsNotNone(row.lifecycle_changed_at)
+        finally:
+            legacy_engine.dispose()
+
+    def test_existing_item_status_is_backfilled_into_activity_history(self) -> None:
+        legacy_engine = create_engine("sqlite://", poolclass=StaticPool)
+        try:
+            with legacy_engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "CREATE TABLE lendery_items ("
+                        "id INTEGER PRIMARY KEY, name VARCHAR(200) NOT NULL, "
+                        "barcode VARCHAR(50) NOT NULL, category VARCHAR(100), "
+                        "lifecycle_status VARCHAR(20) NOT NULL, lifecycle_note TEXT, "
+                        "lifecycle_changed_at TIMESTAMP, created_at TIMESTAMP, "
+                        "updated_at TIMESTAMP)"
+                    )
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO lendery_items "
+                        "(id, name, barcode, category, lifecycle_status, lifecycle_note, "
+                        "lifecycle_changed_at, created_at, updated_at) VALUES "
+                        "(1, 'Legacy drill', 'LEGACY-1', 'Tools', 'removed', "
+                        "'Could not be repaired', CURRENT_TIMESTAMP, "
+                        "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    )
+                )
+            ItemActivity.__table__.create(bind=legacy_engine)
+
+            with patch("database.engine", legacy_engine):
+                migrate_existing_database()
+                migrate_existing_database()
+
+            with legacy_engine.connect() as connection:
+                rows = connection.execute(
+                    text(
+                        "SELECT event_type, reason FROM lendery_item_activity "
+                        "ORDER BY id"
+                    )
+                ).all()
+            self.assertEqual(
+                rows,
+                [
+                    ("item_added", "Existing inventory record"),
+                    ("removed_from_collection", "Could not be repaired"),
+                ],
+            )
         finally:
             legacy_engine.dispose()
 
@@ -424,6 +486,157 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
         self.assertIn("barcode", rows[0])
         self.assertTrue(any("EXPORT-1" in row for row in rows[1:]))
 
+    def test_configurable_inventory_and_activity_exports(self) -> None:
+        first = self.client.post(
+            "/lendery/items",
+            json={"name": "Kitchen scale", "barcode": "EXPORT-A", "category": "Kitchen"},
+        ).json()
+        self.client.post(
+            "/lendery/items",
+            json={"name": "Cordless drill", "barcode": "EXPORT-B", "category": "Tools"},
+        )
+
+        options = self.client.get("/lendery/export/options")
+        self.assertEqual(options.status_code, 200, options.text)
+        self.assertEqual(options.json()["categories"], ["Kitchen", "Tools"])
+        self.assertTrue(
+            any(field["key"] == "barcode" for field in options.json()["inventory_fields"])
+        )
+
+        inventory = self.client.post(
+            "/lendery/export/inventory.csv",
+            json={
+                "fields": ["barcode", "name"],
+                "scope": "category",
+                "category": "Kitchen",
+                "include_removed": True,
+            },
+        )
+        self.assertEqual(inventory.status_code, 200, inventory.text)
+        self.assertEqual(inventory.text.splitlines()[0], "barcode,name")
+        self.assertIn("EXPORT-A", inventory.text)
+        self.assertNotIn("EXPORT-B", inventory.text)
+
+        activity = self.client.post(
+            "/lendery/export/activity.csv",
+            json={
+                "fields": ["event_type", "barcode", "item_name"],
+                "scope": "item",
+                "item_id": first["id"],
+            },
+        )
+        self.assertEqual(activity.status_code, 200, activity.text)
+        self.assertEqual(
+            activity.text.splitlines()[0], "event_type,barcode,item_name"
+        )
+        self.assertIn("item_added,EXPORT-A,Kitchen scale", activity.text)
+        self.assertNotIn("EXPORT-B", activity.text)
+
+    def test_operational_history_tracks_unavailable_return_and_survives_deletion(
+        self,
+    ) -> None:
+        item = self.client.post(
+            "/lendery/items",
+            json={"name": "Button maker", "barcode": "HISTORY-1", "category": "Crafts"},
+        ).json()
+
+        unavailable = self.client.post(
+            f"/lendery/items/{item['id']}/unavailable",
+            json={"reason": "Handle is cracked"},
+        )
+        self.assertEqual(unavailable.status_code, 200, unavailable.text)
+        self.assertEqual(unavailable.json()["lifecycle_status"], "unavailable")
+        self.assertEqual(unavailable.json()["lifecycle_note"], "Handle is cracked")
+
+        returned = self.client.post(
+            f"/lendery/items/{item['id']}/restore",
+            json={"note": "Replacement handle installed"},
+        )
+        self.assertEqual(returned.status_code, 200, returned.text)
+        self.assertEqual(returned.json()["lifecycle_status"], "active")
+        self.assertIsNone(returned.json()["lifecycle_note"])
+
+        removed = self.client.post(
+            f"/lendery/items/{item['id']}/remove",
+            json={"reason": "Withdrawn after repeated failures"},
+        )
+        self.assertEqual(removed.status_code, 200, removed.text)
+
+        history = self.client.get(f"/lendery/items/{item['id']}/activity")
+        self.assertEqual(history.status_code, 200, history.text)
+        event_types = [entry["event_type"] for entry in history.json()]
+        self.assertEqual(
+            event_types,
+            [
+                "removed_from_collection",
+                "returned_to_circulation",
+                "marked_unavailable",
+                "item_added",
+            ],
+        )
+        self.assertEqual(history.json()[2]["reason"], "Handle is cracked")
+
+        deleted = self.client.delete(f"/lendery/items/{item['id']}/permanent")
+        self.assertEqual(deleted.status_code, 204, deleted.text)
+        global_history = self.client.get(f"/lendery/activity?item_id={item['id']}")
+        self.assertEqual(global_history.status_code, 200, global_history.text)
+        self.assertEqual(global_history.json()[0]["event_type"], "permanently_deleted")
+        self.assertTrue(
+            all(entry["item_id"] is None for entry in global_history.json())
+        )
+        options = self.client.get("/lendery/export/options").json()
+        self.assertNotIn(item["id"], [entry["id"] for entry in options["items"]])
+        self.assertNotIn("Crafts", options["categories"])
+        self.assertIn("Crafts", options["activity_categories"])
+        self.assertIn(
+            item["id"], [entry["id"] for entry in options["activity_items"]]
+        )
+        deleted_item_export = self.client.post(
+            "/lendery/export/activity.csv",
+            json={
+                "fields": ["event_type", "barcode", "item_name"],
+                "scope": "item",
+                "item_id": item["id"],
+            },
+        )
+        self.assertEqual(deleted_item_export.status_code, 200)
+        self.assertIn("HISTORY-1", deleted_item_export.text)
+
+    def test_maintenance_orders_and_repairs_are_added_to_item_history(self) -> None:
+        item = self.client.post(
+            "/lendery/items",
+            json={"name": "Projector", "barcode": "REPAIR-HISTORY"},
+        ).json()
+        repair_case = self.client.post(
+            f"/lendery/items/{item['id']}/maintenance",
+            json={"title": "Fan is noisy", "description": "Rattles during use"},
+        ).json()
+        self.client.post(
+            f"/lendery/maintenance/{repair_case['id']}/events",
+            json={
+                "event_type": "part_ordered",
+                "part_name": "Cooling fan",
+                "quantity": 1,
+                "cost": "19.50",
+                "order_number": "PO-99",
+            },
+        )
+        self.client.post(
+            f"/lendery/maintenance/{repair_case['id']}/events",
+            json={"event_type": "repair_completed", "note": "Fan replaced and tested"},
+        )
+
+        history = self.client.get(f"/lendery/items/{item['id']}/activity").json()
+        self.assertEqual(
+            [entry["event_type"] for entry in history[:3]],
+            ["repair_completed", "part_ordered", "maintenance_opened"],
+        )
+        ordered = history[1]
+        self.assertEqual(ordered["part_name"], "Cooling fan")
+        self.assertEqual(ordered["quantity"], 1)
+        self.assertEqual(ordered["order_number"], "PO-99")
+        self.assertEqual(ordered["cost"], "19.50")
+
     def test_physical_manual_inclusion_and_missing_flag_are_tracked(self) -> None:
         response = self.client.post(
             "/lendery/items",
@@ -469,6 +682,7 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
 
         with self.sessions() as db:
             viewer = LibtoolsUser(
+                name="Viewer",
                 username="viewer",
                 password_hash=hash_password("viewer-password"),
                 role="user",
@@ -484,6 +698,17 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
         self.assertEqual(login.status_code, 200)
         forbidden = viewer_client.get("/lendery/items/export.csv")
         self.assertEqual(forbidden.status_code, 403)
+        self.assertEqual(
+            viewer_client.get("/lendery/export/options").status_code, 403
+        )
+        self.assertEqual(viewer_client.get("/lendery/activity").status_code, 403)
+        self.assertEqual(
+            viewer_client.post(
+                "/lendery/export/activity.csv",
+                json={"fields": ["event_type"], "scope": "all"},
+            ).status_code,
+            403,
+        )
         viewer_client.close()
 
     def test_component_photo_upload_is_processed_and_served(self) -> None:

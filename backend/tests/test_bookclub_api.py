@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from database import Base
 from database import migrate_existing_database
-from accounts.models import LibtoolsUser, ToolAccess
+from accounts.models import LibtoolsUser
 from bookclub.models import BookClub, BookClubAccess
 from lendery.routes import get_db
 from main import app
@@ -53,6 +53,7 @@ class BookClubApiTests(unittest.TestCase):
                 connection.execute(table.delete())
         with self.sessions() as db:
             user = LibtoolsUser(
+                name="Admin",
                 username="admin",
                 password_hash=hash_password("admin-password"),
                 role="admin",
@@ -65,11 +66,8 @@ class BookClubApiTests(unittest.TestCase):
             )
             db.add_all([user, club])
             db.flush()
-            db.add_all(
-                [
-                    ToolAccess(user_id=user.id, tool_key="bookclub"),
-                    BookClubAccess(club_id=club.id, user_id=user.id, role="owner"),
-                ]
+            db.add(
+                BookClubAccess(club_id=club.id, user_id=user.id, role="owner")
             )
             db.commit()
         response = self.client.post(
@@ -129,8 +127,9 @@ class BookClubApiTests(unittest.TestCase):
             self.assertIn('href="/bookclub"', homepage.text)
             self.assertIn("Available now", homepage.text)
             self.assertIn('id="home-account-link"', homepage.text)
-            self.assertIn('/static/home.js?v=5', homepage.text)
-            self.assertIn('/static/styles.css?v=21', homepage.text)
+            self.assertIn('/static/home.js?v=7', homepage.text)
+            self.assertIn('id="home-account-link" href="/login"', homepage.text)
+            self.assertIn('/static/styles.css?v=23', homepage.text)
             self.assertEqual(
                 homepage.headers["cache-control"],
                 "private, no-store",
@@ -139,7 +138,10 @@ class BookClubApiTests(unittest.TestCase):
         entrypoint = self.client.get("/bookclub")
         self.assertEqual(entrypoint.status_code, 200)
         self.assertIn("Book Club Manager", entrypoint.text)
-        self.assertIn('/static/bookclub.js?v=10', entrypoint.text)
+        self.assertIn('/static/bookclub.js?v=13', entrypoint.text)
+        self.assertIn('/static/bookclub.css?v=16', entrypoint.text)
+        self.assertIn('href="/signup">Create an account</a>', entrypoint.text)
+        self.assertEqual(entrypoint.headers["cache-control"], "no-store")
 
     @patch("bookclub.catalogue.fetch_catalogue_book")
     def test_imports_a_vaughan_catalogue_book(self, fetch_book) -> None:

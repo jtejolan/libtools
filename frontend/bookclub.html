@@ -10,8 +10,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/bookclub.css?v=10" />
-    <script src="/static/bookclub.js?v=10" defer></script>
+    <link rel="stylesheet" href="/static/bookclub.css?v=16" />
+    <script src="/static/bookclub.js?v=13" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -58,6 +58,7 @@
                 <span aria-hidden="true">⌄</span>
               </summary>
               <div class="account-menu-panel">
+                <p class="account-menu-username" id="account-menu-username"></p>
                 <a href="/account">My account</a>
                 <button id="logout-button" type="button">Log out</button>
               </div>
@@ -297,13 +298,17 @@
         <label class="field"><span>Name</span><input name="username" required autocomplete="username" autofocus /></label>
         <label class="field"><span>Password</span><input name="password" type="password" required autocomplete="current-password" /></label>
         <p class="form-error" id="login-error"></p><button class="primary-button full-button" type="submit">Sign in</button>
-        <a class="auth-help" href="/login#recover">Use a recovery code</a>
-        <a class="auth-help" href="/">← Back to Library Tools</a>
+        <div class="auth-dialog-footer">
+          <p>New to Library Tools? <a href="/signup">Create an account</a></p>
+          <div class="auth-dialog-links">
+            <a href="/forgot-password">Forgot sign-in details?</a>
+          </div>
+        </div>
       </form>
     </dialog>
 
     <dialog class="form-dialog club-dialog" id="club-dialog">
-      <div class="dialog-heading"><div><p class="eyebrow"><span></span> Your workspaces</p><h2>Choose a book club</h2></div></div>
+      <div class="dialog-heading"><div><p class="eyebrow"><span></span> Your workspaces</p><h2>Choose a book club</h2></div><a class="text-button" href="/dashboard">← Back to dashboard</a></div>
       <p class="auth-intro">Select the club you are running, or create a new workspace.</p>
       <div class="club-choice-list" id="club-choice-list"></div>
       <form id="club-form" class="club-create-form">

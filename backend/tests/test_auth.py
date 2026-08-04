@@ -47,21 +47,25 @@ class LenderyAuthorizationTests(unittest.TestCase):
         with self.sessions() as db:
             users = {
                 "admin": LibtoolsUser(
+                    name="Admin",
                     username="admin",
                     password_hash=hash_password("admin-password"),
                     role="admin",
                 ),
                 "manager": LibtoolsUser(
+                    name="Manager",
                     username="manager",
                     password_hash=hash_password("manager-password"),
                     role="user",
                 ),
                 "viewer": LibtoolsUser(
+                    name="Viewer",
                     username="viewer",
                     password_hash=hash_password("viewer-password"),
                     role="user",
                 ),
                 "other": LibtoolsUser(
+                    name="Other",
                     username="other",
                     password_hash=hash_password("other-password"),
                     role="user",
@@ -293,6 +297,103 @@ class LenderyAuthorizationTests(unittest.TestCase):
         self.assertEqual(entries[0]["item_id"], first_item["id"])
         self.assertEqual(entries[0]["item_name"], "Projector kit")
         self.assertEqual(entries[0]["item_barcode"], "KIT-1")
+
+    def test_suggestions_are_idempotent_and_managed_by_lendery_editors(
+        self,
+    ) -> None:
+        payload = {
+            "item_name": "Portable induction cooktop",
+            "description": "Useful for cooking demonstrations and programs.",
+            "category": "Kitchen",
+            "product_url": "https://example.com/cooktop",
+            "additional_notes": "A carrying case would be helpful.",
+            "submission_key": "suggestion-test-key",
+        }
+        self.assertEqual(
+            self.anonymous.post("/lendery/suggestions", json=payload).status_code,
+            401,
+        )
+
+        created = self.viewer.post("/lendery/suggestions", json=payload)
+        self.assertEqual(created.status_code, 201, created.text)
+        duplicate = self.viewer.post("/lendery/suggestions", json=payload)
+        self.assertEqual(duplicate.status_code, 201, duplicate.text)
+        self.assertEqual(duplicate.json()["id"], created.json()["id"])
+        self.assertIsNotNone(created.json()["submitted_at"])
+        self.assertEqual(created.json()["submitted_by_name"], "Viewer")
+
+        invalid = self.viewer.post(
+            "/lendery/suggestions",
+            json={**payload, "submission_key": "another-key", "description": "  "},
+        )
+        self.assertEqual(invalid.status_code, 422)
+        self.assertEqual(self.viewer.get("/lendery/suggestions").status_code, 403)
+
+        suggestions = self.manager.get("/lendery/suggestions")
+        self.assertEqual(suggestions.status_code, 200, suggestions.text)
+        self.assertEqual(len(suggestions.json()), 1)
+        suggestion_id = suggestions.json()[0]["id"]
+        self.assertEqual(
+            self.manager.get(f"/lendery/suggestions/{suggestion_id}").status_code,
+            200,
+        )
+        self.assertEqual(
+            self.viewer.delete(f"/lendery/suggestions/{suggestion_id}").status_code,
+            403,
+        )
+        self.assertEqual(
+            self.manager.delete(f"/lendery/suggestions/{suggestion_id}").status_code,
+            204,
+        )
+        self.assertEqual(
+            self.manager.get(f"/lendery/suggestions/{suggestion_id}").status_code,
+            404,
+        )
+
+    def test_users_can_save_up_to_four_permission_aware_quick_actions(
+        self,
+    ) -> None:
+        me = self.viewer.get("/auth/me")
+        self.assertEqual(me.status_code, 200, me.text)
+        self.assertEqual(
+            me.json()["quick_actions"],
+            [
+                "lendery-suggest-item",
+                "bookclub-add-member",
+                "bookclub-add-book",
+            ],
+        )
+
+        denied = self.viewer.put(
+            "/auth/quick-actions",
+            json={"actions": ["lendery-add-item"]},
+        )
+        self.assertEqual(denied.status_code, 403, denied.text)
+
+        selected = ["bookclub-add-book", "lendery-suggest-item"]
+        updated = self.viewer.put(
+            "/auth/quick-actions",
+            json={"actions": selected},
+        )
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertEqual(updated.json()["quick_actions"], selected)
+        self.assertEqual(
+            self.viewer.get("/auth/me").json()["quick_actions"], selected
+        )
+
+        too_many = self.manager.put(
+            "/auth/quick-actions",
+            json={
+                "actions": [
+                    "lendery-suggest-item",
+                    "lendery-add-item",
+                    "lendery-report-issue",
+                    "bookclub-add-member",
+                    "bookclub-add-book",
+                ]
+            },
+        )
+        self.assertEqual(too_many.status_code, 422)
 
     def test_shared_lendery_login_endpoints_are_removed(self) -> None:
         self.assertEqual(

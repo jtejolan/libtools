@@ -1,11 +1,14 @@
 from datetime import date
+import json
+import logging
 from typing import Annotated
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 
-from accounts import auth, models, schemas
+from accounts import account_tokens, auth, email_delivery, models, schemas
 from dependencies import DatabaseSession
 from security import hash_password, verify_password
 
@@ -15,6 +18,98 @@ admin_router = APIRouter(
     tags=["libtools-admin"],
     dependencies=[Depends(auth.require_platform_admin)],
 )
+logger = logging.getLogger(__name__)
+
+
+def _account_action_url(request: Request, path: str, token: str) -> str:
+    base_url = str(request.base_url).rstrip("/")
+    return f"{base_url}{path}?{urlencode({'token': token})}"
+
+
+def _deliver_verification(request: Request, user: models.LibtoolsUser, token: str) -> bool:
+    if user.email is None:
+        return False
+    try:
+        return email_delivery.send_verification_email(
+            recipient=user.email,
+            username=user.username,
+            verification_url=_account_action_url(request, "/verify-email", token),
+        )
+    except Exception:
+        logger.exception("Could not hand off an account verification email")
+        return False
+
+
+def _deliver_password_reset(request: Request, user: models.LibtoolsUser, token: str) -> bool:
+    if user.email is None:
+        return False
+    try:
+        return email_delivery.send_password_reset_email(
+            recipient=user.email,
+            username=user.username,
+            reset_url=_account_action_url(request, "/reset-password", token),
+        )
+    except Exception:
+        logger.exception("Could not hand off a password reset email")
+        return False
+
+
+@router.post(
+    "/register",
+    response_model=schemas.RegistrationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def register(
+    value: schemas.RegistrationRequest,
+    request: Request,
+    db: DatabaseSession,
+):
+    if auth.get_user(db, value.username) is not None:
+        raise HTTPException(status_code=409, detail="That account name is already in use")
+    if value.email and auth.get_user_by_email(db, value.email) is not None:
+        raise HTTPException(status_code=409, detail="That email address is already in use")
+
+    user = models.LibtoolsUser(
+        name=value.name,
+        username=value.username,
+        email=value.email,
+        password_hash=hash_password(value.password),
+        role="user",
+    )
+    db.add(user)
+    recovery_code = auth.issue_recovery_code(user)
+    verification_token = None
+    try:
+        db.flush()
+        if user.email:
+            verification_token = account_tokens.issue_token(
+                db,
+                user,
+                account_tokens.EMAIL_VERIFICATION,
+                account_tokens.EMAIL_VERIFICATION_LIFETIME,
+            )
+        db.commit()
+        db.refresh(user)
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="That account name or email address is already in use",
+        ) from exc
+
+    request.session["libtools_user_id"] = user.id
+    request.session["libtools_session_version"] = user.session_version
+    delivered = (
+        _deliver_verification(request, user, verification_token)
+        if verification_token
+        else False
+    )
+    return schemas.RegistrationResponse(
+        **auth.user_response(db, user).model_dump(),
+        recovery_code=recovery_code,
+        email_verification_required=user.email is not None,
+        email_delivery_configured=delivered,
+    )
 
 
 @router.post("/login", response_model=schemas.UserResponse)
@@ -60,9 +155,12 @@ def dashboard_summary(user: auth.CurrentUser, db: DatabaseSession):
             func.count(LenderyItem.id).filter(
                 LenderyItem.availability_status == "checked_out"
             ),
+            func.count(LenderyItem.id).filter(
+                LenderyItem.availability_status == "available"
+            ),
         ).where(LenderyItem.lifecycle_status != "removed")
     ).one()
-    total_items, checked_out_items = inventory_counts
+    total_items, checked_out_items, available_items = inventory_counts
 
     attention_count = None
     if auth.has_tool_access(db, user, "lendery_manage"):
@@ -70,7 +168,10 @@ def dashboard_summary(user: auth.CurrentUser, db: DatabaseSession):
         open_case_item_ids = {case.item_id for case in open_cases}
         unavailable_filters = [
             LenderyItem.lifecycle_status != "removed",
-            LenderyItem.availability_status == "unavailable",
+            or_(
+                LenderyItem.lifecycle_status == "unavailable",
+                LenderyItem.availability_status == "unavailable",
+            ),
         ]
         if open_case_item_ids:
             unavailable_filters.append(LenderyItem.id.not_in(open_case_item_ids))
@@ -90,7 +191,7 @@ def dashboard_summary(user: auth.CurrentUser, db: DatabaseSession):
         )
         attention_count = len(open_cases) + unresolved_unavailable + missing_components
 
-    has_bookclub_access = auth.has_tool_access(db, user, "bookclub")
+    has_bookclub_access = not user.must_change_password
     club_count = 0
     next_meeting = None
     if has_bookclub_access:
@@ -129,6 +230,7 @@ def dashboard_summary(user: auth.CurrentUser, db: DatabaseSession):
         lendery=schemas.DashboardLenderySummary(
             total_items=total_items,
             checked_out_items=checked_out_items,
+            available_items=available_items,
             attention_count=attention_count,
         ),
         bookclub=schemas.DashboardBookClubSummary(
@@ -137,6 +239,26 @@ def dashboard_summary(user: auth.CurrentUser, db: DatabaseSession):
             next_meeting=next_meeting,
         ),
     )
+
+
+@router.put(
+    "/quick-actions",
+    response_model=schemas.QuickActionsResponse,
+)
+def update_quick_actions(
+    value: schemas.QuickActionsUpdate,
+    user: auth.CurrentUser,
+    db: DatabaseSession,
+):
+    unavailable = set(value.actions) - auth.available_quick_actions(db, user)
+    if unavailable:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="One or more shortcuts require additional access",
+        )
+    user.quick_actions = json.dumps(value.actions)
+    db.commit()
+    return schemas.QuickActionsResponse(quick_actions=value.actions)
 
 
 @router.put("/password", status_code=status.HTTP_204_NO_CONTENT)
@@ -151,6 +273,7 @@ def change_password(
     user.password_hash = hash_password(value.password)
     user.must_change_password = False
     user.session_version += 1
+    account_tokens.revoke_tokens(db, user, account_tokens.PASSWORD_RESET)
     db.commit()
     request.session["libtools_session_version"] = user.session_version
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -170,6 +293,7 @@ def recover(value: schemas.RecoveryResetRequest, db: DatabaseSession):
     user.password_hash = hash_password(value.password)
     user.must_change_password = False
     user.session_version += 1
+    account_tokens.revoke_tokens(db, user, account_tokens.PASSWORD_RESET)
     replacement = auth.issue_recovery_code(user)
     db.commit()
     return schemas.RecoveryCodeResponse(recovery_code=replacement)
@@ -182,6 +306,112 @@ def replace_own_recovery_code(user: auth.CurrentUser, db: DatabaseSession):
     return schemas.RecoveryCodeResponse(recovery_code=code)
 
 
+@router.post(
+    "/email-verification/request",
+    response_model=schemas.EmailActionResponse,
+)
+def request_email_verification(
+    request: Request,
+    user: auth.CurrentUser,
+    db: DatabaseSession,
+):
+    if user.email is None:
+        raise HTTPException(status_code=409, detail="This account has no email address")
+    if user.email_verified_at is not None:
+        raise HTTPException(status_code=409, detail="This email address is already verified")
+    token = account_tokens.issue_token(
+        db,
+        user,
+        account_tokens.EMAIL_VERIFICATION,
+        account_tokens.EMAIL_VERIFICATION_LIFETIME,
+    )
+    db.commit()
+    _deliver_verification(request, user, token)
+    return schemas.EmailActionResponse(
+        message="Check your email for a verification link.",
+        delivery_configured=email_delivery.DELIVERY_CONFIGURED,
+    )
+
+
+@router.post("/verify-email", response_model=schemas.UserResponse)
+def verify_email(value: schemas.VerifyEmailRequest, db: DatabaseSession):
+    token = account_tokens.consume_token(
+        db,
+        value.token,
+        account_tokens.EMAIL_VERIFICATION,
+    )
+    if token is None:
+        raise HTTPException(
+            status_code=400,
+            detail="This verification link is invalid or has expired",
+        )
+    user = token.user
+    user.email_verified_at = token.used_at
+    db.commit()
+    db.refresh(user)
+    return auth.user_response(db, user)
+
+
+@router.post(
+    "/password-reset/request",
+    response_model=schemas.EmailActionResponse,
+)
+def request_password_reset(
+    value: schemas.PasswordResetEmailRequest,
+    request: Request,
+    db: DatabaseSession,
+):
+    user = auth.get_user_by_email(db, value.email)
+    if (
+        user is not None
+        and user.active
+        and user.email_verified_at is not None
+    ):
+        token = account_tokens.issue_token(
+            db,
+            user,
+            account_tokens.PASSWORD_RESET,
+            account_tokens.PASSWORD_RESET_LIFETIME,
+        )
+        db.commit()
+        _deliver_password_reset(request, user, token)
+    return schemas.EmailActionResponse(
+        message=(
+            "If that address belongs to a verified account, "
+            "a password reset link will be sent."
+        ),
+        delivery_configured=email_delivery.DELIVERY_CONFIGURED,
+    )
+
+
+@router.post(
+    "/password-reset/confirm",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def confirm_password_reset(
+    value: schemas.PasswordResetConfirmRequest,
+    db: DatabaseSession,
+) -> Response:
+    token = account_tokens.consume_token(
+        db,
+        value.token,
+        account_tokens.PASSWORD_RESET,
+    )
+    if token is None:
+        raise HTTPException(
+            status_code=400,
+            detail="This password reset link is invalid or has expired",
+        )
+    user = token.user
+    if not user.active:
+        raise HTTPException(status_code=400, detail="This account is disabled")
+    user.password_hash = hash_password(value.password)
+    user.must_change_password = False
+    user.session_version += 1
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @admin_router.get("", response_model=list[schemas.UserResponse])
 def list_users(db: DatabaseSession):
     users = list(db.scalars(select(models.LibtoolsUser).order_by(models.LibtoolsUser.username)))
@@ -191,23 +421,53 @@ def list_users(db: DatabaseSession):
 @admin_router.post(
     "", response_model=schemas.UserCreatedResponse, status_code=status.HTTP_201_CREATED
 )
-def create_user(value: schemas.UserCreate, db: DatabaseSession):
+def create_user(
+    value: schemas.UserCreate,
+    request: Request,
+    db: DatabaseSession,
+):
+    if auth.get_user(db, value.username) is not None:
+        raise HTTPException(status_code=409, detail="That account name is already in use")
+    if value.email and auth.get_user_by_email(db, value.email) is not None:
+        raise HTTPException(status_code=409, detail="That email address is already in use")
     user = models.LibtoolsUser(
-        username=" ".join(value.username.split()),
+        name=value.name,
+        username=value.username,
+        email=value.email,
         password_hash=hash_password(value.password),
         role=value.role,
     )
     db.add(user)
     code = auth.issue_recovery_code(user)
     auth.set_tools(db, user, value.tools)
+    verification_token = None
     try:
+        db.flush()
+        if user.email:
+            verification_token = account_tokens.issue_token(
+                db,
+                user,
+                account_tokens.EMAIL_VERIFICATION,
+                account_tokens.EMAIL_VERIFICATION_LIFETIME,
+            )
         db.commit()
         db.refresh(user)
     except IntegrityError as exc:
         db.rollback()
-        raise HTTPException(status_code=409, detail="That account name is already in use") from exc
+        raise HTTPException(
+            status_code=409,
+            detail="That account name or email address is already in use",
+        ) from exc
+    delivered = (
+        _deliver_verification(request, user, verification_token)
+        if verification_token
+        else False
+    )
     return schemas.UserCreatedResponse(
-        **auth.user_response(db, user).model_dump(), recovery_code=code
+        **auth.user_response(db, user).model_dump(),
+        recovery_code=code,
+        email_verification_required=user.email is not None,
+        email_delivery_configured=delivered,
     )
 
 
@@ -245,6 +505,7 @@ def reset_user_password(
     user.password_hash = hash_password(value.password)
     user.must_change_password = True
     user.session_version += 1
+    account_tokens.revoke_tokens(db, user, account_tokens.PASSWORD_RESET)
     code = auth.issue_recovery_code(user)
     db.commit()
     return schemas.RecoveryCodeResponse(recovery_code=code)

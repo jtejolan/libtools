@@ -35,8 +35,72 @@ AvailabilityFilter = Literal[
     "unavailable",
 ]
 LifecycleFilter = Literal[
-    "inventory", "active", "removed", "all"
+    "inventory", "active", "unavailable", "removed", "all"
 ]
+
+
+@router.post(
+    "/suggestions",
+    response_model=schemas.ItemSuggestionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_suggestion(
+    value: schemas.ItemSuggestionCreate,
+    db: DatabaseSession,
+    viewer=Depends(require_lendery_view),
+):
+    return crud.create_suggestion(
+        db,
+        value,
+        actor_id=viewer.id,
+        actor_name=viewer.name,
+    )
+
+
+@router.get(
+    "/suggestions",
+    response_model=list[schemas.ItemSuggestionResponse],
+)
+def list_suggestions(
+    db: DatabaseSession,
+    _manager=Depends(require_lendery_manage),
+):
+    return crud.list_suggestions(db)
+
+
+@router.get(
+    "/suggestions/{suggestion_id}",
+    response_model=schemas.ItemSuggestionResponse,
+)
+def get_suggestion(
+    suggestion_id: int,
+    db: DatabaseSession,
+    _manager=Depends(require_lendery_manage),
+):
+    suggestion = crud.get_suggestion(db, suggestion_id)
+    if suggestion is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Suggestion not found",
+        )
+    return suggestion
+
+
+@router.delete(
+    "/suggestions/{suggestion_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_suggestion(
+    suggestion_id: int,
+    db: DatabaseSession,
+    _manager=Depends(require_lendery_manage),
+) -> Response:
+    if not crud.delete_suggestion(db, suggestion_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Suggestion not found",
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
@@ -47,10 +111,15 @@ LifecycleFilter = Literal[
 def create_item(
     item: schemas.LenderyItemCreate,
     db: DatabaseSession,
-    _manager=Depends(require_lendery_manage),
+    manager=Depends(require_lendery_manage),
 ):
     try:
-        return crud.create_item(db, item)
+        return crud.create_item(
+            db,
+            item,
+            actor_id=manager.id,
+            actor_name=manager.name,
+        )
     except IntegrityError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -117,6 +186,85 @@ def export_items_csv(
 
 
 @router.get(
+    "/export/options",
+    response_model=schemas.ExportOptionsResponse,
+)
+def get_export_options(
+    db: DatabaseSession,
+    _manager=Depends(require_lendery_manage),
+):
+    return crud.export_options(db)
+
+
+@router.post("/export/inventory.csv", include_in_schema=False)
+def export_inventory_csv(
+    value: schemas.InventoryExportRequest,
+    db: DatabaseSession,
+    _manager=Depends(require_lendery_manage),
+) -> Response:
+    return Response(
+        content=crud.inventory_csv(db, value),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": 'attachment; filename="lendery-inventory.csv"',
+        },
+    )
+
+
+@router.post("/export/activity.csv", include_in_schema=False)
+def export_activity_csv(
+    value: schemas.ActivityExportRequest,
+    db: DatabaseSession,
+    _manager=Depends(require_lendery_manage),
+) -> Response:
+    return Response(
+        content=crud.activity_csv(db, value),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": 'attachment; filename="lendery-item-history.csv"',
+        },
+    )
+
+
+@router.get(
+    "/activity",
+    response_model=list[schemas.ItemActivityResponse],
+)
+def list_activity(
+    db: DatabaseSession,
+    offset: Offset = 0,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    item_id: Annotated[int | None, Query(ge=1)] = None,
+    category: Annotated[str | None, Query(max_length=100)] = None,
+    _manager=Depends(require_lendery_manage),
+):
+    return crud.list_item_activity(
+        db,
+        item_id=item_id,
+        category=category,
+        offset=offset,
+        limit=limit,
+    )
+
+
+@router.get(
+    "/items/{item_id}/activity",
+    response_model=list[schemas.ItemActivityResponse],
+)
+def list_item_activity(
+    item_id: int,
+    db: DatabaseSession,
+    _manager=Depends(require_lendery_manage),
+):
+    if crud.get_item(db, item_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item not found",
+        )
+    return crud.list_item_activity(db, item_id=item_id)
+
+
+@router.get(
     "/items/barcode/{barcode}",
     response_model=schemas.LenderyItemResponse,
 )
@@ -175,10 +323,16 @@ def update_item(
     item_id: int,
     changes: schemas.LenderyItemUpdate,
     db: DatabaseSession,
-    _manager=Depends(require_lendery_manage),
+    manager=Depends(require_lendery_manage),
 ):
     try:
-        item = crud.update_item(db, item_id, changes)
+        item = crud.update_item(
+            db,
+            item_id,
+            changes,
+            actor_id=manager.id,
+            actor_name=manager.name,
+        )
     except IntegrityError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -200,9 +354,15 @@ def delete_item(
     item_id: int,
     removal: schemas.LenderyItemRemoval,
     db: DatabaseSession,
-    _manager=Depends(require_lendery_manage),
+    manager=Depends(require_lendery_manage),
 ) -> Response:
-    if not crud.delete_item(db, item_id, removal.reason):
+    if not crud.delete_item(
+        db,
+        item_id,
+        removal.reason,
+        actor_id=manager.id,
+        actor_name=manager.name,
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Item not found",
@@ -218,14 +378,51 @@ def remove_item(
     item_id: int,
     removal: schemas.LenderyItemRemoval,
     db: DatabaseSession,
-    _manager=Depends(require_lendery_manage),
+    manager=Depends(require_lendery_manage),
 ):
-    if not crud.delete_item(db, item_id, removal.reason):
+    if not crud.delete_item(
+        db,
+        item_id,
+        removal.reason,
+        actor_id=manager.id,
+        actor_name=manager.name,
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Item not found",
         )
     return crud.get_item(db, item_id)
+
+
+@router.post(
+    "/items/{item_id}/unavailable",
+    response_model=schemas.LenderyItemResponse,
+)
+def mark_item_unavailable(
+    item_id: int,
+    value: schemas.LenderyItemUnavailable,
+    db: DatabaseSession,
+    manager=Depends(require_lendery_manage),
+):
+    try:
+        item = crud.mark_item_unavailable(
+            db,
+            item_id,
+            value.reason,
+            actor_id=manager.id,
+            actor_name=manager.name,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item not found",
+        )
+    return item
 
 
 @router.post(
@@ -235,9 +432,16 @@ def remove_item(
 def restore_item(
     item_id: int,
     db: DatabaseSession,
-    _manager=Depends(require_lendery_manage),
+    value: schemas.LenderyItemReturn | None = None,
+    manager=Depends(require_lendery_manage),
 ):
-    item = crud.restore_item(db, item_id)
+    item = crud.restore_item(
+        db,
+        item_id,
+        actor_id=manager.id,
+        actor_name=manager.name,
+        note=value.note if value else None,
+    )
     if item is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -253,9 +457,14 @@ def restore_item(
 def permanently_delete_item(
     item_id: int,
     db: DatabaseSession,
-    _manager=Depends(require_lendery_manage),
+    manager=Depends(require_lendery_manage),
 ) -> Response:
-    result = crud.permanently_delete_item(db, item_id)
+    result = crud.permanently_delete_item(
+        db,
+        item_id,
+        actor_id=manager.id,
+        actor_name=manager.name,
+    )
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -278,9 +487,15 @@ def create_component(
     item_id: int,
     component: schemas.ComponentCreate,
     db: DatabaseSession,
-    _manager=Depends(require_lendery_manage),
+    manager=Depends(require_lendery_manage),
 ):
-    db_component = crud.create_component(db, item_id, component)
+    db_component = crud.create_component(
+        db,
+        item_id,
+        component,
+        actor_id=manager.id,
+        actor_name=manager.name,
+    )
     if db_component is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -439,9 +654,14 @@ def remove_component_image(
 def delete_component(
     component_id: int,
     db: DatabaseSession,
-    _manager=Depends(require_lendery_manage),
+    manager=Depends(require_lendery_manage),
 ) -> Response:
-    if not crud.delete_component(db, component_id):
+    if not crud.delete_component(
+        db,
+        component_id,
+        actor_id=manager.id,
+        actor_name=manager.name,
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Component not found",
@@ -464,7 +684,8 @@ def report_component_missing(
         db,
         component_id,
         note=value.note,
-        reported_by=viewer.username,
+        actor_id=viewer.id,
+        actor_name=viewer.name,
     )
     if component is None:
         raise HTTPException(
@@ -488,7 +709,8 @@ def resolve_component_missing(
         db,
         component_id,
         resolution=resolution,
-        resolved_by=manager.username,
+        actor_id=manager.id,
+        actor_name=manager.name,
     )
     if component is None:
         raise HTTPException(
@@ -582,9 +804,15 @@ def update_maintenance_case(
     case_id: int,
     value: schemas.MaintenanceCaseUpdate,
     db: DatabaseSession,
-    _editor=Depends(require_lendery_manage),
+    editor=Depends(require_lendery_manage),
 ):
-    case = crud.update_maintenance_case(db, case_id, value)
+    case = crud.update_maintenance_case(
+        db,
+        case_id,
+        value,
+        actor_id=editor.id,
+        actor_name=editor.username,
+    )
     if case is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

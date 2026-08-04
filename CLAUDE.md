@@ -53,9 +53,9 @@ startup instead of Alembic. When adding a column/table to an existing model,
 add a matching migration step there.
 
 **Accounts & auth** (`accounts/`): one `LibtoolsUser` table shared across all
-tools; per-tool access is rows in `ToolAccess` (tool keys like
-`lendery_manage`, `bookclub`, `storytime`), checked via
-`has_tool_access(db, user, tool_key)`. Session state is a signed cookie
+tools. Book Club Manager and Storytime Studio are available to every signed-in
+account. `ToolAccess` rows are reserved for assignable permissions such as
+`lendery_manage`, checked via `has_tool_access(db, user, tool_key)`. Session state is a signed cookie
 (`SessionMiddleware`) storing `libtools_user_id` + `libtools_session_version`;
 bumping a user's `session_version` invalidates all their existing sessions
 (used on password reset/deactivation). `accounts/auth.py` defines the
@@ -79,6 +79,12 @@ club creation/switching plus the public read-only `/clubs/{slug}` page.
 **Lendery** (`lendery/`): inventory items can have `Component`s and
 `MaintenanceCase`s (each case has ordered `MaintenanceEvent`s — the repair
 history: ordered/received/installed parts, cost, vendor, notes).
+`ItemActivity` is the append-only, exportable operational ledger. It snapshots
+item identity fields so lifecycle, missing-component, order, and repair events
+survive permanent deletion of the inventory record. The staff-controlled
+`lifecycle_status` (`active`/`unavailable`/`removed`) is deliberately separate
+from catalogue availability and must never log ordinary checkouts/returns.
+The configurable inventory/history export UI is served at `/lendery/export`.
 Maintenance data is edit-access-only, never exposed to viewers. Availability
 checking (`availability.py`) calls Vaughan's BiblioCommons gateway for an
 item's linked `library_url`, but only counts copies at Pierre Berton

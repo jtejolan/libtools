@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#173f35" />
+    <title>Export data — Lendery</title>
+    <link rel="icon" type="image/svg+xml" href="/static/assets/library-tools-logo-classic.svg?v=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/lendery.css?v=37" />
+    <link rel="stylesheet" href="/static/lendery-export.css?v=1" />
+    <script src="/static/lendery-export.js?v=2" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="/dashboard" aria-label="Library Tools dashboard">
+          <img class="brand-mark" src="/static/assets/library-tools-logo-classic.svg?v=1" alt="" />
+          <span>Library Tools</span>
+        </a>
+        <a class="product-name export-product" href="/lendery" aria-label="Lendery inventory">
+          <span class="product-icon" aria-hidden="true"><img src="/static/assets/lendery-logo-symbol-v3.png?v=4" alt="" /></span>
+          <div><small>Library inventory</small><strong>Lendery</strong></div>
+        </a>
+        <a class="dashboard-link" href="/dashboard"><span aria-hidden="true">←</span><span>Back to dashboard</span></a>
+        <nav aria-label="Lendery navigation">
+          <p class="nav-label">Workspace</p>
+          <a class="nav-item" href="/lendery"><span aria-hidden="true">▦</span><span>Inventory</span></a>
+          <a class="nav-item active" href="/lendery/export"><span aria-hidden="true">⇩</span><span>Export data</span></a>
+        </nav>
+        <div class="sidebar-note"><span aria-hidden="true">↻</span><p><strong>History that stays.</strong> Operational events remain exportable even after an item record is deleted.</p></div>
+      </aside>
+
+      <main class="workspace export-workspace">
+        <header class="topbar export-topbar">
+          <div class="breadcrumb"><span>Lendery</span><i>/</i><strong>Export data</strong></div>
+          <div class="export-account"><a href="/account" id="account-name">Account</a><button id="logout" type="button">Log out</button></div>
+        </header>
+
+        <section class="content export-content">
+          <div class="export-heading">
+            <div><p class="eyebrow"><span></span> Build a CSV</p><h1>Export exactly what you need</h1><p class="intro">Choose inventory or operational history, narrow the records, and select the columns before downloading.</p></div>
+            <a class="secondary-button" href="/lendery">Back to inventory</a>
+          </div>
+
+          <form id="export-form" class="export-layout">
+            <div class="export-main">
+              <section class="export-panel" aria-labelledby="export-kind-heading">
+                <div class="export-section-heading"><span>1</span><div><h2 id="export-kind-heading">Choose the data</h2><p>Inventory is one row per item. Item history is one row per operational event.</p></div></div>
+                <div class="export-kind-grid">
+                  <label class="export-kind-card"><input type="radio" name="export_type" value="inventory" checked /><span class="kind-icon">▦</span><span><strong>Inventory</strong><small>Item details, current collection status, components, and maintenance counts.</small></span></label>
+                  <label class="export-kind-card"><input type="radio" name="export_type" value="activity" /><span class="kind-icon">↻</span><span><strong>Item history</strong><small>Unavailable and return dates, removals, missing pieces, orders, and repairs.</small></span></label>
+                </div>
+                <p class="history-note" id="history-note" hidden><strong>Operational history only.</strong> Live catalogue checkouts and returns are intentionally not recorded in this log.</p>
+              </section>
+
+              <section class="export-panel" aria-labelledby="export-scope-heading">
+                <div class="export-section-heading"><span>2</span><div><h2 id="export-scope-heading">Choose the records</h2><p>Export everything, one category, or the complete history for one item.</p></div></div>
+                <div class="scope-grid">
+                  <label><span>Scope</span><select id="export-scope"><option value="all">All items</option><option value="category">One category</option><option value="item">One item</option></select></label>
+                  <label id="category-field" hidden><span>Category</span><select id="export-category"></select></label>
+                  <label id="item-field" hidden><span>Item</span><select id="export-item"></select></label>
+                </div>
+                <label class="include-removed" id="include-removed-row"><input type="checkbox" id="include-removed" checked /><span><strong>Include Removed Items</strong><small>Removed records remain part of the collection history.</small></span></label>
+              </section>
+
+              <section class="export-panel" aria-labelledby="export-fields-heading">
+                <div class="export-section-heading field-heading"><span>3</span><div><h2 id="export-fields-heading">Choose the fields</h2><p id="field-count">Loading fields…</p></div><div class="field-actions"><button id="select-all" type="button">Select all</button><button id="restore-defaults" type="button">Recommended</button><button id="clear-fields" type="button">Clear</button></div></div>
+                <div class="field-grid" id="field-grid" aria-live="polite"></div>
+              </section>
+            </div>
+
+            <aside class="export-summary">
+              <p class="eyebrow">Ready to export</p><h2 id="summary-title">Inventory CSV</h2>
+              <dl><div><dt>Records</dt><dd id="summary-scope">All items</dd></div><div><dt>Columns</dt><dd id="summary-fields">—</dd></div><div><dt>Format</dt><dd>UTF-8 CSV</dd></div></dl>
+              <p class="summary-help" id="summary-help">The file will contain the latest saved inventory values.</p>
+              <p class="form-error" id="export-error" role="alert"></p>
+              <button class="primary-button export-download" id="download-export" type="submit"><span aria-hidden="true">⇩</span> Download CSV</button>
+              <small>The export is generated when you click download; it is not stored on the server.</small>
+            </aside>
+          </form>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

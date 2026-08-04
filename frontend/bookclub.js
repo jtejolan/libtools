@@ -33,10 +33,10 @@ const escapeHtml = (value = "") =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 
-const formatUsername = (value = "") => {
+const capitalizeFirst = (value = "") => {
   const characters = Array.from(String(value));
   return characters.length
-    ? characters[0].toLocaleUpperCase() + characters.slice(1).join("").toLocaleLowerCase()
+    ? characters[0].toLocaleUpperCase() + characters.slice(1).join("")
     : "";
 };
 
@@ -81,7 +81,8 @@ const showLogin = () => {
 const applyUser = (user) => {
   state.user = user;
   $("#user-badge").textContent = user.role === "admin" ? "Administrator" : "Member";
-  $("#account-menu-name").textContent = formatUsername(user.username);
+  $("#account-menu-name").textContent = capitalizeFirst(user.name);
+  $("#account-menu-username").textContent = `@${user.username}`;
 };
 
 const applyClub = (club) => {
@@ -870,10 +871,6 @@ $("#login-form").addEventListener("submit", async (event) => {
         password: form.elements.password.value,
       }),
     });
-    if (user.role !== "admin" && !user.tools.includes("bookclub")) {
-      $("#login-error").textContent = "Book Club Manager access is required.";
-      return;
-    }
     applyUser(user);
     loginDialog.close();
     await loadClubs();
@@ -1110,7 +1107,6 @@ $("#switch-club").addEventListener("click", showClubPicker);
 const initialize = async () => {
   try {
     const user = await request("/auth/me");
-    if (user.role !== "admin" && !user.tools.includes("bookclub")) return showLogin();
     applyUser(user);
     await loadClubs();
   } catch (error) {

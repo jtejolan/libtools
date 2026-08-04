@@ -9,6 +9,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import (
@@ -117,6 +118,49 @@ class LenderyItem(Base):
     )
 
 
+class ItemActivity(Base):
+    """Append-only operational history with item details snapshotted for export."""
+
+    __tablename__ = "lendery_item_activity"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_type",
+            "source_id",
+            name="uq_lendery_item_activity_source",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    original_item_id: Mapped[int] = mapped_column(Integer(), index=True)
+    item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("lendery_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    item_barcode: Mapped[str] = mapped_column(String(50))
+    item_name: Mapped[str] = mapped_column(String(200))
+    item_category: Mapped[str | None] = mapped_column(String(100), index=True)
+    event_type: Mapped[str] = mapped_column(String(40), index=True)
+    from_status: Mapped[str | None] = mapped_column(String(30))
+    to_status: Mapped[str | None] = mapped_column(String(30))
+    reason: Mapped[str | None] = mapped_column(Text())
+    details: Mapped[str | None] = mapped_column(Text())
+    component_name: Mapped[str | None] = mapped_column(String(200))
+    maintenance_case_id: Mapped[int | None] = mapped_column(Integer(), index=True)
+    part_name: Mapped[str | None] = mapped_column(String(200))
+    quantity: Mapped[int | None] = mapped_column(Integer())
+    cost: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    vendor_url: Mapped[str | None] = mapped_column(String(500))
+    order_number: Mapped[str | None] = mapped_column(String(100))
+    actor_user_id: Mapped[int | None] = mapped_column(Integer())
+    actor_name: Mapped[str | None] = mapped_column(String(200))
+    source_type: Mapped[str | None] = mapped_column(String(40))
+    source_id: Mapped[int | None] = mapped_column(Integer())
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+
+
 class Component(Base):
     __tablename__ = "components"
 
@@ -215,3 +259,29 @@ class MaintenanceEvent(Base):
     )
 
     case: Mapped["MaintenanceCase"] = relationship(back_populates="events")
+
+
+class ItemSuggestion(Base):
+    __tablename__ = "lendery_item_suggestions"
+    __table_args__ = (
+        UniqueConstraint(
+            "submitted_by_user_id",
+            "submission_key",
+            name="uq_lendery_suggestion_submission",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    item_name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text())
+    category: Mapped[str | None] = mapped_column(String(100))
+    product_url: Mapped[str | None] = mapped_column(String(500))
+    additional_notes: Mapped[str | None] = mapped_column(Text())
+    submitted_by_user_id: Mapped[int] = mapped_column(
+        ForeignKey("libtools_users.id"), index=True
+    )
+    submitted_by_name: Mapped[str] = mapped_column(String(200))
+    submission_key: Mapped[str] = mapped_column(String(64))
+    submitted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )

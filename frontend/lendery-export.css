@@ -1,0 +1,350 @@
+.export-product {
+  width: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
+.export-workspace {
+  min-width: 0;
+}
+
+.export-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.export-account {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.export-account a,
+.export-account button {
+  border: 0;
+  color: var(--forest);
+  background: transparent;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.export-content {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.export-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  margin-bottom: 28px;
+}
+
+.export-heading h1 {
+  margin: 4px 0 6px;
+}
+
+.export-heading .intro {
+  max-width: 700px;
+  margin-bottom: 0;
+}
+
+.export-heading > a {
+  flex: 0 0 auto;
+  text-decoration: none;
+}
+
+.export-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  align-items: start;
+  gap: 24px;
+}
+
+.export-main {
+  display: grid;
+  gap: 18px;
+}
+
+.export-panel,
+.export-summary {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--paper);
+  box-shadow: 0 8px 28px rgba(23, 63, 53, 0.05);
+}
+
+.export-panel {
+  padding: 24px;
+}
+
+.export-section-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.export-section-heading > span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--paper);
+  background: var(--forest);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.export-section-heading h2,
+.export-summary h2 {
+  margin: 0;
+  font-family: "Newsreader", serif;
+  font-size: 25px;
+}
+
+.export-section-heading p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.export-kind-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.export-kind-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  min-height: 112px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.export-kind-card:has(input:checked) {
+  border-color: var(--forest);
+  background: rgba(131, 157, 107, 0.11);
+  box-shadow: inset 0 0 0 1px var(--forest);
+}
+
+.export-kind-card input {
+  position: absolute;
+  opacity: 0;
+}
+
+.kind-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--forest);
+  background: var(--cream);
+  font-size: 19px;
+}
+
+.export-kind-card strong,
+.export-kind-card small {
+  display: block;
+}
+
+.export-kind-card strong {
+  margin-bottom: 5px;
+  color: var(--ink);
+}
+
+.export-kind-card small,
+.include-removed small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.history-note {
+  margin: 14px 0 0;
+  padding: 11px 13px;
+  border-left: 3px solid var(--gold);
+  color: var(--muted);
+  background: var(--cream);
+  font-size: 12px;
+}
+
+.scope-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.scope-grid label > span {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--forest);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.scope-grid select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--ink);
+  background: #fff;
+  font: inherit;
+}
+
+.include-removed {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  cursor: pointer;
+}
+
+.include-removed input,
+.field-option input {
+  margin-top: 3px;
+  accent-color: var(--forest);
+}
+
+.include-removed strong,
+.include-removed small {
+  display: block;
+}
+
+.field-heading {
+  align-items: center;
+}
+
+.field-actions {
+  display: flex;
+  gap: 5px;
+  margin-left: auto;
+}
+
+.field-actions button {
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 4px;
+  color: var(--forest);
+  background: var(--cream);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.field-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-height: 42px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.field-option:has(input:checked) {
+  border-color: rgba(23, 63, 53, 0.55);
+  background: rgba(131, 157, 107, 0.09);
+}
+
+.export-summary {
+  position: sticky;
+  top: 24px;
+  padding: 24px;
+}
+
+.export-summary .eyebrow {
+  margin-bottom: 6px;
+}
+
+.export-summary dl {
+  margin: 22px 0;
+  border-top: 1px solid var(--line);
+}
+
+.export-summary dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.export-summary dt {
+  color: var(--muted);
+}
+
+.export-summary dd {
+  margin: 0;
+  text-align: right;
+  font-weight: 700;
+}
+
+.summary-help {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.export-download {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.export-summary > small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+@media (max-width: 1050px) {
+  .export-layout { grid-template-columns: 1fr; }
+  .export-summary { position: static; }
+  .field-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .export-topbar { align-items: flex-start; }
+  .export-account { gap: 10px; }
+  .export-heading { align-items: flex-start; flex-direction: column; }
+  .export-kind-grid,
+  .scope-grid,
+  .field-grid { grid-template-columns: 1fr; }
+  .field-heading { align-items: flex-start; flex-wrap: wrap; }
+  .field-actions { width: 100%; margin-left: 44px; }
+}

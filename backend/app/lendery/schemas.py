@@ -21,7 +21,7 @@ AvailabilityStatus = Literal[
     "unknown",
 ]
 
-LifecycleStatus = Literal["active", "removed"]
+LifecycleStatus = Literal["active", "unavailable", "removed"]
 
 INTERNAL_COMPONENT_IMAGE_PATTERN = re.compile(
     r"/lendery/components/\d+/image"
@@ -244,6 +244,19 @@ class LenderyItemRemoval(BaseModel):
         return value
 
 
+class LenderyItemUnavailable(LenderyItemRemoval):
+    pass
+
+
+class LenderyItemReturn(BaseModel):
+    note: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("note")
+    @classmethod
+    def clean_note(cls, value: str | None) -> str | None:
+        return value.strip() or None if value is not None else None
+
+
 class CatalogueItemImportRequest(BaseModel):
     library_url: HttpUrl
 
@@ -261,6 +274,47 @@ class CatalogueItemImportResponse(BaseModel):
     image_url: HttpUrl | None = None
     manual_url: HttpUrl | None = None
     library_url: HttpUrl
+
+
+class ItemSuggestionCreate(BaseModel):
+    item_name: str = Field(min_length=1, max_length=200)
+    description: str = Field(min_length=1, max_length=4000)
+    category: str | None = Field(default=None, max_length=100)
+    product_url: HttpUrl | None = None
+    additional_notes: str | None = Field(default=None, max_length=4000)
+    submission_key: str = Field(
+        min_length=8,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    )
+
+    @field_validator("item_name", "description")
+    @classmethod
+    def required_text_cannot_be_blank(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("field cannot be blank")
+        return cleaned
+
+    @field_validator("category", "additional_notes")
+    @classmethod
+    def clean_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+
+class ItemSuggestionResponse(BaseModel):
+    id: int
+    item_name: str
+    description: str
+    category: str | None = None
+    product_url: str | None = None
+    additional_notes: str | None = None
+    submitted_by_name: str
+    submitted_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 MaintenanceStatus = Literal[
@@ -362,3 +416,168 @@ class MaintenanceQueueEntry(BaseModel):
     status: MaintenanceStatus
     opened_by_name: str
     opened_at: datetime
+
+
+ItemActivityType = Literal[
+    "item_added",
+    "marked_unavailable",
+    "returned_to_circulation",
+    "removed_from_collection",
+    "permanently_deleted",
+    "maintenance_opened",
+    "maintenance_status_changed",
+    "issue_update",
+    "part_ordered",
+    "part_received",
+    "part_installed",
+    "repair_completed",
+    "component_added",
+    "component_removed",
+    "component_missing",
+    "component_returned",
+    "component_report_ignored",
+]
+
+
+class ItemActivityResponse(BaseModel):
+    id: int
+    original_item_id: int
+    item_id: int | None = None
+    item_barcode: str
+    item_name: str
+    item_category: str | None = None
+    event_type: ItemActivityType
+    from_status: str | None = None
+    to_status: str | None = None
+    reason: str | None = None
+    details: str | None = None
+    component_name: str | None = None
+    maintenance_case_id: int | None = None
+    part_name: str | None = None
+    quantity: int | None = None
+    cost: Decimal | None = None
+    vendor_url: str | None = None
+    order_number: str | None = None
+    actor_name: str | None = None
+    occurred_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+ExportScope = Literal["all", "category", "item"]
+
+INVENTORY_EXPORT_FIELD_KEYS = {
+    "id",
+    "barcode",
+    "name",
+    "category",
+    "description",
+    "purchase_price",
+    "purchase_url",
+    "manual_url",
+    "image_url",
+    "library_url",
+    "catalogue_availability",
+    "availability_checked_at",
+    "circulation_status",
+    "status_reason",
+    "status_changed_at",
+    "component_count",
+    "components",
+    "open_maintenance_case_count",
+    "physical_manual_included",
+    "physical_manual_missing",
+    "notes",
+    "created_at",
+    "updated_at",
+}
+
+ACTIVITY_EXPORT_FIELD_KEYS = {
+    "event_id",
+    "occurred_at",
+    "event_type",
+    "event",
+    "item_id",
+    "barcode",
+    "item_name",
+    "category",
+    "from_status",
+    "to_status",
+    "reason",
+    "details",
+    "component",
+    "maintenance_case_id",
+    "part_name",
+    "quantity",
+    "cost",
+    "vendor_url",
+    "order_number",
+    "recorded_by",
+}
+
+
+class ExportRequestBase(BaseModel):
+    fields: list[str] = Field(min_length=1, max_length=30)
+    scope: ExportScope = "all"
+    category: str | None = Field(default=None, max_length=100)
+    item_id: int | None = Field(default=None, ge=1)
+
+    @field_validator("fields")
+    @classmethod
+    def fields_are_unique(cls, value: list[str]) -> list[str]:
+        return list(dict.fromkeys(value))
+
+    @model_validator(mode="after")
+    def scope_has_filter(self):
+        if self.scope == "category" and not (self.category or "").strip():
+            raise ValueError("Choose a category for this export")
+        if self.scope == "item" and self.item_id is None:
+            raise ValueError("Choose an item for this export")
+        if self.category is not None:
+            self.category = self.category.strip() or None
+        return self
+
+
+class InventoryExportRequest(ExportRequestBase):
+    include_removed: bool = True
+
+    @field_validator("fields")
+    @classmethod
+    def fields_are_inventory_fields(cls, value: list[str]) -> list[str]:
+        unknown = set(value) - INVENTORY_EXPORT_FIELD_KEYS
+        if unknown:
+            raise ValueError(f"Unknown inventory field: {sorted(unknown)[0]}")
+        return value
+
+
+class ActivityExportRequest(ExportRequestBase):
+    @field_validator("fields")
+    @classmethod
+    def fields_are_activity_fields(cls, value: list[str]) -> list[str]:
+        unknown = set(value) - ACTIVITY_EXPORT_FIELD_KEYS
+        if unknown:
+            raise ValueError(f"Unknown history field: {sorted(unknown)[0]}")
+        return value
+
+
+class ExportFieldDefinition(BaseModel):
+    key: str
+    label: str
+    selected: bool = False
+
+
+class ExportItemOption(BaseModel):
+    id: int
+    name: str
+    barcode: str
+    category: str | None = None
+    lifecycle_status: LifecycleStatus
+
+
+class ExportOptionsResponse(BaseModel):
+    inventory_fields: list[ExportFieldDefinition]
+    activity_fields: list[ExportFieldDefinition]
+    categories: list[str]
+    activity_categories: list[str]
+    items: list[ExportItemOption]
+    activity_items: list[ExportItemOption]

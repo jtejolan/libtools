@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import or_, select
 
-from accounts.auth import CurrentUser, has_tool_access
+from accounts.auth import CurrentUser
 from bookclub.models import BookClub, BookClubAccess
 from dependencies import DatabaseSession
 
@@ -21,11 +21,11 @@ def accessible_club_statement(user: CurrentUser):
     return statement
 
 
-def require_bookclub_tool(user: CurrentUser, db: DatabaseSession):
-    if not has_tool_access(db, user, "bookclub"):
+def require_bookclub_tool(user: CurrentUser):
+    if user.must_change_password:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Book Club Manager access is required",
+            detail="Change your temporary password before continuing",
         )
     return user
 

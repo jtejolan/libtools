@@ -1,3 +1,4 @@
+import json
 import secrets
 from typing import Annotated
 
@@ -9,6 +10,55 @@ from accounts.models import LibtoolsUser, ToolAccess
 from accounts.schemas import UserResponse
 from dependencies import DatabaseSession
 from security import hash_password, verify_password
+
+QUICK_ACTION_KEYS = {
+    "lendery-suggest-item",
+    "lendery-add-item",
+    "lendery-report-issue",
+    "bookclub-add-member",
+    "bookclub-add-book",
+}
+LENDERY_MANAGER_QUICK_ACTIONS = {
+    "lendery-add-item",
+    "lendery-report-issue",
+}
+
+
+def available_quick_actions(
+    db: Session, user: LibtoolsUser
+) -> set[str]:
+    available = QUICK_ACTION_KEYS - LENDERY_MANAGER_QUICK_ACTIONS
+    if has_tool_access(db, user, "lendery_manage"):
+        available |= LENDERY_MANAGER_QUICK_ACTIONS
+    return available
+
+
+def default_quick_actions(db: Session, user: LibtoolsUser) -> list[str]:
+    defaults = [
+        "lendery-suggest-item",
+        "bookclub-add-member",
+        "bookclub-add-book",
+    ]
+    if has_tool_access(db, user, "lendery_manage"):
+        defaults.insert(1, "lendery-add-item")
+    return defaults[:4]
+
+
+def resolved_quick_actions(db: Session, user: LibtoolsUser) -> list[str]:
+    available = available_quick_actions(db, user)
+    if user.quick_actions is None:
+        return default_quick_actions(db, user)
+    try:
+        stored = json.loads(user.quick_actions)
+    except (TypeError, json.JSONDecodeError):
+        return default_quick_actions(db, user)
+    if not isinstance(stored, list):
+        return default_quick_actions(db, user)
+    resolved = [
+        key for key in stored
+        if isinstance(key, str) and key in available
+    ][:4]
+    return resolved or default_quick_actions(db, user)
 
 
 def normalize_username(value: str) -> str:
@@ -30,19 +80,30 @@ def get_user(db: Session, username: str) -> LibtoolsUser | None:
     )
 
 
+def get_user_by_email(db: Session, email: str) -> LibtoolsUser | None:
+    return db.scalar(
+        select(LibtoolsUser).where(
+            func.lower(LibtoolsUser.email) == email.casefold()
+        )
+    )
+
+
 def user_response(db: Session, user: LibtoolsUser) -> UserResponse:
     from bookclub.models import BookClub, BookClubAccess
 
-    tools = list(
+    assigned_tools = set(
         db.scalars(
             select(ToolAccess.tool_key)
             .where(
                 ToolAccess.user_id == user.id,
-                ToolAccess.tool_key != "lendery_view",
+                ToolAccess.tool_key == "lendery_manage",
             )
             .order_by(ToolAccess.tool_key)
         )
     )
+    tools = {"bookclub", "storytime", *assigned_tools}
+    if user.role == "admin":
+        tools.add("lendery_manage")
     clubs = list(
         db.scalars(
             select(BookClub.name)
@@ -53,12 +114,16 @@ def user_response(db: Session, user: LibtoolsUser) -> UserResponse:
     )
     return UserResponse(
         id=user.id,
+        name=user.name,
         username=user.username,
+        email=user.email,
+        email_verified=user.email_verified_at is not None,
         role=user.role,
         active=user.active,
         must_change_password=user.must_change_password,
-        tools=tools,
+        tools=sorted(tools),
         clubs=clubs,
+        quick_actions=resolved_quick_actions(db, user),
         created_at=user.created_at,
     )
 
@@ -102,6 +167,8 @@ def require_platform_admin(user: CurrentUser) -> LibtoolsUser:
 def has_tool_access(db: Session, user: LibtoolsUser, tool_key: str) -> bool:
     if user.must_change_password:
         return False
+    if tool_key in {"bookclub", "storytime"}:
+        return True
     if user.role == "admin":
         return True
     return db.scalar(
@@ -143,8 +210,7 @@ def set_tools(db: Session, user: LibtoolsUser, tools: list[str]) -> None:
     )
     for entry in existing:
         db.delete(entry)
-    selected = set(tools)
-    selected.discard("lendery_view")
+    selected = set(tools) & {"lendery_manage"}
     db.add_all(ToolAccess(user=user, tool_key=key) for key in sorted(selected))
 
 

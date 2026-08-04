@@ -11,12 +11,14 @@ from security import hash_password
 
 
 def initialize_platform_accounts(db: Session) -> None:
-    legacy_view_access = list(
+    obsolete_access = list(
         db.scalars(
-            select(ToolAccess).where(ToolAccess.tool_key == "lendery_view")
+            select(ToolAccess).where(
+                ToolAccess.tool_key.in_(("lendery_view", "bookclub", "storytime"))
+            )
         )
     )
-    for access in legacy_view_access:
+    for access in obsolete_access:
         db.delete(access)
 
     user = db.scalar(select(LibtoolsUser).order_by(LibtoolsUser.id))
@@ -37,6 +39,7 @@ def initialize_platform_accounts(db: Session) -> None:
                 "before starting Libtools for the first time."
             )
         user = LibtoolsUser(
+            name=os.getenv("LIBTOOLS_ADMIN_NAME", "admin"),
             username=os.getenv("LIBTOOLS_ADMIN_NAME", "admin"),
             password_hash=legacy_hash or hash_password(password or ""),
             role="admin",
@@ -46,7 +49,7 @@ def initialize_platform_accounts(db: Session) -> None:
         set_tools(
             db,
             user,
-            ["bookclub", "storytime", "lendery_manage"],
+            ["lendery_manage"],
         )
 
     elif user.role == "admin":

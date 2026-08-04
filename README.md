@@ -8,9 +8,9 @@ same `/lendery` namespace.
 ## Book Club Manager
 
 The account-protected Book Club Manager workspace is available at `/bookclub`,
-with its API under the same path. A Libtools user can create and switch between
-separate book clubs; every club keeps its members, books, meetings, and
-templates isolated. Each club also has an optional read-only public page at
+with its API under the same path. Every signed-in Libtools user can create and
+switch between separate book clubs; every club keeps its members, books,
+meetings, and templates isolated. Each club also has an optional read-only public page at
 `/clubs/{slug}`. The manager keeps Eventbrite out of the recurring-member
 workflow and provides:
 
@@ -72,23 +72,39 @@ of its components. Editors can flag the manual missing from an item's return
 checklist; flagging opens a maintenance case automatically so it appears in
 the queue above, and "mark found" clears the flag.
 
-Removing an item asks the editor to record a reason, then moves it into the
-editor-only Removed Items view. This is a soft deletion: components, notes,
-photos, and repair history are retained and the item can be restored. An editor
-can permanently delete a record from Removed Items when it should no longer be
-retained. Condition and retirement details remain in the item's existing staff
-notes rather than a separate inventory-status field.
+Editors can explicitly mark an item unavailable with a reason, then return it
+to circulation later. These collection states are separate from live catalogue
+checkouts. Removing an item asks for a reason and moves it into the editor-only
+Removed Items view. This is a soft deletion: components, notes, photos, and
+repair history are retained and the item can be restored.
 
-Editors can export the full inventory as CSV from `GET /lendery/items/export.csv`.
+Lendery also keeps an append-only operational activity ledger. It records item
+status changes, removals, missing and returned components, maintenance issues,
+part orders, installations, and completed repairs. Item identity details are
+snapshotted so this ledger remains available even if an editor permanently
+deletes the inventory record.
+
+The configurable export workspace is at `/lendery/export`. Editors can choose
+inventory or item-history data, export all records or narrow the file to one
+category or item, and select the exact CSV fields. The original
+`GET /lendery/items/export.csv` endpoint remains available for compatibility.
 
 ## Libtools accounts
 
 Personal Libtools accounts work across Book Club Manager, Storytime Studio, and
 future tools. The account dashboard is at `/account`; platform administrators
 manage users, tool access, password resets, and recovery codes at
-`/admin/users`. Accounts use a unique name and password. Because email is not
-required, recovery uses a saved, one-time recovery code or an administrator
-reset.
+`/admin/accounts`. Accounts use a required name, unique username, and password.
+Because email is not required, every new account receives a saved recovery code
+and can also use an administrator-assisted reset. People can create their own
+account at `/signup`.
+An optional email address is stored as unverified until its single-use,
+24-hour verification link is completed. Verified addresses can request
+single-use password-reset links that expire after one hour.
+
+The account token and user-interface flows are implemented, but outbound email
+delivery is intentionally left behind the adapter in
+`backend/app/accounts/email_delivery.py` until a provider is configured.
 
 On an upgrade from the old shared-login system, the existing Lendery
 administrator becomes the first Libtools administrator and keeps the same
@@ -97,9 +113,10 @@ are assigned to a default Science Fiction Book Club owned by that
 administrator.
 
 Every personal account can browse Lendery inventory, refresh availability, and
-operate item checklists. Administrators can grant **Edit Lendery inventory**
-access to staff who should also create, edit, and delete inventory and
-components.
+operate item checklists, create book clubs, and use Storytime Studio when it is
+released. Administrators can grant **Edit Lendery inventory** access from
+`/admin/accounts` to staff who should also create, edit, and delete inventory
+and components.
 
 ## Run locally
 
