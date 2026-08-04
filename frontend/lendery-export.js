@@ -21,14 +21,6 @@ const summaryHelp = document.querySelector("#summary-help");
 const exportError = document.querySelector("#export-error");
 const downloadButton = document.querySelector("#download-export");
 
-const escapeHtml = (value = "") =>
-  String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-
 const capitalizeFirst = (value = "") => {
   const characters = Array.from(String(value));
   return characters.length

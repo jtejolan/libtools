@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 
-from accounts import account_tokens, auth, email_delivery, models, schemas
+from accounts import account_tokens, auth, email_delivery, login_throttle, models, schemas
 from dependencies import DatabaseSession
 from security import hash_password, verify_password
 
@@ -131,12 +131,22 @@ def login(
     request: Request,
     db: DatabaseSession,
 ):
+    throttle_key = auth.normalize_username(credentials.username)
+    retry_after = login_throttle.seconds_until_unlocked(throttle_key)
+    if retry_after > 0:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed sign-in attempts. Try again in a few minutes.",
+            headers={"Retry-After": str(int(retry_after) + 1)},
+        )
     user = auth.verify_login(db, credentials.username, credentials.password)
     if user is None:
+        login_throttle.record_failure(throttle_key)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect name or password",
         )
+    login_throttle.record_success(throttle_key)
     request.session["libtools_user_id"] = user.id
     request.session["libtools_session_version"] = user.session_version
     return auth.user_response(db, user)

@@ -2,12 +2,11 @@ import unittest
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from database import Base
-from database import migrate_existing_database
 from accounts.models import LibtoolsUser
 from bookclub.models import BookClub, BookClubAccess
 from lendery.routes import get_db
@@ -138,7 +137,7 @@ class BookClubApiTests(unittest.TestCase):
         entrypoint = self.client.get("/bookclub")
         self.assertEqual(entrypoint.status_code, 200)
         self.assertIn("Book Club Manager", entrypoint.text)
-        self.assertIn('/static/bookclub.js?v=13', entrypoint.text)
+        self.assertIn('/static/bookclub.js?v=14', entrypoint.text)
         self.assertIn('/static/bookclub.css?v=16', entrypoint.text)
         self.assertIn('href="/signup">Create an account</a>', entrypoint.text)
         self.assertEqual(entrypoint.headers["cache-control"], "no-store")
@@ -224,56 +223,6 @@ class BookClubApiTests(unittest.TestCase):
         self.assertEqual(deleted_meeting.status_code, 204)
         deleted_book = self.client.delete(f"/bookclub/books/{book['id']}")
         self.assertEqual(deleted_book.status_code, 204)
-
-    def test_existing_meetings_are_migrated_to_book_records(self) -> None:
-        legacy_engine = create_engine("sqlite://", poolclass=StaticPool)
-        try:
-            with legacy_engine.begin() as connection:
-                connection.execute(
-                    text(
-                        "CREATE TABLE bookclub_books ("
-                        "id INTEGER PRIMARY KEY, title VARCHAR(300) NOT NULL, "
-                        "author VARCHAR(200) NOT NULL)"
-                    )
-                )
-                connection.execute(
-                    text(
-                        "CREATE TABLE bookclub_meetings ("
-                        "id INTEGER PRIMARY KEY, "
-                        "book_title VARCHAR(300) NOT NULL, "
-                        "book_author VARCHAR(200) NOT NULL)"
-                    )
-                )
-                connection.execute(
-                    text(
-                        "INSERT INTO bookclub_meetings "
-                        "(id, book_title, book_author) VALUES "
-                        "(1, 'Kindred', 'Octavia E. Butler')"
-                    )
-                )
-
-            with patch("database.engine", legacy_engine):
-                migrate_existing_database()
-
-            columns = {
-                column["name"]
-                for column in inspect(legacy_engine).get_columns(
-                    "bookclub_meetings"
-                )
-            }
-            self.assertIn("book_id", columns)
-            with legacy_engine.connect() as connection:
-                row = connection.execute(
-                    text(
-                        "SELECT m.book_id, b.title, b.author "
-                        "FROM bookclub_meetings m "
-                        "JOIN bookclub_books b ON b.id = m.book_id"
-                    )
-                ).one()
-            self.assertEqual(row.title, "Kindred")
-            self.assertEqual(row.author, "Octavia E. Butler")
-        finally:
-            legacy_engine.dispose()
 
     def test_member_roster_filters_attendance_and_giveaway(self) -> None:
         alex = self.create_member("Alex Reader", "ALEX@example.com")

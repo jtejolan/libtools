@@ -5,6 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from accounts import login_throttle
 from accounts.models import LibtoolsUser, ToolAccess
 from database import Base
 from dependencies import get_db
@@ -41,6 +42,7 @@ class LenderyAuthorizationTests(unittest.TestCase):
         cls.engine.dispose()
 
     def setUp(self) -> None:
+        login_throttle.reset()
         with self.engine.begin() as connection:
             for table in reversed(Base.metadata.sorted_tables):
                 connection.execute(table.delete())

@@ -47,10 +47,15 @@ don't invent one.
 `main.py` wires up the FastAPI app, mounts each package's router, serves the
 static frontend, and gates `/docs`/`/openapi.json` behind platform-admin auth
 (Swagger UI is not public). `database.py` builds the engine (SQLite by
-default at `backend/librarytools.db`, or Postgres via `DATABASE_URL`) and
-`migrate_existing_database()` — additive, hand-written SQL migrations run at
-startup instead of Alembic. When adding a column/table to an existing model,
-add a matching migration step there.
+default at `backend/librarytools.db`, or Postgres via `DATABASE_URL`).
+Schema changes are managed with Alembic (`backend/alembic/`, config at
+`backend/alembic.ini`); `main.py`'s `lifespan` runs `alembic upgrade head`
+on startup instead of `Base.metadata.create_all`. When adding a column or
+table to a model, generate a revision from `backend/` with
+`PYTHONPATH=app DATABASE_URL=... .venv/bin/alembic revision --autogenerate -m "..."`
+against a database that already has the previous schema, then review the
+generated file before committing it — autogenerate doesn't reliably detect
+things like column renames or check constraints.
 
 **Accounts & auth** (`accounts/`): one `LibtoolsUser` table shared across all
 tools. Book Club Manager and Storytime Studio are available to every signed-in

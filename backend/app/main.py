@@ -4,6 +4,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from alembic import command
+from alembic.config import Config
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
@@ -12,7 +14,7 @@ from sqlalchemy import func, select
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.routing import Host
 
-from database import Base, SessionLocal, engine, migrate_existing_database
+from database import BACKEND_DIR, SessionLocal
 from dependencies import DatabaseSession
 from accounts import models as account_models
 from accounts.auth import get_current_user, require_platform_admin
@@ -40,10 +42,15 @@ def public_homepage_response() -> FileResponse:
     )
 
 
+def _run_migrations() -> None:
+    config = Config(str(BACKEND_DIR / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
+    command.upgrade(config, "head")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    Base.metadata.create_all(bind=engine)
-    migrate_existing_database()
+    _run_migrations()
     with SessionLocal() as db:
         initialize_platform_accounts(db)
     remove_legacy_lendery_accounts()
@@ -58,12 +65,23 @@ app = FastAPI(
     openapi_url=None,
 )
 
+def _session_secret() -> str:
+    secret = os.getenv("LIBTOOLS_SESSION_SECRET")
+    if secret:
+        return secret
+    if os.getenv("RAILWAY_ENVIRONMENT"):
+        raise RuntimeError(
+            "LIBTOOLS_SESSION_SECRET must be set when running on Railway "
+            "(RAILWAY_ENVIRONMENT is set) — refusing to start with a "
+            "randomly generated secret, which would silently break "
+            "sessions across restarts and replicas."
+        )
+    return secrets.token_urlsafe(32)
+
+
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.getenv(
-        "LIBTOOLS_SESSION_SECRET",
-        secrets.token_urlsafe(32),
-    ),
+    secret_key=_session_secret(),
     session_cookie="libtools_session",
     max_age=60 * 60 * 24 * 30,
     same_site="lax",

@@ -7,15 +7,14 @@ from unittest.mock import patch
 import httpx
 from fastapi.testclient import TestClient
 from PIL import Image
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from database import Base, migrate_existing_database
+from database import Base
 from accounts.models import LibtoolsUser
 from lendery.availability import AvailabilityCheckError, AvailabilityResult
 from lendery.component_images import component_image_path
-from lendery.models import ItemActivity
 from lendery.routes import get_db
 from main import app
 from security import hash_password
@@ -310,7 +309,7 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
     def test_lendery_page_uses_current_autofill_assets(self) -> None:
         response = self.client.get("/lendery")
         self.assertEqual(response.status_code, 200)
-        self.assertIn('/static/lendery.js?v=35', response.text)
+        self.assertIn('/static/lendery.js?v=36', response.text)
         self.assertIn('/static/lendery.css?v=37', response.text)
         self.assertIn('<option value="alphabetical">Alphabetical</option>', response.text)
         self.assertIn('value="recently-active">Most recently used', response.text)
@@ -391,95 +390,6 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
         self.assertEqual([entry["id"] for entry in inventory], [active["id"]])
         self.assertEqual([entry["id"] for entry in removed_items], [removed["id"]])
         self.assertEqual(len(all_items), 2)
-
-    def test_existing_sqlite_items_receive_lifecycle_columns(self) -> None:
-        legacy_engine = create_engine("sqlite://", poolclass=StaticPool)
-        try:
-            with legacy_engine.begin() as connection:
-                connection.execute(
-                    text(
-                        "CREATE TABLE lendery_items ("
-                        "id INTEGER PRIMARY KEY, name VARCHAR(200) NOT NULL, "
-                        "lifecycle_status VARCHAR(20) NOT NULL)"
-                    )
-                )
-                connection.execute(
-                    text(
-                        "INSERT INTO lendery_items "
-                        "(id, name, lifecycle_status) "
-                        "VALUES (1, 'Legacy drill', 'retired')"
-                    )
-                )
-
-            with patch("database.engine", legacy_engine):
-                migrate_existing_database()
-
-            columns = {
-                column["name"]
-                for column in inspect(legacy_engine).get_columns(
-                    "lendery_items"
-                )
-            }
-            self.assertIn("lifecycle_status", columns)
-            self.assertIn("lifecycle_changed_at", columns)
-            with legacy_engine.connect() as connection:
-                row = connection.execute(
-                    text(
-                        "SELECT lifecycle_status, lifecycle_changed_at "
-                        "FROM lendery_items WHERE id = 1"
-                    )
-                ).one()
-            self.assertEqual(row.lifecycle_status, "active")
-            self.assertIsNotNone(row.lifecycle_changed_at)
-        finally:
-            legacy_engine.dispose()
-
-    def test_existing_item_status_is_backfilled_into_activity_history(self) -> None:
-        legacy_engine = create_engine("sqlite://", poolclass=StaticPool)
-        try:
-            with legacy_engine.begin() as connection:
-                connection.execute(
-                    text(
-                        "CREATE TABLE lendery_items ("
-                        "id INTEGER PRIMARY KEY, name VARCHAR(200) NOT NULL, "
-                        "barcode VARCHAR(50) NOT NULL, category VARCHAR(100), "
-                        "lifecycle_status VARCHAR(20) NOT NULL, lifecycle_note TEXT, "
-                        "lifecycle_changed_at TIMESTAMP, created_at TIMESTAMP, "
-                        "updated_at TIMESTAMP)"
-                    )
-                )
-                connection.execute(
-                    text(
-                        "INSERT INTO lendery_items "
-                        "(id, name, barcode, category, lifecycle_status, lifecycle_note, "
-                        "lifecycle_changed_at, created_at, updated_at) VALUES "
-                        "(1, 'Legacy drill', 'LEGACY-1', 'Tools', 'removed', "
-                        "'Could not be repaired', CURRENT_TIMESTAMP, "
-                        "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
-                    )
-                )
-            ItemActivity.__table__.create(bind=legacy_engine)
-
-            with patch("database.engine", legacy_engine):
-                migrate_existing_database()
-                migrate_existing_database()
-
-            with legacy_engine.connect() as connection:
-                rows = connection.execute(
-                    text(
-                        "SELECT event_type, reason FROM lendery_item_activity "
-                        "ORDER BY id"
-                    )
-                ).all()
-            self.assertEqual(
-                rows,
-                [
-                    ("item_added", "Existing inventory record"),
-                    ("removed_from_collection", "Could not be repaired"),
-                ],
-            )
-        finally:
-            legacy_engine.dispose()
 
     def test_only_removed_items_can_be_permanently_deleted(self) -> None:
         item = self.create_linked_item("DELETE-FOREVER-1")

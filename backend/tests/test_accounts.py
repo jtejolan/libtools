@@ -4,13 +4,13 @@ from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, inspect, select, text
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from accounts.models import AccountToken, LibtoolsUser, ToolAccess
 from accounts.bootstrap import initialize_platform_accounts
-import database
+from accounts import login_throttle
 from bookclub.models import BookClub, BookClubBook, BookClubMeeting
 from database import Base
 from dependencies import get_db
@@ -48,6 +48,7 @@ class PlatformAccountTests(unittest.TestCase):
         cls.engine.dispose()
 
     def setUp(self) -> None:
+        login_throttle.reset()
         with self.engine.begin() as connection:
             for table in reversed(Base.metadata.sorted_tables):
                 connection.execute(table.delete())
@@ -436,7 +437,7 @@ class PlatformAccountTests(unittest.TestCase):
             response = self.admin.get(path)
             self.assertEqual(response.status_code, 200, path)
             self.assertIn("Create your account", response.text)
-            self.assertIn("/static/account.js?v=10", response.text)
+            self.assertIn("/static/account.js?v=11", response.text)
 
         admin_page = self.admin.get("/admin/accounts")
         self.assertEqual(admin_page.status_code, 200)
@@ -463,61 +464,6 @@ class PlatformAccountTests(unittest.TestCase):
             self.assertEqual(missing.status_code, 422, missing.text)
         finally:
             client.close()
-
-    def test_account_migration_adds_email_fields_to_an_existing_database(self) -> None:
-        legacy_engine = create_engine(
-            "sqlite://",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
-        try:
-            with legacy_engine.begin() as connection:
-                connection.execute(
-                    text(
-                        "CREATE TABLE libtools_users ("
-                        "id INTEGER PRIMARY KEY, "
-                        "username VARCHAR(80) NOT NULL, "
-                        "password_hash VARCHAR(500) NOT NULL, "
-                        "recovery_code_hash VARCHAR(500), "
-                        "role VARCHAR(20) NOT NULL DEFAULT 'user', "
-                        "active BOOLEAN NOT NULL DEFAULT 1, "
-                        "must_change_password BOOLEAN NOT NULL DEFAULT 0, "
-                        "created_at TIMESTAMP"
-                        ")"
-                    )
-                )
-                connection.execute(
-                    text(
-                        "INSERT INTO libtools_users "
-                        "(id, username, password_hash, role, active, "
-                        "must_change_password) VALUES "
-                        "(1, 'legacy-user', 'hash', 'user', 1, 0)"
-                    )
-                )
-            with patch.object(database, "engine", legacy_engine):
-                database.migrate_existing_database()
-
-            columns = {
-                column["name"]
-                for column in inspect(legacy_engine).get_columns("libtools_users")
-            }
-            self.assertTrue(
-                {"name", "email", "email_verified_at", "session_version"}.issubset(columns)
-            )
-            with legacy_engine.connect() as connection:
-                migrated_name = connection.execute(
-                    text("SELECT name FROM libtools_users WHERE id = 1")
-                ).scalar_one()
-            self.assertEqual(migrated_name, "legacy-user")
-            indexes = inspect(legacy_engine).get_indexes("libtools_users")
-            self.assertTrue(
-                any(
-                    index["unique"] and index["column_names"] == ["email"]
-                    for index in indexes
-                )
-            )
-        finally:
-            legacy_engine.dispose()
 
     def test_initial_admin_bootstrap_assigns_lendery_editing_once(self) -> None:
         with self.engine.begin() as connection:
@@ -791,6 +737,133 @@ class PlatformAccountTests(unittest.TestCase):
         finally:
             for client in clients:
                 client.close()
+
+
+class LoginThrottleTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.engine = create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Base.metadata.create_all(cls.engine)
+        cls.sessions = sessionmaker(
+            bind=cls.engine, autoflush=False, expire_on_commit=False
+        )
+
+        def override_get_db():
+            db: Session = cls.sessions()
+            try:
+                yield db
+            finally:
+                db.close()
+
+        app.dependency_overrides[get_db] = override_get_db
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        app.dependency_overrides.clear()
+        Base.metadata.drop_all(cls.engine)
+        cls.engine.dispose()
+
+    def setUp(self) -> None:
+        login_throttle.reset()
+        with self.engine.begin() as connection:
+            for table in reversed(Base.metadata.sorted_tables):
+                connection.execute(table.delete())
+        with self.sessions() as db:
+            db.add(
+                LibtoolsUser(
+                    name="Taylor",
+                    username="taylor",
+                    password_hash=hash_password("correct-password"),
+                    role="user",
+                )
+            )
+            db.commit()
+        self.client = TestClient(app)
+
+    def tearDown(self) -> None:
+        self.client.close()
+        login_throttle.reset()
+
+    def test_repeated_failed_logins_lock_out_the_account(self) -> None:
+        for _ in range(login_throttle.MAX_ATTEMPTS):
+            response = self.client.post(
+                "/auth/login",
+                json={"username": "taylor", "password": "wrong-password"},
+            )
+            self.assertEqual(response.status_code, 401)
+
+        locked_out = self.client.post(
+            "/auth/login",
+            json={"username": "taylor", "password": "correct-password"},
+        )
+        self.assertEqual(locked_out.status_code, 429, locked_out.text)
+        self.assertIn("Retry-After", locked_out.headers)
+
+    def test_lockout_is_scoped_per_username(self) -> None:
+        for _ in range(login_throttle.MAX_ATTEMPTS):
+            self.client.post(
+                "/auth/login",
+                json={"username": "taylor", "password": "wrong-password"},
+            )
+
+        other_user = self.client.post(
+            "/auth/login",
+            json={"username": "someone-else", "password": "whatever"},
+        )
+        self.assertEqual(other_user.status_code, 401)
+
+    def test_successful_login_clears_prior_failures(self) -> None:
+        for _ in range(login_throttle.MAX_ATTEMPTS - 1):
+            self.client.post(
+                "/auth/login",
+                json={"username": "taylor", "password": "wrong-password"},
+            )
+
+        success = self.client.post(
+            "/auth/login",
+            json={"username": "taylor", "password": "correct-password"},
+        )
+        self.assertEqual(success.status_code, 200, success.text)
+
+        for _ in range(login_throttle.MAX_ATTEMPTS - 1):
+            response = self.client.post(
+                "/auth/login",
+                json={"username": "taylor", "password": "wrong-password"},
+            )
+            self.assertEqual(response.status_code, 401)
+
+        still_allowed = self.client.post(
+            "/auth/login",
+            json={"username": "taylor", "password": "correct-password"},
+        )
+        self.assertEqual(still_allowed.status_code, 200, still_allowed.text)
+
+    def test_lockout_expires_after_the_window(self) -> None:
+        with patch("accounts.login_throttle.time.monotonic") as fake_monotonic:
+            fake_monotonic.return_value = 1_000.0
+            for _ in range(login_throttle.MAX_ATTEMPTS):
+                self.client.post(
+                    "/auth/login",
+                    json={"username": "taylor", "password": "wrong-password"},
+                )
+            locked_out = self.client.post(
+                "/auth/login",
+                json={"username": "taylor", "password": "correct-password"},
+            )
+            self.assertEqual(locked_out.status_code, 429)
+
+            fake_monotonic.return_value = (
+                1_000.0 + login_throttle.LOCKOUT_SECONDS + 1
+            )
+            unlocked = self.client.post(
+                "/auth/login",
+                json={"username": "taylor", "password": "correct-password"},
+            )
+        self.assertEqual(unlocked.status_code, 200, unlocked.text)
 
 
 if __name__ == "__main__":

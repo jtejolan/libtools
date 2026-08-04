@@ -1,5 +1,4 @@
 const $=(s)=>document.querySelector(s);let users=[];
-const escapeHtml=(v="")=>String(v).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
 const formatUsername=(value="")=>{const characters=Array.from(String(value));return characters.length?characters[0].toLocaleUpperCase()+characters.slice(1).join("").toLocaleLowerCase():"";};
 const request=async(url,options={})=>{const response=await fetch(url,{...options,cache:"no-store",headers:{...(options.body?{"Content-Type":"application/json"}:{}),...options.headers}});if(response.status===204)return null;const body=await response.json().catch(()=>({}));if(!response.ok)throw Object.assign(new Error(typeof body.detail==="string"?body.detail:body.detail?.[0]?.msg||"Something went wrong."),{status:response.status});return body;};
 const toast=(message)=>{const el=$("#toast");el.textContent=message;el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),2600);};

@@ -1,13 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
 
-const escapeHtml = (value = "") =>
-  String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-
 const capitalizeFirst = (value = "") => {
   const characters = Array.from(String(value));
   return characters.length
