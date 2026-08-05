@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.exc import IntegrityError
 
-from bookclub import catalogue, crud, models, schemas
+from bookclub import catalogue, crud, schemas
 from bookclub.access import require_selected_club
 from dependencies import DatabaseSession
 
@@ -50,6 +50,16 @@ def list_members(
     )
 
 
+@router.get(
+    "/members/participation-summary",
+    response_model=list[schemas.MemberParticipationSummary],
+)
+def member_participation_summary(db: DatabaseSession):
+    # Must be declared before /members/{member_id} or FastAPI matches this
+    # path as member_id="participation-summary".
+    return crud.member_participation_summary(db)
+
+
 @router.get("/members/{member_id}", response_model=schemas.MemberResponse)
 def get_member(member_id: int, db: DatabaseSession):
     member = crud.get_member(db, member_id)
@@ -69,6 +79,11 @@ def update_member(
             status_code=status.HTTP_409_CONFLICT,
             detail="A member with this email already exists",
         ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        ) from exc
     if member is None:
         raise _not_found("Member not found")
     return member
@@ -82,13 +97,7 @@ def member_history(member_id: int, db: DatabaseSession):
     if crud.get_member(db, member_id) is None:
         raise _not_found("Member not found")
     return [
-        schemas.MemberHistoryResponse(
-            meeting=entry.meeting,
-            delivery_method=entry.delivery_method,
-            destination_branch=entry.destination_branch,
-            book_checked_out=entry.book_checked_out,
-            attended=entry.attended,
-        )
+        schemas.MemberHistoryResponse(meeting=entry.meeting, attended=entry.attended)
         for entry in crud.member_history(db, member_id)
     ]
 
@@ -228,18 +237,6 @@ def delete_meeting(meeting_id: int, db: DatabaseSession) -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post(
-    "/meetings/{meeting_id}/roster/sync",
-    response_model=schemas.RosterSyncResponse,
-)
-def sync_roster(meeting_id: int, db: DatabaseSession):
-    result = crud.sync_roster(db, meeting_id)
-    if result is None:
-        raise _not_found("Meeting not found")
-    added, total = result
-    return schemas.RosterSyncResponse(added=added, total=total)
-
-
 @router.get(
     "/meetings/{meeting_id}/roster",
     response_model=list[schemas.ParticipationResponse],
@@ -266,29 +263,120 @@ def update_participation(
     member = crud.get_member(db, member_id)
     if member is None:
         raise _not_found("Member not found")
+    return crud.update_participation(db, meeting, member, changes)
+
+
+@router.delete(
+    "/meetings/{meeting_id}/members/{member_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def remove_from_roster(meeting_id: int, member_id: int, db: DatabaseSession) -> Response:
+    if not crud.remove_participation(db, meeting_id, member_id):
+        raise _not_found("This member is not on the meeting roster")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/meetings/{meeting_id}/members/{member_id}/onboarding-email/preview",
+    response_model=schemas.TemplateRenderResponse,
+)
+def preview_onboarding_email(meeting_id: int, member_id: int, db: DatabaseSession):
+    meeting = crud.get_meeting(db, meeting_id)
+    if meeting is None:
+        raise _not_found("Meeting not found")
+    member = crud.get_member(db, member_id)
+    if member is None:
+        raise _not_found("Member not found")
+    if crud.get_participation(db, meeting_id, member_id) is None:
+        raise _not_found("This member is not on the meeting roster")
     try:
-        return crud.update_participation(db, meeting, member, changes)
-    except ValueError as exc:
+        return crud.render_onboarding_email(db, meeting, member)
+    except LookupError as exc:
+        raise _not_found(str(exc)) from exc
+
+
+@router.post(
+    "/meetings/{meeting_id}/members/{member_id}/onboarding-email/send",
+    response_model=schemas.OnboardingSendResponse,
+)
+def send_onboarding_email(meeting_id: int, member_id: int, db: DatabaseSession):
+    meeting = crud.get_meeting(db, meeting_id)
+    if meeting is None:
+        raise _not_found("Meeting not found")
+    member = crud.get_member(db, member_id)
+    if member is None:
+        raise _not_found("Member not found")
+    if crud.get_participation(db, meeting_id, member_id) is None:
+        raise _not_found("This member is not on the meeting roster")
+    try:
+        return crud.send_onboarding_email(db, meeting, member)
+    except LookupError as exc:
+        raise _not_found(str(exc)) from exc
+
+
+@router.post(
+    "/meetings/{meeting_id}/members/{member_id}/arrival-email/preview",
+    response_model=schemas.TemplateRenderResponse,
+)
+def preview_arrival_email(meeting_id: int, member_id: int, db: DatabaseSession):
+    meeting = crud.get_meeting(db, meeting_id)
+    if meeting is None:
+        raise _not_found("Meeting not found")
+    member = crud.get_member(db, member_id)
+    if member is None:
+        raise _not_found("Member not found")
+    if crud.get_participation(db, meeting_id, member_id) is None:
+        raise _not_found("This member is not on the meeting roster")
+    try:
+        return crud.render_arrival_email(db, meeting, member)
+    except LookupError as exc:
+        raise _not_found(str(exc)) from exc
+
+
+@router.post(
+    "/meetings/{meeting_id}/members/{member_id}/arrival-email/send",
+    response_model=schemas.OnboardingSendResponse,
+)
+def send_arrival_email(meeting_id: int, member_id: int, db: DatabaseSession):
+    meeting = crud.get_meeting(db, meeting_id)
+    if meeting is None:
+        raise _not_found("Meeting not found")
+    member = crud.get_member(db, member_id)
+    if member is None:
+        raise _not_found("Member not found")
+    if crud.get_participation(db, meeting_id, member_id) is None:
+        raise _not_found("This member is not on the meeting roster")
+    try:
+        return crud.send_arrival_email(db, meeting, member)
+    except LookupError as exc:
+        raise _not_found(str(exc)) from exc
+
+
+@router.post(
+    "/meetings/{meeting_id}/reminder/send",
+    response_model=schemas.ReminderSendResponse,
+)
+def send_reminder(
+    meeting_id: int, request: schemas.ReminderSendRequest, db: DatabaseSession
+):
+    meeting = crud.get_meeting(db, meeting_id)
+    if meeting is None:
+        raise _not_found("Meeting not found")
+    roster_ids = {
+        participation.member_id
+        for participation in crud.list_participation(db, meeting_id)
+    }
+    missing = sorted(set(request.member_ids) - roster_ids)
+    if missing:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=str(exc),
-        ) from exc
-
-
-@router.get(
-    "/meetings/{meeting_id}/recipients",
-    response_model=list[schemas.MemberResponse],
-)
-def list_recipients(
-    meeting_id: int,
-    db: DatabaseSession,
-    recipient_filter: schemas.RecipientFilter = Query(
-        default="all", alias="filter"
-    ),
-):
-    if crud.get_meeting(db, meeting_id) is None:
-        raise _not_found("Meeting not found")
-    return crud.list_recipients(db, meeting_id, recipient_filter)
+            detail=f"These members are not on the meeting roster: {missing}",
+        )
+    members = [crud.get_member(db, member_id) for member_id in request.member_ids]
+    try:
+        return crud.send_reminder_batch(db, meeting, members)
+    except LookupError as exc:
+        raise _not_found(str(exc)) from exc
 
 
 @router.post(
@@ -383,100 +471,18 @@ def render_template(
 
 
 @router.post(
-    "/meetings/{meeting_id}/transit-labels/render",
-    response_model=list[schemas.TransitLabelResponse],
+    "/transit-labels/render",
+    response_model=schemas.TemplateRenderResponse,
 )
-def render_transit_labels(
-    meeting_id: int,
-    request: schemas.TransitLabelRequest,
-    db: DatabaseSession,
-):
-    meeting = crud.get_meeting(db, meeting_id)
-    if meeting is None:
-        raise _not_found("Meeting not found")
+def render_transit_label(request: schemas.TransitLabelRenderRequest, db: DatabaseSession):
+    member = crud.get_member(db, request.member_id)
+    if member is None:
+        raise _not_found("Member not found")
     template = crud.get_template(db, "transit_label")
     if template is None:
         raise _not_found("Transit label template not found")
-    selected = (
-        None if request.member_ids is None else set(request.member_ids)
-    )
-    labels = []
-    for participation in crud.list_participation(db, meeting_id):
-        if participation.delivery_method != "transfer":
-            continue
-        if selected is not None and participation.member_id not in selected:
-            continue
-        context = crud.template_context(meeting, participation)
-        rendered = crud.render_template(
-            template,
-            context,
-            body_override=request.body_override,
-        )
-        labels.append(
-            schemas.TransitLabelResponse(
-                member_id=participation.member_id,
-                member_name=participation.member.name,
-                destination_branch=participation.destination_branch or "",
-                body=rendered.body,
-                missing_variables=rendered.missing_variables,
-            )
-        )
-    return labels
-
-
-@router.post(
-    "/meetings/{meeting_id}/emails/preview",
-    response_model=list[schemas.EmailPreviewResponse],
-)
-def preview_emails(
-    meeting_id: int,
-    request: schemas.EmailPreviewRequest,
-    db: DatabaseSession,
-):
-    meeting = crud.get_meeting(db, meeting_id)
-    if meeting is None:
-        raise _not_found("Meeting not found")
-    selected = (
-        None if request.member_ids is None else set(request.member_ids)
-    )
-    previews = []
-    onboarding_keys = {
-        "pickup": "onboarding_pickup",
-        "transfer": "onboarding_transfer",
-        "none": "onboarding_no_copy",
-    }
-    templates: dict[str, models.BookClubTemplate | None] = {}
-    for participation in crud.list_participation(db, meeting_id):
-        if selected is not None and participation.member_id not in selected:
-            continue
-        template_key = (
-            onboarding_keys[participation.delivery_method]
-            if request.email_type == "onboarding"
-            else "monthly_reminder"
-        )
-        if template_key not in templates:
-            templates[template_key] = crud.get_template(db, template_key)
-        template = templates[template_key]
-        if template is None:
-            raise _not_found(f"Template {template_key} not found")
-        rendered = crud.render_template(
-            template,
-            crud.template_context(meeting, participation),
-            subject_override=request.subject_override,
-            body_override=request.body_override,
-        )
-        previews.append(
-            schemas.EmailPreviewResponse(
-                member_id=participation.member_id,
-                member_name=participation.member.name,
-                email=participation.member.email,
-                template_key=template_key,
-                subject=rendered.subject or "",
-                body=rendered.body,
-                missing_variables=rendered.missing_variables,
-            )
-        )
-    return previews
+    context = crud.transit_label_context(db, member, request.destination_branch)
+    return crud.render_template(template, context)
 
 
 @router.get(

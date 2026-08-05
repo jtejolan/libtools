@@ -25,6 +25,7 @@ def club_response(club: BookClub, role: str | None = None) -> schemas.ClubRespon
         public=club.public,
         organizer_name=club.organizer_name,
         organizer_branch=club.organizer_branch,
+        video_call_url=club.video_call_url,
         role=role,
     )
 
@@ -120,20 +121,43 @@ def update_club(
     return club_response(club)
 
 
+SHELF_LIMIT = 60
+
+
 @public_router.get("/{slug}", response_model=schemas.PublicClubResponse)
 def public_club(slug: str, db: DatabaseSession):
     club = db.scalar(select(BookClub).where(BookClub.slug == slug, BookClub.public.is_(True)))
     if club is None:
         raise HTTPException(status_code=404, detail="Book club not found")
+    today = date.today()
     meeting = db.scalar(
         select(BookClubMeeting)
         .options(selectinload(BookClubMeeting.book))
         .where(
             BookClubMeeting.club_id == club.id,
-            BookClubMeeting.meeting_date >= date.today(),
+            BookClubMeeting.meeting_date >= today,
         )
         .order_by(BookClubMeeting.meeting_date, BookClubMeeting.id)
     )
+    past_meetings = db.scalars(
+        select(BookClubMeeting)
+        .options(selectinload(BookClubMeeting.book))
+        .where(
+            BookClubMeeting.club_id == club.id,
+            BookClubMeeting.meeting_date < today,
+        )
+        .order_by(BookClubMeeting.meeting_date.desc(), BookClubMeeting.id.desc())
+        .limit(SHELF_LIMIT)
+    )
+    shelf = [
+        schemas.PublicShelfBookResponse(
+            title=past.book.title,
+            author=past.book.author,
+            cover_image_url=past.book.cover_image_url,
+            meeting_date=past.meeting_date,
+        )
+        for past in past_meetings
+    ]
     return schemas.PublicClubResponse(
         name=club.name,
         slug=club.slug,
@@ -141,4 +165,5 @@ def public_club(slug: str, db: DatabaseSession):
         organizer_name=club.organizer_name,
         organizer_branch=club.organizer_branch,
         upcoming_meeting=meeting,
+        shelf=shelf,
     )

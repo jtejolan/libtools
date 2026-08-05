@@ -18,6 +18,7 @@ class ClubCreate(BaseModel):
     public: bool = True
     organizer_name: str | None = Field(default=None, max_length=200)
     organizer_branch: str | None = Field(default=None, max_length=200)
+    video_call_url: str | None = Field(default=None, max_length=500)
 
 
 class ClubUpdate(BaseModel):
@@ -27,6 +28,7 @@ class ClubUpdate(BaseModel):
     public: bool | None = None
     organizer_name: str | None = Field(default=None, max_length=200)
     organizer_branch: str | None = Field(default=None, max_length=200)
+    video_call_url: str | None = Field(default=None, max_length=500)
 
 
 class ClubResponse(BaseModel):
@@ -37,6 +39,7 @@ class ClubResponse(BaseModel):
     public: bool
     organizer_name: str | None
     organizer_branch: str | None
+    video_call_url: str | None = None
     role: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
@@ -49,6 +52,14 @@ class PublicMeetingResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PublicShelfBookResponse(BaseModel):
+    title: str
+    author: str
+    cover_image_url: str | None = None
+    meeting_date: date
+    model_config = ConfigDict(from_attributes=True)
+
+
 class PublicClubResponse(BaseModel):
     name: str
     slug: str
@@ -56,16 +67,9 @@ class PublicClubResponse(BaseModel):
     organizer_name: str | None
     organizer_branch: str | None
     upcoming_meeting: PublicMeetingResponse | None
+    shelf: list[PublicShelfBookResponse] = Field(default_factory=list)
 
 DeliveryMethod = Literal["pickup", "transfer", "none"]
-RecipientFilter = Literal[
-    "all",
-    "checked_out",
-    "not_checked_out",
-    "pickup",
-    "transfer",
-    "no_copy",
-]
 TemplateKind = Literal["email", "print"]
 
 
@@ -79,6 +83,9 @@ class MemberBase(BaseModel):
     joined_on: date
     active: bool = True
     notes: str | None = None
+    is_new_registrant: bool = False
+    delivery_method: DeliveryMethod = "none"
+    destination_branch: str | None = Field(default=None, max_length=200)
 
     _strip_name = field_validator("name")(_strip)
 
@@ -89,6 +96,12 @@ class MemberBase(BaseModel):
         if "@" not in value or value.startswith("@") or value.endswith("@"):
             raise ValueError("email must be a valid email address")
         return value
+
+    @model_validator(mode="after")
+    def transfer_requires_branch(self):
+        if self.delivery_method == "transfer" and not self.destination_branch:
+            raise ValueError("destination_branch is required for a transfer")
+        return self
 
 
 class MemberCreate(MemberBase):
@@ -101,6 +114,9 @@ class MemberUpdate(BaseModel):
     joined_on: date | None = None
     active: bool | None = None
     notes: str | None = None
+    is_new_registrant: bool | None = None
+    delivery_method: DeliveryMethod | None = None
+    destination_branch: str | None = Field(default=None, max_length=200)
 
     @field_validator("name", "email", "joined_on", "active")
     @classmethod
@@ -122,9 +138,18 @@ class MemberUpdate(BaseModel):
             raise ValueError("email must be a valid email address")
         return value
 
+    @model_validator(mode="after")
+    def transfer_requires_branch(self):
+        if self.delivery_method == "transfer" and not self.destination_branch:
+            raise ValueError("destination_branch is required for a transfer")
+        return self
+
 
 class MemberResponse(MemberBase):
     id: int
+    onboarding_email_sent_at: datetime | None = None
+    arrival_email_sent_at: datetime | None = None
+    last_reminder_sent_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -220,7 +245,6 @@ class MeetingBase(BaseModel):
 
 class MeetingCreate(MeetingBase):
     book_id: int = Field(ge=1)
-    add_active_members: bool = True
 
 
 class MeetingUpdate(BaseModel):
@@ -243,37 +267,21 @@ class MeetingResponse(MeetingBase):
     book_id: int
     book: BookResponse
     giveaway_winner_member_id: int | None = None
+    reminder_sent_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
 class ParticipationUpdate(BaseModel):
-    delivery_method: DeliveryMethod | None = None
-    destination_branch: str | None = Field(default=None, max_length=200)
-    book_checked_out: bool | None = None
     attended: bool | None = None
-
-    @model_validator(mode="after")
-    def transfer_requires_branch(self):
-        if self.delivery_method == "transfer" and not self.destination_branch:
-            raise ValueError("destination_branch is required for a transfer")
-        return self
 
 
 class ParticipationResponse(BaseModel):
     id: int
     meeting_id: int
     member_id: int
-    delivery_method: DeliveryMethod
-    destination_branch: str | None = None
-    book_checked_out: bool
     attended: bool
     member: MemberResponse
     model_config = ConfigDict(from_attributes=True)
-
-
-class RosterSyncResponse(BaseModel):
-    added: int
-    total: int
 
 
 class GiveawayWinnerResponse(BaseModel):
@@ -283,10 +291,35 @@ class GiveawayWinnerResponse(BaseModel):
 
 class MemberHistoryResponse(BaseModel):
     meeting: MeetingResponse
-    delivery_method: DeliveryMethod
-    destination_branch: str | None = None
-    book_checked_out: bool
     attended: bool
+
+
+class OnboardingSendResponse(BaseModel):
+    member_id: int
+    sent: bool
+    already_sent_before: bool
+
+
+class ReminderSendRequest(BaseModel):
+    member_ids: list[int] = Field(min_length=1)
+    subject_override: str | None = None
+    body_override: str | None = None
+
+
+class ReminderSendResponse(BaseModel):
+    sent: bool
+    recipient_count: int
+    already_sent_before: bool
+
+
+class MemberParticipationSummary(BaseModel):
+    member: MemberResponse
+    meetings_total: int
+    attended_count: int
+    giveaways_won: int
+    last_attended_date: date | None = None
+    last_contacted_at: datetime | None = None
+    meetings_since_last_attended: int
 
 
 class TemplateBase(BaseModel):
@@ -331,34 +364,9 @@ class TemplateRenderResponse(BaseModel):
     missing_variables: list[str]
 
 
-class EmailPreviewRequest(BaseModel):
-    email_type: Literal["onboarding", "monthly_reminder"]
-    member_ids: list[int] | None = None
-    subject_override: str | None = None
-    body_override: str | None = None
-
-
-class EmailPreviewResponse(BaseModel):
-    member_id: int
-    member_name: str
-    email: str
-    template_key: str
-    subject: str
-    body: str
-    missing_variables: list[str]
-
-
-class TransitLabelRequest(BaseModel):
-    member_ids: list[int] | None = None
-    body_override: str | None = None
-
-
-class TransitLabelResponse(BaseModel):
-    member_id: int
-    member_name: str
-    destination_branch: str
-    body: str
-    missing_variables: list[str]
+class TransitLabelRenderRequest(BaseModel):
+    member_id: int = Field(ge=1)
+    destination_branch: str = Field(min_length=1, max_length=200)
 
 
 class DiscussionQuestionCreate(BaseModel):

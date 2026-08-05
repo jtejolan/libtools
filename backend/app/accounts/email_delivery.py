@@ -1,11 +1,9 @@
 """Email delivery for account messages, sent via Resend (https://resend.com).
 
-Configured through RESEND_API_KEY and RESEND_FROM_ADDRESS env vars. When
-either is unset, DELIVERY_CONFIGURED is False and sends are skipped — callers
-already handle that by falling back to recovery codes. RESEND_REPLY_TO is
-optional; when set, replies to these transactional emails route to a
-monitored address instead of the (likely no-reply) from address, which some
-spam filters treat as a legitimacy signal.
+The Resend transport itself (config, DELIVERY_CONFIGURED, the low-level
+send call) lives in the shared `email_delivery` module so other packages
+(e.g. bookclub) can reuse it. This module holds only the account-specific
+HTML branding and message templates.
 
 Templates follow standard HTML-email deliverability practices: a full
 document (not a bare fragment) so strict clients render/parse consistently,
@@ -18,61 +16,19 @@ configured in Resend's domain settings and DNS, not here.
 """
 
 import html
-import logging
-import os
 
-import httpx
-
-logger = logging.getLogger(__name__)
-
-RESEND_API_URL = "https://api.resend.com/emails"
-RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-RESEND_FROM_ADDRESS = os.getenv("RESEND_FROM_ADDRESS")
-RESEND_REPLY_TO = os.getenv("RESEND_REPLY_TO")
-
-DELIVERY_CONFIGURED = bool(RESEND_API_KEY and RESEND_FROM_ADDRESS)
+from email_delivery import DELIVERY_CONFIGURED, send_email
 
 SITE_URL = "https://libtools.app"
 LOGO_URL = f"{SITE_URL}/static/assets/library-tools-logo-classic.png"
 
-
-def _from_header() -> str | None:
-    if not RESEND_FROM_ADDRESS:
-        return None
-    # A display name (not a bare address) reads as a real sender to both
-    # spam filters and end users; add one if the env var didn't include it.
-    if "<" in RESEND_FROM_ADDRESS:
-        return RESEND_FROM_ADDRESS
-    return f"Library Tools <{RESEND_FROM_ADDRESS}>"
+__all__ = ["DELIVERY_CONFIGURED", "send_verification_email", "send_password_changed_email", "send_password_reset_email"]
 
 
 def _send(*, recipient: str, subject: str, html_body: str, text_body: str) -> bool:
-    if not DELIVERY_CONFIGURED:
-        logger.info(
-            "Email delivery is not configured; skipping send to %s", recipient
-        )
-        return False
-    payload = {
-        "from": _from_header(),
-        "to": [recipient],
-        "subject": subject,
-        "html": html_body,
-        "text": text_body,
-    }
-    if RESEND_REPLY_TO:
-        payload["reply_to"] = [RESEND_REPLY_TO]
-    try:
-        response = httpx.post(
-            RESEND_API_URL,
-            headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
-            json=payload,
-            timeout=10.0,
-        )
-        response.raise_for_status()
-        return True
-    except httpx.HTTPError:
-        logger.exception("Failed to send email to %s via Resend", recipient)
-        return False
+    return send_email(
+        to=[recipient], subject=subject, html_body=html_body, text_body=text_body
+    )
 
 
 DEFAULT_FOOTNOTE = "If you didn't request this, you can safely ignore this email."

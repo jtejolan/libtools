@@ -11,6 +11,10 @@ const state = {
   questions: [],
   templates: [],
   templateKey: null,
+  participation: [],
+  participationSort: { key: "name", dir: 1 },
+  transitSelectedMemberId: null,
+  bookUnscheduledOnly: false,
   rosterQuery: "",
   memberQuery: "",
   meetingQuery: "",
@@ -87,6 +91,21 @@ const applyClub = (club) => {
   const publicLink = $("#public-club-link");
   publicLink.hidden = !club.public;
   publicLink.href = `/clubs/${encodeURIComponent(club.slug)}`;
+};
+
+const openClubSettingsDialog = () => {
+  const club = state.club;
+  if (!club) return showToast("Choose a club first.");
+  const form = $("#club-settings-form");
+  form.reset();
+  form.elements.name.value = club.name || "";
+  form.elements.description.value = club.description || "";
+  form.elements.organizer_name.value = club.organizer_name || "";
+  form.elements.organizer_branch.value = club.organizer_branch || "";
+  form.elements.video_call_url.value = club.video_call_url || "";
+  form.elements.public.value = String(club.public ?? true);
+  $("#club-settings-error").textContent = "";
+  $("#club-settings-dialog").showModal();
 };
 
 const renderClubChoices = () => {
@@ -257,26 +276,64 @@ const safeImageUrl = (value) => {
   }
 };
 
+const scheduledBookIds = () => new Set(state.meetings.map((meeting) => meeting.book_id));
+
+const renderBookStats = () => {
+  const books = state.books;
+  $("#book-stat-total").textContent = books.length;
+  $("#book-stat-meetings").textContent = state.meetings.filter(
+    (meeting) => meeting.meeting_date <= today(),
+  ).length;
+  const withPages = books.filter((book) => book.page_count);
+  const avgPages = withPages.length
+    ? Math.round(withPages.reduce((sum, book) => sum + book.page_count, 0) / withPages.length)
+    : null;
+  $("#book-stat-avg-pages").textContent = avgPages ?? "—";
+  const longest = withPages.reduce(
+    (max, book) => (!max || book.page_count > max.page_count ? book : max),
+    null,
+  );
+  $("#book-stat-longest").textContent = longest ? `${longest.page_count}p` : "—";
+  const genreCounts = new Map();
+  books.forEach((book) => {
+    (book.genres || "")
+      .split(",")
+      .map((genre) => genre.trim())
+      .filter(Boolean)
+      .forEach((genre) => genreCounts.set(genre, (genreCounts.get(genre) || 0) + 1));
+  });
+  const topGenres = [...genreCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+  $("#book-genre-breakdown").textContent = topGenres.length
+    ? `Top genres: ${topGenres.map(([genre, count]) => `${genre} (${count})`).join(", ")}`
+    : "";
+};
+
 const renderBooks = () => {
   const query = state.bookQuery.trim().toLowerCase();
-  const books = state.books.filter((book) =>
+  const scheduled = scheduledBookIds();
+  let books = state.books.filter((book) =>
     [book.title, book.author, book.isbn, book.genres]
       .filter(Boolean)
       .join(" ")
       .toLowerCase()
       .includes(query),
   );
+  if (state.bookUnscheduledOnly) {
+    books = books.filter((book) => !scheduled.has(book.id));
+  }
   $("#book-count").textContent = `${state.books.length} ${state.books.length === 1 ? "book" : "books"}`;
+  renderBookStats();
   const list = $("#book-list");
   if (!books.length) {
-    list.innerHTML = `<div class="empty-collection"><span>▥</span><h2>${query ? "No matching books" : "Your book list is empty"}</h2><p>${query ? "Try a different title, author, ISBN, or genre." : "Add the first title selected for the club."}</p>${query ? "" : '<button class="primary-button" id="empty-add-book" type="button">＋ Add book</button>'}</div>`;
+    list.innerHTML = `<div class="empty-collection"><span>▥</span><h2>${query || state.bookUnscheduledOnly ? "No matching books" : "Your book list is empty"}</h2><p>${query || state.bookUnscheduledOnly ? "Try a different title, author, ISBN, or genre." : "Add the first title selected for the club."}</p>${query || state.bookUnscheduledOnly ? "" : '<button class="primary-button" id="empty-add-book" type="button">＋ Add book</button>'}</div>`;
     return;
   }
   list.innerHTML = books
     .map((book) => {
       const cover = safeImageUrl(book.cover_image_url);
       const publicationYear = book.publication_date?.slice(0, 4);
-      return `<article class="book-card"><div class="book-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="Cover of ${escapeHtml(book.title)}" loading="lazy" />` : escapeHtml(initials(book.title))}</div><div class="book-card-copy"><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author)}</p><p class="book-description">${escapeHtml(book.description || "No description has been added yet.")}</p><div class="book-meta">${publicationYear ? `<span>${escapeHtml(publicationYear)}</span>` : ""}${book.page_count ? `<span>${book.page_count} pages</span>` : ""}${book.genres ? `<span>${escapeHtml(book.genres)}</span>` : ""}</div></div><div class="book-card-actions"><button type="button" data-edit-book="${book.id}">Edit</button><button class="danger-text" type="button" data-delete-book="${book.id}">Delete</button></div></article>`;
+      const unscheduled = !scheduled.has(book.id);
+      return `<article class="book-card">${unscheduled ? '<span class="status-pill unscheduled-badge">Not yet scheduled</span>' : ""}<div class="book-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="Cover of ${escapeHtml(book.title)}" loading="lazy" />` : escapeHtml(initials(book.title))}</div><div class="book-card-copy"><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author)}</p><p class="book-description">${escapeHtml(book.description || "No description has been added yet.")}</p><div class="book-meta">${publicationYear ? `<span>${escapeHtml(publicationYear)}</span>` : ""}${book.page_count ? `<span>${book.page_count} pages</span>` : ""}${book.genres ? `<span>${escapeHtml(book.genres)}</span>` : ""}</div></div><div class="book-card-actions"><button type="button" data-edit-book="${book.id}">Edit</button><button class="danger-text" type="button" data-delete-book="${book.id}">Delete</button></div></article>`;
     })
     .join("");
 };
@@ -289,7 +346,7 @@ const renderMeetingView = () => {
   if (!meeting) {
     $("#meeting-heading").textContent = "Add your first meeting";
     $("#meeting-intro").textContent =
-      "Set the next book and date, then the active member list will be ready to track.";
+      "Set the next book and date, then search below to build its roster.";
   } else {
     const coverUrl = safeImageUrl(meeting.book.cover_image_url);
     cover.innerHTML = coverUrl
@@ -306,24 +363,25 @@ const renderMeetingView = () => {
       .join(" · ");
   }
   $("#roster-stat").textContent = state.roster.length;
-  $("#checkout-stat").textContent = state.roster.filter(
-    (entry) => entry.book_checked_out,
+  $("#new-registrant-stat").textContent = state.roster.filter(
+    (entry) => entry.member.is_new_registrant,
   ).length;
   $("#attendance-stat").textContent = state.roster.filter(
     (entry) => entry.attended,
   ).length;
-  $("#transfer-stat").textContent = state.roster.filter(
-    (entry) => entry.delivery_method === "transfer",
-  ).length;
+  $("#roster-add-search").value = "";
+  $("#roster-add-results").hidden = true;
   renderRoster();
   renderGiveaway();
   renderQuestions();
+  renderWelcomeEmails();
+  renderReminderPanel();
 };
 
 const renderRoster = () => {
   const body = $("#roster-table");
   if (!state.meetingId) {
-    body.innerHTML = '<tr><td colspan="5" class="empty-cell">Add a meeting to create its monthly checklist.</td></tr>';
+    body.innerHTML = '<tr><td colspan="3" class="empty-cell">Add a meeting to start building its roster.</td></tr>';
     return;
   }
   const query = state.rosterQuery.trim().toLowerCase();
@@ -334,26 +392,16 @@ const renderRoster = () => {
       .includes(query),
   );
   if (!entries.length) {
-    body.innerHTML = `<tr><td colspan="5" class="empty-cell">${query ? "No matching members." : "No members are on this meeting roster yet."}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="3" class="empty-cell">${query ? "No matching members." : "No one has been added to this meeting yet — search above to add someone."}</td></tr>`;
     return;
   }
   body.innerHTML = entries
     .map((entry) => {
       const member = entry.member;
       return `<tr data-member-id="${member.id}">
-        <td><div class="member-cell"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small></div></div></td>
-        <td><select class="table-select" data-roster-field="delivery_method" aria-label="Book request for ${escapeHtml(member.name)}">
-          <option value="none" ${entry.delivery_method === "none" ? "selected" : ""}>No copy</option>
-          <option value="pickup" ${entry.delivery_method === "pickup" ? "selected" : ""}>Pickup at PBRL</option>
-          <option value="transfer" ${entry.delivery_method === "transfer" ? "selected" : ""}>Send to branch</option>
-        </select></td>
-        <td>${
-          entry.delivery_method === "transfer"
-            ? `<input class="branch-input" data-roster-field="destination_branch" value="${escapeHtml(entry.destination_branch || "")}" placeholder="Branch name" aria-label="Destination branch for ${escapeHtml(member.name)}" />`
-            : '<span class="muted-dash">—</span>'
-        }</td>
-        <td><label class="check-wrap"><input type="checkbox" data-roster-field="book_checked_out" ${entry.book_checked_out ? "checked" : ""} /><span>${entry.book_checked_out ? "Yes" : "No"}</span></label></td>
+        <td><div class="member-cell" title="${escapeHtml(member.notes || "")}"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small></div></div></td>
         <td><label class="check-wrap"><input type="checkbox" data-roster-field="attended" ${entry.attended ? "checked" : ""} /><span>${entry.attended ? "Yes" : "No"}</span></label></td>
+        <td><button class="row-action danger-text" type="button" data-remove-from-roster="${member.id}">Remove</button></td>
       </tr>`;
     })
     .join("");
@@ -417,6 +465,101 @@ const renderQuestions = () => {
     .join("");
 };
 
+const DELIVERY_LABELS = { none: "No copy", pickup: "Pickup at PBRL", transfer: "Send to branch" };
+
+// A new registrant needs one or two emails over their lifetime: the
+// welcome email (always), then — only for a transfer — a follow-up once
+// the book actually lands at the destination branch. Both are one-time
+// sends tracked on the member, gated by whichever meeting they're on this
+// roster for (so book_title/date have somewhere to come from).
+const registrantEmailStage = (member) => {
+  if (!member.onboarding_email_sent_at) return "welcome";
+  if (member.delivery_method === "transfer" && !member.arrival_email_sent_at) return "arrival";
+  return null;
+};
+
+const STAGE_LABELS = {
+  welcome: "Needs welcome email",
+  arrival: "Needs arrival confirmation",
+};
+
+const renderWelcomeEmails = () => {
+  const container = $("#welcome-list");
+  const rows = state.roster
+    .filter((entry) => entry.member.is_new_registrant)
+    .map((entry) => ({ entry, stage: registrantEmailStage(entry.member) }))
+    .filter((row) => row.stage);
+  if (!rows.length) {
+    container.innerHTML = '<div class="empty-card"><span>✉</span><p>No new registrants need an email right now.</p></div>';
+    return;
+  }
+  container.innerHTML = rows
+    .map(({ entry, stage }) => {
+      const member = entry.member;
+      const badgeDetail =
+        stage === "arrival" && member.destination_branch ? ` — ${escapeHtml(member.destination_branch)}` : "";
+      return `<article class="welcome-row">
+        <div class="member-cell"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small></div></div>
+        <span class="status-pill ${stage === "arrival" ? "arrival-badge" : ""}">${escapeHtml(STAGE_LABELS[stage])}${badgeDetail}</span>
+        <div class="welcome-row-actions">
+          <button class="quiet-button" type="button" data-copy-registrant-email="${member.id}" data-stage="${stage}">Copy</button>
+          <button class="primary-button" type="button" data-send-registrant-email="${member.id}" data-stage="${stage}">Send</button>
+        </div>
+      </article>`;
+    })
+    .join("");
+};
+
+const renderReminderPanel = () => {
+  const meeting = currentMeeting();
+  const status = $("#reminder-status");
+  const countEl = $("#reminder-recipient-count");
+  if (!meeting) {
+    status.textContent = "Add a meeting first.";
+    countEl.textContent = "";
+    return;
+  }
+  status.textContent = meeting.reminder_sent_at
+    ? `Reminder sent on ${formatDate(meeting.reminder_sent_at.slice(0, 10))}.`
+    : "Not sent yet.";
+  countEl.textContent = state.roster.length
+    ? `${state.roster.length} ${state.roster.length === 1 ? "person" : "people"} on this meeting's roster.`
+    : "No one has been added to this meeting yet.";
+};
+
+const refreshCurrentMeeting = async () => {
+  const updated = await request(`/bookclub/meetings/${state.meetingId}`);
+  const index = state.meetings.findIndex((entry) => entry.id === updated.id);
+  if (index >= 0) state.meetings[index] = updated;
+  return updated;
+};
+
+const refreshMember = async (memberId) => {
+  const updated = await request(`/bookclub/members/${memberId}`);
+  const index = state.members.findIndex((entry) => entry.id === updated.id);
+  if (index >= 0) state.members[index] = updated;
+  const rosterEntry = state.roster.find((entry) => entry.member_id === updated.id);
+  if (rosterEntry) rosterEntry.member = updated;
+  return updated;
+};
+
+const memberPendingBadge = (member) => {
+  if (member.is_new_registrant && !member.onboarding_email_sent_at) {
+    return { label: "Needs welcome email", className: "new-badge" };
+  }
+  if (
+    member.is_new_registrant &&
+    member.delivery_method === "transfer" &&
+    !member.arrival_email_sent_at
+  ) {
+    return {
+      label: `Needs arrival confirmation${member.destination_branch ? ` — ${member.destination_branch}` : ""}`,
+      className: "arrival-badge",
+    };
+  }
+  return null;
+};
+
 const renderMembers = () => {
   const query = state.memberQuery.trim().toLowerCase();
   const members = state.members.filter((member) =>
@@ -425,25 +568,57 @@ const renderMembers = () => {
   $("#member-count").textContent = `${state.members.filter((member) => member.active).length} active · ${state.members.length} total`;
   $("#members-table").innerHTML = members.length
     ? members
-        .map(
-          (member) => `<tr><td><div class="member-cell"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small></div></div></td><td>${escapeHtml(formatDate(member.joined_on))}</td><td><span class="status-pill ${member.active ? "" : "inactive"}">${member.active ? "Active" : "Inactive"}</span></td><td><button class="row-action" type="button" data-member-history="${member.id}">View history</button></td><td><button class="row-action" type="button" data-edit-member="${member.id}">Edit</button></td></tr>`,
-        )
+        .map((member) => {
+          const badge = memberPendingBadge(member);
+          const badgeHtml = badge
+            ? `<button class="status-pill ${badge.className} jump-badge" type="button" data-jump-to-pending="${member.id}">${escapeHtml(badge.label)}</button>`
+            : "";
+          return `<tr><td><div class="member-cell" title="${escapeHtml(member.notes || "")}"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small>${badgeHtml}</div></div></td><td>${escapeHtml(formatDate(member.joined_on))}</td><td><span class="status-pill ${member.active ? "" : "inactive"}">${member.active ? "Active" : "Inactive"}</span></td><td><button class="row-action" type="button" data-member-history="${member.id}">View history</button></td><td><button class="row-action" type="button" data-edit-member="${member.id}">Edit</button></td></tr>`;
+        })
         .join("")
     : '<tr><td colspan="5" class="empty-cell">No matching members.</td></tr>';
 };
 
-const openMemberDialog = (member = null) => {
+const jumpToPendingMeeting = async (memberId) => {
+  try {
+    const history = await request(`/bookclub/members/${memberId}/history`);
+    const targetMeeting = history[0]?.meeting;
+    if (!targetMeeting) return showToast("No meeting found for this registrant.");
+    state.meetingId = targetMeeting.id;
+    await loadSelectedMeeting();
+    await setView("messages");
+  } catch (error) {
+    showToast(error.message);
+  }
+};
+
+let memberDialogAddToRoster = false;
+
+const openMemberDialog = (member = null, { addToRoster = false, prefillName = "" } = {}) => {
+  memberDialogAddToRoster = addToRoster && !member;
   const form = $("#member-form");
   form.reset();
   form.elements.id.value = member?.id || "";
-  form.elements.name.value = member?.name || "";
+  form.elements.name.value = member?.name || prefillName;
   form.elements.email.value = member?.email || "";
   form.elements.joined_on.value = member?.joined_on || today();
   form.elements.active.value = String(member?.active ?? true);
+  form.elements.is_new_registrant.checked = member ? Boolean(member.is_new_registrant) : true;
+  form.elements.delivery_method.value = member?.delivery_method || "none";
+  form.elements.destination_branch.value = member?.destination_branch || "";
   form.elements.notes.value = member?.notes || "";
+  updateMemberDeliveryFieldVisibility();
   $("#member-dialog-title").textContent = member ? "Edit member" : "Add member";
   $("#member-error").textContent = "";
   $("#member-dialog").showModal();
+};
+
+const updateMemberDeliveryFieldVisibility = () => {
+  const form = $("#member-form");
+  const isNewRegistrant = form.elements.is_new_registrant.checked;
+  $("#member-delivery-field").hidden = !isNewRegistrant;
+  $("#member-branch-field").hidden =
+    !isNewRegistrant || form.elements.delivery_method.value !== "transfer";
 };
 
 const openMeetingDialog = (meeting = null) => {
@@ -548,69 +723,29 @@ const showMemberHistory = async (memberId) => {
   const member = state.members.find((entry) => entry.id === memberId);
   const history = await request(`/bookclub/members/${memberId}/history`);
   $("#history-title").textContent = `${member.name}’s history`;
-  $("#history-content").innerHTML = history.length
+  const deliveryHtml = member.is_new_registrant
+    ? `<p class="history-notes">${escapeHtml(DELIVERY_LABELS[member.delivery_method] || member.delivery_method)}${member.delivery_method === "transfer" && member.destination_branch ? ` — ${escapeHtml(member.destination_branch)}` : ""}</p>`
+    : "";
+  const notesHtml = member.notes
+    ? `<p class="history-notes">${escapeHtml(member.notes)}</p>`
+    : "";
+  $("#history-content").innerHTML = deliveryHtml + notesHtml + (history.length
     ? `<div class="history-list">${history
         .map(
-          (entry) => `<article class="history-row"><div><strong>${escapeHtml(entry.meeting.book.title)}</strong><small>${escapeHtml(formatDate(entry.meeting.meeting_date))}</small></div><span class="history-mark ${entry.book_checked_out ? "yes" : "no"}">${entry.book_checked_out ? "Book ✓" : "No book"}</span><span class="history-mark ${entry.attended ? "yes" : "no"}">${entry.attended ? "Attended ✓" : "Absent"}</span></article>`,
+          (entry) => `<article class="history-row"><div><strong>${escapeHtml(entry.meeting.book.title)}</strong><small>${escapeHtml(formatDate(entry.meeting.meeting_date))}</small></div><span class="history-mark ${entry.attended ? "yes" : "no"}">${entry.attended ? "Attended ✓" : "Absent"}</span></article>`,
         )
         .join("")}</div>`
-    : '<div class="empty-card"><p>No meeting history yet.</p></div>';
+    : '<div class="empty-card"><p>No meeting history yet.</p></div>');
   $("#history-dialog").showModal();
 };
 
-const renderEmailPreviews = (previews) => {
-  const container = $("#email-previews");
-  if (!previews.length) {
-    container.innerHTML = '<div class="empty-card"><span>⌕</span><p>No members match that recipient filter.</p></div>';
-    return;
-  }
-  container.innerHTML = previews
-    .map(
-      (preview, index) => `<article class="email-card"><header><div><h3>${escapeHtml(preview.member_name)}</h3><small>${escapeHtml(preview.email)}</small></div><button class="copy-button" type="button" data-copy-email="${index}">Copy</button></header><strong>${escapeHtml(preview.subject)}</strong><pre>${escapeHtml(preview.body)}</pre>${preview.missing_variables.length ? `<p class="form-error">Missing: ${escapeHtml(preview.missing_variables.join(", "))}</p>` : ""}</article>`,
-    )
-    .join("");
-  container._previews = previews;
-};
-
-const previewEmails = async () => {
-  if (!state.meetingId) return showToast("Add a meeting first.");
-  const filter = $("#recipient-filter").value;
+const printTransitLabel = async (memberId, destinationBranch) => {
   try {
-    const recipients = await request(
-      `/bookclub/meetings/${state.meetingId}/recipients?filter=${encodeURIComponent(filter)}`,
-    );
-    const previews = await request(
-      `/bookclub/meetings/${state.meetingId}/emails/preview`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          email_type: $("#email-type").value,
-          member_ids: recipients.map((member) => member.id),
-        }),
-      },
-    );
-    const recipientIds = new Set(recipients.map((member) => member.id));
-    renderEmailPreviews(
-      filter === "all"
-        ? previews
-        : previews.filter((preview) => recipientIds.has(preview.member_id)),
-    );
-  } catch (error) {
-    showToast(error.message);
-  }
-};
-
-const printLabels = async () => {
-  if (!state.meetingId) return showToast("Add a meeting first.");
-  try {
-    const labels = await request(
-      `/bookclub/meetings/${state.meetingId}/transit-labels/render`,
-      { method: "POST", body: "{}" },
-    );
-    if (!labels.length) return showToast("No branch transfers need labels.");
-    $("#print-sheet").innerHTML = labels
-      .map((label) => `<article class="print-label">${escapeHtml(label.body)}</article>`)
-      .join("");
+    const rendered = await request("/bookclub/transit-labels/render", {
+      method: "POST",
+      body: JSON.stringify({ member_id: memberId, destination_branch: destinationBranch }),
+    });
+    $("#print-sheet").innerHTML = `<article class="print-label">${escapeHtml(rendered.body)}</article>`;
     window.print();
   } catch (error) {
     showToast(error.message);
@@ -641,6 +776,53 @@ const renderTemplates = () => {
   $("#template-subject-field").hidden = template.kind !== "email";
 };
 
+const loadParticipation = async () => {
+  state.participation = await request("/bookclub/members/participation-summary");
+  renderParticipation();
+};
+
+const participationSortValue = (row, key) => {
+  switch (key) {
+    case "name":
+      return row.member.name.toLowerCase();
+    case "last_attended_date":
+      return row.last_attended_date || "";
+    case "last_contacted_at":
+      return row.last_contacted_at || "";
+    default:
+      return row[key] ?? 0;
+  }
+};
+
+const renderParticipation = () => {
+  const { key, dir } = state.participationSort;
+  const rows = [...state.participation].sort((a, b) => {
+    const valueA = participationSortValue(a, key);
+    const valueB = participationSortValue(b, key);
+    if (valueA < valueB) return -1 * dir;
+    if (valueA > valueB) return 1 * dir;
+    return 0;
+  });
+  $("#participation-count").textContent = `${rows.length} ${rows.length === 1 ? "member" : "members"}`;
+  $("#participation-table").innerHTML = rows.length
+    ? rows
+        .map((row) => {
+          const member = row.member;
+          const lapsed = row.meetings_since_last_attended >= 3;
+          return `<tr class="${lapsed ? "lapsed-row" : ""}">
+            <td><div class="member-cell" title="${escapeHtml(member.notes || "")}"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small></div></div></td>
+            <td>${row.meetings_total}</td>
+            <td>${row.attended_count}</td>
+            <td>${row.giveaways_won}</td>
+            <td>${row.last_attended_date ? escapeHtml(formatDate(row.last_attended_date)) : '<span class="muted-dash">—</span>'}</td>
+            <td>${row.last_contacted_at ? escapeHtml(formatDate(row.last_contacted_at.slice(0, 10))) : '<span class="muted-dash">—</span>'}</td>
+            <td class="notes-cell">${escapeHtml(member.notes || "")}</td>
+          </tr>`;
+        })
+        .join("")
+    : '<tr><td colspan="7" class="empty-cell">No members yet.</td></tr>';
+};
+
 const setView = async (view) => {
   state.view = view;
   $$(".view").forEach((section) =>
@@ -658,12 +840,14 @@ const setView = async (view) => {
     meeting: currentMeeting()?.book.title || "Meeting",
     books: "Books",
     members: "Members",
+    participation: "Participation",
     messages: "Messages & labels",
     templates: "Templates",
   };
   $("#breadcrumb-page").textContent = labels[view];
   if (view === "meetings") renderMeetings();
   if (view === "books") renderBooks();
+  if (view === "participation") await loadParticipation();
   if (view === "messages") {
     const meeting = currentMeeting();
     $("#message-meeting-context").textContent = meeting
@@ -679,59 +863,159 @@ $("#roster-table").addEventListener("change", async (event) => {
   const row = event.target.closest("tr");
   const memberId = Number(row.dataset.memberId);
   try {
-    if (field === "delivery_method") {
-      const entry = state.roster.find((item) => item.member_id === memberId);
-      if (event.target.value === "transfer") {
-        entry.delivery_method = "transfer";
-        renderMeetingView();
-        document
-          .querySelector(`tr[data-member-id="${memberId}"] .branch-input`)
-          ?.focus();
-        return;
-      }
-      await saveParticipation(memberId, {
-        delivery_method: event.target.value,
-      });
-    } else if (field === "destination_branch") {
-      if (!event.target.value.trim()) return showToast("Enter a destination branch.");
-      await saveParticipation(memberId, {
-        delivery_method: "transfer",
-        destination_branch: event.target.value.trim(),
-      });
-    } else {
-      await saveParticipation(memberId, { [field]: event.target.checked });
-    }
-    showToast("Monthly checklist updated.");
+    await saveParticipation(memberId, { [field]: event.target.checked });
+    showToast("Roster updated.");
   } catch (error) {
     showToast(error.message);
     await loadSelectedMeeting();
   }
 });
 
+// Shared by the roster-add search and the transit-label composer's member
+// search: renders matching members (excluding any ids in `excludeIds`) as
+// clickable result rows into `container`, with an optional "add new
+// member" fallback row when nothing matches (or always, if requested).
+const renderMemberSearchResults = (container, query, { excludeIds = new Set(), showAddNew = false } = {}) => {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    container.hidden = true;
+    container.innerHTML = "";
+    return [];
+  }
+  const lower = trimmed.toLowerCase();
+  const matches = state.members
+    .filter((member) => !excludeIds.has(member.id))
+    .filter((member) => [member.name, member.email].join(" ").toLowerCase().includes(lower))
+    .slice(0, 6);
+  container.hidden = false;
+  const resultsHtml = matches
+    .map(
+      (member) => `<button class="member-search-result" type="button" data-member-result="${member.id}"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small></div></button>`,
+    )
+    .join("");
+  const addNewHtml = showAddNew
+    ? `<button class="member-search-result member-search-add-new" type="button" data-add-new-member="${escapeHtml(trimmed)}">＋ Add "${escapeHtml(trimmed)}" as a new member</button>`
+    : matches.length
+      ? ""
+      : '<p class="field-help">No matching members.</p>';
+  container.innerHTML = resultsHtml + addNewHtml;
+  return matches;
+};
+
+$("#roster-add-search").addEventListener("input", (event) => {
+  renderMemberSearchResults($("#roster-add-results"), event.target.value, {
+    excludeIds: new Set(state.roster.map((entry) => entry.member_id)),
+    showAddNew: true,
+  });
+});
+
+$("#roster-add-results").addEventListener("click", async (event) => {
+  const addNew = event.target.closest("[data-add-new-member]");
+  if (addNew) {
+    const name = addNew.dataset.addNewMember;
+    $("#roster-add-results").hidden = true;
+    return openMemberDialog(null, { addToRoster: true, prefillName: name });
+  }
+  const resultButton = event.target.closest("[data-member-result]");
+  if (!resultButton) return;
+  const memberId = Number(resultButton.dataset.memberResult);
+  try {
+    await request(`/bookclub/meetings/${state.meetingId}/members/${memberId}`, {
+      method: "PUT",
+      body: JSON.stringify({}),
+    });
+    $("#roster-add-search").value = "";
+    $("#roster-add-results").hidden = true;
+    await loadSelectedMeeting();
+    showToast("Added to this meeting.");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+const updateTransitPrintButton = () => {
+  $("#print-transit-label").disabled = !(
+    state.transitSelectedMemberId && $("#transit-destination").value.trim()
+  );
+};
+
+$("#transit-member-search").addEventListener("input", (event) => {
+  state.transitSelectedMemberId = null;
+  updateTransitPrintButton();
+  renderMemberSearchResults($("#transit-member-results"), event.target.value, {});
+});
+
+$("#transit-member-results").addEventListener("click", (event) => {
+  const resultButton = event.target.closest("[data-member-result]");
+  if (!resultButton) return;
+  const memberId = Number(resultButton.dataset.memberResult);
+  const member = state.members.find((entry) => entry.id === memberId);
+  if (!member) return;
+  state.transitSelectedMemberId = member.id;
+  $("#transit-member-search").value = member.name;
+  $("#transit-destination").value = member.destination_branch || "";
+  $("#transit-member-results").hidden = true;
+  updateTransitPrintButton();
+});
+
+$("#transit-destination").addEventListener("input", updateTransitPrintButton);
+
+$("#print-transit-label").addEventListener("click", async () => {
+  const destination = $("#transit-destination").value.trim();
+  if (!state.transitSelectedMemberId || !destination) return;
+  await printTransitLabel(state.transitSelectedMemberId, destination);
+});
+
+$("#member-form").elements.is_new_registrant.addEventListener("change", updateMemberDeliveryFieldVisibility);
+$("#member-form").elements.delivery_method.addEventListener("change", updateMemberDeliveryFieldVisibility);
+
 $("#member-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const id = form.elements.id.value;
+  const isNewRegistrant = form.elements.is_new_registrant.checked;
+  const deliveryMethod = isNewRegistrant ? form.elements.delivery_method.value : "none";
+  const destinationBranch = form.elements.destination_branch.value.trim();
+  if (isNewRegistrant && deliveryMethod === "transfer" && !destinationBranch) {
+    $("#member-error").textContent = "Enter a destination branch.";
+    return;
+  }
   const data = {
     name: form.elements.name.value.trim(),
     email: form.elements.email.value.trim(),
     joined_on: form.elements.joined_on.value,
     active: form.elements.active.value === "true",
+    is_new_registrant: isNewRegistrant,
+    delivery_method: deliveryMethod,
+    destination_branch: deliveryMethod === "transfer" ? destinationBranch : null,
     notes: form.elements.notes.value.trim() || null,
   };
   try {
-    await request(id ? `/bookclub/members/${id}` : "/bookclub/members", {
+    const saved = await request(id ? `/bookclub/members/${id}` : "/bookclub/members", {
       method: id ? "PATCH" : "POST",
       body: JSON.stringify(data),
     });
-    if (!id && state.meetingId) {
-      await request(`/bookclub/meetings/${state.meetingId}/roster/sync`, {
-        method: "POST",
+    const shouldAddToRoster = !id && memberDialogAddToRoster && state.meetingId;
+    if (shouldAddToRoster) {
+      await request(`/bookclub/meetings/${state.meetingId}/members/${saved.id}`, {
+        method: "PUT",
+        body: JSON.stringify({}),
       });
     }
     $("#member-dialog").close();
     await loadCoreData();
-    showToast(id ? "Member updated." : "Member added to the club.");
+    showToast(
+      id
+        ? "Member updated."
+        : shouldAddToRoster
+          ? "Member added to the club and this meeting."
+          : "Member added to the club.",
+    );
+    if (!id && isNewRegistrant && deliveryMethod === "transfer") {
+      if (window.confirm(`Print a transit label for ${data.name} → ${destinationBranch} now?`)) {
+        await printTransitLabel(saved.id, destinationBranch);
+      }
+    }
   } catch (error) {
     $("#member-error").textContent = error.message;
   }
@@ -757,9 +1041,32 @@ $("#meeting-form").addEventListener("submit", async (event) => {
     $("#meeting-dialog").close();
     await loadCoreData();
     await setView("meeting");
-    showToast(id ? "Meeting updated." : "Meeting added with all active members.");
+    showToast(id ? "Meeting updated." : "Meeting added. Search below to build its roster.");
   } catch (error) {
     $("#meeting-error").textContent = error.message;
+  }
+});
+
+$("#club-settings-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  try {
+    const updated = await request(`/bookclub/clubs/${state.club.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: form.elements.name.value.trim(),
+        description: form.elements.description.value.trim() || null,
+        organizer_name: form.elements.organizer_name.value.trim() || null,
+        organizer_branch: form.elements.organizer_branch.value.trim() || null,
+        video_call_url: form.elements.video_call_url.value.trim() || null,
+        public: form.elements.public.value === "true",
+      }),
+    });
+    applyClub(updated);
+    $("#club-settings-dialog").close();
+    showToast("Club settings saved.");
+  } catch (error) {
+    $("#club-settings-error").textContent = error.message;
   }
 });
 
@@ -957,6 +1264,8 @@ document.addEventListener("click", async (event) => {
   }
   const historyButton = event.target.closest("[data-member-history]");
   if (historyButton) return showMemberHistory(Number(historyButton.dataset.memberHistory));
+  const jumpBadge = event.target.closest("[data-jump-to-pending]");
+  if (jumpBadge) return jumpToPendingMeeting(Number(jumpBadge.dataset.jumpToPending));
 
   const editQuestion = event.target.closest("[data-edit-question]");
   if (editQuestion) {
@@ -991,13 +1300,78 @@ document.addEventListener("click", async (event) => {
     textarea.setRangeText(token, textarea.selectionStart, textarea.selectionEnd, "end");
     return textarea.focus();
   }
-  const copyButton = event.target.closest("[data-copy-email]");
-  if (copyButton) {
-    const preview = $("#email-previews")._previews[Number(copyButton.dataset.copyEmail)];
-    await navigator.clipboard.writeText(
-      `To: ${preview.email}\nSubject: ${preview.subject}\n\n${preview.body}`,
-    );
-    return showToast("Email copied.");
+
+  const sortHeaderButton = event.target.closest("[data-sort]");
+  if (sortHeaderButton) {
+    const key = sortHeaderButton.dataset.sort;
+    if (state.participationSort.key === key) state.participationSort.dir *= -1;
+    else state.participationSort = { key, dir: 1 };
+    return renderParticipation();
+  }
+
+  const removeFromRosterButton = event.target.closest("[data-remove-from-roster]");
+  if (removeFromRosterButton) {
+    const memberId = Number(removeFromRosterButton.dataset.removeFromRoster);
+    const entry = state.roster.find((item) => item.member_id === memberId);
+    if (!window.confirm(`Remove ${entry?.member?.name || "this member"} from this meeting's roster?`)) return;
+    try {
+      await request(`/bookclub/meetings/${state.meetingId}/members/${memberId}`, {
+        method: "DELETE",
+      });
+      await loadSelectedMeeting();
+      return showToast("Removed from the roster.");
+    } catch (error) {
+      return showToast(error.message);
+    }
+  }
+
+  const copyRegistrantButton = event.target.closest("[data-copy-registrant-email]");
+  if (copyRegistrantButton) {
+    const memberId = Number(copyRegistrantButton.dataset.copyRegistrantEmail);
+    const endpoint = copyRegistrantButton.dataset.stage === "arrival" ? "arrival-email" : "onboarding-email";
+    try {
+      const rendered = await request(
+        `/bookclub/meetings/${state.meetingId}/members/${memberId}/${endpoint}/preview`,
+        { method: "POST" },
+      );
+      const member = state.members.find((entry) => entry.id === memberId);
+      await navigator.clipboard.writeText(
+        `To: ${member?.email || ""}\nSubject: ${rendered.subject}\n\n${rendered.body}`,
+      );
+      return showToast("Email copied.");
+    } catch (error) {
+      return showToast(error.message);
+    }
+  }
+
+  const sendRegistrantButton = event.target.closest("[data-send-registrant-email]");
+  if (sendRegistrantButton) {
+    const memberId = Number(sendRegistrantButton.dataset.sendRegistrantEmail);
+    const stage = sendRegistrantButton.dataset.stage;
+    const endpoint = stage === "arrival" ? "arrival-email" : "onboarding-email";
+    const rosterEntry = state.roster.find((entry) => entry.member_id === memberId);
+    const member = rosterEntry?.member;
+    const alreadySentAt = stage === "arrival" ? member?.arrival_email_sent_at : member?.onboarding_email_sent_at;
+    if (
+      alreadySentAt &&
+      !window.confirm(`This email was already sent on ${formatDate(alreadySentAt.slice(0, 10))} — send again?`)
+    ) {
+      return;
+    }
+    try {
+      const result = await request(
+        `/bookclub/meetings/${state.meetingId}/members/${memberId}/${endpoint}/send`,
+        { method: "POST" },
+      );
+      await refreshMember(memberId);
+      renderWelcomeEmails();
+      renderMembers();
+      return showToast(
+        result.sent ? "Email sent." : "Email delivery isn't configured — use Copy instead.",
+      );
+    } catch (error) {
+      return showToast(error.message);
+    }
   }
 });
 
@@ -1017,7 +1391,12 @@ $("#book-search").addEventListener("input", (event) => {
   state.bookQuery = event.target.value;
   renderBooks();
 });
+$("#book-unscheduled-filter").addEventListener("change", (event) => {
+  state.bookUnscheduledOnly = event.target.checked;
+  renderBooks();
+});
 $("#add-member").addEventListener("click", () => openMemberDialog());
+$("#edit-club-settings").addEventListener("click", openClubSettingsDialog);
 $("#add-book").addEventListener("click", () => openBookDialog());
 $("#book-list").addEventListener("click", (event) => {
   if (event.target.closest("#empty-add-book")) openBookDialog();
@@ -1028,7 +1407,7 @@ $("#delete-meeting").addEventListener("click", async () => {
   if (!meeting) return;
   if (
     !window.confirm(
-      `Delete the ${formatDate(meeting.meeting_date)} meeting for ${meeting.book.title}? Attendance, checkout records, the giveaway winner, and questions for this meeting will also be deleted.`,
+      `Delete the ${formatDate(meeting.meeting_date)} meeting for ${meeting.book.title}? Attendance, the giveaway winner, and questions for this meeting will also be deleted.`,
     )
   ) {
     return;
@@ -1057,14 +1436,6 @@ $("#delete-meeting").addEventListener("click", async () => {
     deleteButton.textContent = "Delete meeting";
   }
 });
-$("#sync-roster").addEventListener("click", async () => {
-  if (!state.meetingId) return showToast("Add a meeting first.");
-  const result = await request(`/bookclub/meetings/${state.meetingId}/roster/sync`, {
-    method: "POST",
-  });
-  await loadSelectedMeeting();
-  showToast(result.added ? `${result.added} member${result.added === 1 ? "" : "s"} added.` : "The roster is already current.");
-});
 $("#add-question").addEventListener("click", () => {
   if (!state.meetingId) return showToast("Add a meeting first.");
   const form = $("#question-form");
@@ -1073,8 +1444,39 @@ $("#add-question").addEventListener("click", () => {
   $("#question-dialog-title").textContent = "Add question";
   $("#question-dialog").showModal();
 });
-$("#preview-email").addEventListener("click", previewEmails);
-$("#print-labels").addEventListener("click", printLabels);
+$("#copy-reminder-list").addEventListener("click", async () => {
+  const emails = state.roster.map((entry) => entry.member.email);
+  if (!emails.length) return showToast("No one is on this meeting's roster yet.");
+  await navigator.clipboard.writeText(emails.join("; "));
+  showToast("Address list copied.");
+});
+$("#send-reminder").addEventListener("click", async () => {
+  const meeting = currentMeeting();
+  if (!meeting) return showToast("Add a meeting first.");
+  const memberIds = state.roster.map((entry) => entry.member_id);
+  if (!memberIds.length) return showToast("No one is on this meeting's roster yet.");
+  if (
+    meeting.reminder_sent_at &&
+    !window.confirm(`Reminder already sent on ${formatDate(meeting.reminder_sent_at.slice(0, 10))} — send again?`)
+  ) {
+    return;
+  }
+  try {
+    const result = await request(`/bookclub/meetings/${meeting.id}/reminder/send`, {
+      method: "POST",
+      body: JSON.stringify({ member_ids: memberIds }),
+    });
+    await refreshCurrentMeeting();
+    renderReminderPanel();
+    showToast(
+      result.sent
+        ? `Reminder sent to ${result.recipient_count} people.`
+        : "Email delivery isn't configured — copy the list instead.",
+    );
+  } catch (error) {
+    showToast(error.message);
+  }
+});
 $("#restore-template").addEventListener("click", async () => {
   if (!state.templateKey || !window.confirm("Restore the original wording for this template?")) return;
   await request(`/bookclub/templates/${state.templateKey}/restore`, { method: "POST" });

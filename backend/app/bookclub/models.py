@@ -26,6 +26,7 @@ class BookClub(Base):
     public: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
     organizer_name: Mapped[str | None] = mapped_column(String(200))
     organizer_branch: Mapped[str | None] = mapped_column(String(200))
+    video_call_url: Mapped[str | None] = mapped_column(String(500))
 
     access: Mapped[list["BookClubAccess"]] = relationship(
         back_populates="club", cascade="all, delete-orphan"
@@ -67,6 +68,22 @@ class BookClubMember(Base):
         Boolean(), default=True, server_default="1"
     )
     notes: Mapped[str | None] = mapped_column(Text())
+    is_new_registrant: Mapped[bool] = mapped_column(
+        Boolean(), default=False, server_default="0"
+    )
+    delivery_method: Mapped[str] = mapped_column(
+        String(30), default="none", server_default="none"
+    )
+    destination_branch: Mapped[str | None] = mapped_column(String(200))
+    onboarding_email_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    arrival_email_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    last_reminder_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
 
 
 class BookClubBook(Base):
@@ -121,6 +138,9 @@ class BookClubMeeting(Base):
     giveaway_winner_member_id: Mapped[int | None] = mapped_column(
         ForeignKey("bookclub_members.id", ondelete="SET NULL")
     )
+    reminder_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
 
     participants: Mapped[list["BookClubParticipation"]] = relationship(
         back_populates="meeting",
@@ -158,13 +178,6 @@ class BookClubParticipation(Base):
     member_id: Mapped[int] = mapped_column(
         ForeignKey("bookclub_members.id", ondelete="CASCADE"),
         index=True,
-    )
-    delivery_method: Mapped[str] = mapped_column(
-        String(30), default="none", server_default="none"
-    )
-    destination_branch: Mapped[str | None] = mapped_column(String(200))
-    book_checked_out: Mapped[bool] = mapped_column(
-        Boolean(), default=False, server_default="0"
     )
     attended: Mapped[bool] = mapped_column(
         Boolean(), default=False, server_default="0"

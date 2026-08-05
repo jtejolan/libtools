@@ -10,9 +10,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/bookclub.css?v=16" />
+    <link rel="stylesheet" href="/static/bookclub.css?v=18" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub.js?v=15" defer></script>
+    <script src="/static/bookclub.js?v=18" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -26,12 +26,14 @@
           <span class="product-icon"><img src="/static/assets/book-club-manager-logo-v2.png?v=1" alt="" /></span>
           <div><small id="sidebar-club-name">Choose a club</small><strong>Book Club Manager</strong></div>
         </div>
+        <button class="sidebar-settings-link" id="edit-club-settings" type="button">⚙ Club settings</button>
 
         <nav aria-label="Book Club Manager navigation">
           <p class="nav-label">Manage</p>
           <button class="nav-item active" type="button" data-view="meetings"><span>◫</span><span>Meetings</span></button>
           <button class="nav-item" type="button" data-view="books"><span>▥</span><span>Books</span></button>
           <button class="nav-item" type="button" data-view="members"><span>◎</span><span>Members</span></button>
+          <button class="nav-item" type="button" data-view="participation"><span>◈</span><span>Participation</span></button>
           <button class="nav-item" type="button" data-view="messages"><span>✉</span><span>Messages &amp; labels</span></button>
           <button class="nav-item" type="button" data-view="templates"><span>▤</span><span>Templates</span></button>
           <p class="nav-label">Library Tools</p>
@@ -98,25 +100,27 @@
               </div>
             </header>
 
-            <section class="stats-grid" aria-label="Meeting overview">
+            <section class="stats-grid stats-grid-3" aria-label="Meeting overview">
               <article><span class="stat-icon green">◎</span><div><strong id="roster-stat">—</strong><span>Members</span></div></article>
-              <article><span class="stat-icon gold">✓</span><div><strong id="checkout-stat">—</strong><span>Books checked out</span></div></article>
+              <article><span class="stat-icon gold">✦</span><div><strong id="new-registrant-stat">—</strong><span>New registrants</span></div></article>
               <article><span class="stat-icon orange">◫</span><div><strong id="attendance-stat">—</strong><span>Attended</span></div></article>
-              <article><span class="stat-icon blue">→</span><div><strong id="transfer-stat">—</strong><span>Branch transfers</span></div></article>
             </section>
 
             <section class="panel roster-panel">
               <div class="panel-heading">
-                <div><p class="eyebrow"><span></span> Monthly checklist</p><h2>Members &amp; books</h2></div>
+                <div><p class="eyebrow"><span></span> Monthly roster</p><h2>Members &amp; attendance</h2></div>
                 <div class="panel-actions">
-                  <label class="search-box"><span>⌕</span><span class="sr-only">Search members</span><input id="roster-search" type="search" placeholder="Find a member…" /></label>
-                  <button class="quiet-button" id="sync-roster" type="button">Sync members</button>
+                  <label class="search-box"><span>⌕</span><span class="sr-only">Search this roster</span><input id="roster-search" type="search" placeholder="Find on this roster…" /></label>
                 </div>
+              </div>
+              <div class="roster-add-bar">
+                <label class="search-box roster-add-search"><span>＋</span><span class="sr-only">Add a member to this meeting</span><input id="roster-add-search" type="search" placeholder="Search members to add to this meeting…" autocomplete="off" /></label>
+                <div id="roster-add-results" class="member-search-results" hidden></div>
               </div>
               <div class="table-wrap">
                 <table>
-                  <thead><tr><th>Member</th><th>Book request</th><th>Destination</th><th>Checked out</th><th>Attended</th></tr></thead>
-                  <tbody id="roster-table"><tr><td colspan="5" class="loading-cell">Loading the member list…</td></tr></tbody>
+                  <thead><tr><th>Member</th><th>Attended</th><th></th></tr></thead>
+                  <tbody id="roster-table"><tr><td colspan="3" class="loading-cell">Loading the meeting roster…</td></tr></tbody>
                 </table>
               </div>
             </section>
@@ -148,8 +152,16 @@
               <div><p class="eyebrow"><span></span> Reading history</p><h1>Books</h1><p class="intro">Keep cover art, publication details, descriptions, and discussion notes together for every selection.</p></div>
               <button class="primary-button" id="add-book" type="button"><span>＋</span> Add book</button>
             </header>
+            <section class="stats-grid" aria-label="Reading stats">
+              <article><span class="stat-icon green">▥</span><div><strong id="book-stat-total">—</strong><span>Books in the catalog</span></div></article>
+              <article><span class="stat-icon gold">◫</span><div><strong id="book-stat-meetings">—</strong><span>Meetings held</span></div></article>
+              <article><span class="stat-icon orange">Σ</span><div><strong id="book-stat-avg-pages">—</strong><span>Average page count</span></div></article>
+              <article><span class="stat-icon blue">✦</span><div><strong id="book-stat-longest">—</strong><span>Longest book</span></div></article>
+            </section>
+            <p class="helper-text book-genre-breakdown" id="book-genre-breakdown"></p>
             <section class="collection-toolbar">
               <label class="search-box"><span>⌕</span><span class="sr-only">Search books</span><input id="book-search" type="search" placeholder="Search title, author, ISBN, or genre…" /></label>
+              <label class="check-wrap"><input type="checkbox" id="book-unscheduled-filter" /><span>Not yet scheduled only</span></label>
               <p id="book-count">—</p>
             </section>
             <div class="book-list" id="book-list"></div>
@@ -174,27 +186,70 @@
           </div>
         </section>
 
+        <section class="view" id="view-participation">
+          <div class="content">
+            <header class="page-heading">
+              <div><p class="eyebrow"><span></span> Engagement over time</p><h1>Participation</h1><p class="intro">See attendance, giveaways, and contact history across every member and meeting.</p></div>
+            </header>
+            <section class="panel">
+              <div class="panel-heading">
+                <div><h2>Every member</h2><p class="panel-description" id="participation-count">—</p></div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th><button class="sort-header" type="button" data-sort="name">Member</button></th>
+                      <th><button class="sort-header" type="button" data-sort="meetings_total">Meetings</button></th>
+                      <th><button class="sort-header" type="button" data-sort="attended_count">Attended</button></th>
+                      <th><button class="sort-header" type="button" data-sort="giveaways_won">Giveaways</button></th>
+                      <th><button class="sort-header" type="button" data-sort="last_attended_date">Last attended</button></th>
+                      <th><button class="sort-header" type="button" data-sort="last_contacted_at">Last contacted</button></th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody id="participation-table"><tr><td colspan="7" class="loading-cell">Loading participation…</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+
         <section class="view" id="view-messages">
           <div class="content">
-            <header class="page-heading"><div><p class="eyebrow"><span></span> Keep everyone informed</p><h1>Messages &amp; labels</h1><p class="intro" id="message-meeting-context">Prepare personalized onboarding messages, reminders, and book transit slips.</p></div></header>
-            <div class="message-grid">
-              <section class="panel compose-panel">
-                <div class="panel-heading compact"><div><h2>Prepare email</h2><p class="panel-description">Preview before copying or sending elsewhere.</p></div></div>
-                <div class="form-grid">
-                  <label class="field"><span>Email type</span><select id="email-type"><option value="monthly_reminder">Monthly reminder</option><option value="onboarding">New member onboarding</option></select></label>
-                  <label class="field"><span>Recipients</span><select id="recipient-filter"><option value="all">All active members</option><option value="checked_out">Checked out the book</option><option value="not_checked_out">Have not checked out</option><option value="pickup">Pickup at PBRL</option><option value="transfer">Transfer to another branch</option><option value="no_copy">No copy requested</option></select></label>
-                </div>
-                <button class="primary-button full-button" id="preview-email" type="button">Preview personalized emails</button>
-                <div id="email-previews" class="email-previews"><div class="empty-card"><span>✉</span><p>Your previews will appear here.</p></div></div>
-              </section>
+            <header class="page-heading"><div><p class="eyebrow"><span></span> Keep everyone informed</p><h1>Messages &amp; labels</h1><p class="intro" id="message-meeting-context">Prepare this meeting's registrant emails, monthly reminder, and transit labels.</p></div></header>
 
-              <section class="panel label-panel">
-                <div class="panel-heading compact"><div><h2>Transit labels</h2><p class="panel-description">For books being sent to another branch.</p></div></div>
-                <div class="label-example"><strong>SCI-FI BOOK CLUB BOOK</strong><p>Please hold for <em>member name</em> at <em>destination branch</em>.</p><small>Please contact Josh at PBRL when this book arrives.</small></div>
-                <button class="secondary-button full-button" id="print-labels" type="button">Preview &amp; print transfer labels</button>
+            <section class="panel welcome-panel">
+              <div class="panel-heading compact"><div><h2>New registrant emails</h2><p class="panel-description">Welcome email, then a follow-up once a transfer arrives.</p></div></div>
+              <div id="welcome-list" class="welcome-list"><div class="empty-card"><span>✉</span><p>No new registrants need an email right now.</p></div></div>
+            </section>
+
+            <section class="panel reminder-panel">
+              <div class="panel-heading compact">
+                <div><h2>Monthly reminder</h2><p class="panel-description" id="reminder-status">Add a meeting first.</p></div>
+              </div>
+              <div class="reminder-body">
+                <p class="field-help" id="reminder-recipient-count"></p>
+                <div class="reminder-actions">
+                  <button class="secondary-button" id="copy-reminder-list" type="button">Copy address list</button>
+                  <button class="primary-button" id="send-reminder" type="button">Send to everyone on this roster</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel label-panel">
+              <div class="panel-heading compact"><div><h2>Print a transit label</h2><p class="panel-description">For anyone whose book needs to go to another branch — a new registrant or the odd regular.</p></div></div>
+              <div class="transit-composer">
+                <div class="field">
+                  <span>Member</span>
+                  <input id="transit-member-search" type="search" placeholder="Search members…" autocomplete="off" />
+                  <div id="transit-member-results" class="member-search-results" hidden></div>
+                </div>
+                <label class="field"><span>Destination branch</span><input id="transit-destination" maxlength="200" placeholder="Branch name" /></label>
+                <button class="secondary-button full-button" id="print-transit-label" type="button" disabled>Print label</button>
                 <p class="helper-text">The wording can be changed at any time under Templates.</p>
-              </section>
-            </div>
+              </div>
+            </section>
           </div>
         </section>
 
@@ -209,7 +264,7 @@
                   <label class="field"><span>Template name</span><input name="name" required /></label>
                   <label class="field" id="template-subject-field"><span>Subject</span><input name="subject" /></label>
                   <label class="field"><span>Message</span><textarea name="body" rows="13" required></textarea></label>
-                  <div class="variable-row"><span>Insert:</span><button type="button" data-variable="first_name">First name</button><button type="button" data-variable="member_name">Full name</button><button type="button" data-variable="book_title">Book title</button><button type="button" data-variable="book_author">Author</button><button type="button" data-variable="meeting_date">Meeting date</button><button type="button" data-variable="meeting_time">Time</button><button type="button" data-variable="meeting_location">Location</button><button type="button" data-variable="destination_branch">Destination branch</button><button type="button" data-variable="organizer_name">Organizer</button><button type="button" data-variable="organizer_branch">Organizer branch</button></div>
+                  <div class="variable-row"><span>Insert:</span><button type="button" data-variable="first_name">First name</button><button type="button" data-variable="member_name">Full name</button><button type="button" data-variable="book_title">Book title</button><button type="button" data-variable="book_author">Author</button><button type="button" data-variable="meeting_date">Meeting date</button><button type="button" data-variable="meeting_time">Time</button><button type="button" data-variable="meeting_location">Location</button><button type="button" data-variable="destination_branch">Destination branch</button><button type="button" data-variable="organizer_name">Organizer</button><button type="button" data-variable="organizer_branch">Organizer branch</button><button type="button" data-variable="video_call_url">Video call link</button><button type="button" data-variable="calendar_link">Add-to-calendar link</button></div>
                   <p class="form-error" id="template-error"></p>
                   <div class="dialog-actions"><button class="text-button danger-text" id="restore-template" type="button">Restore default</button><button class="primary-button" type="submit">Save template</button></div>
                 </form>
@@ -231,10 +286,29 @@
           <label class="field"><span>Email <b>*</b></span><input name="email" type="email" required maxlength="320" /></label>
           <label class="field"><span>Date joined <b>*</b></span><input name="joined_on" type="date" required /></label>
           <label class="field"><span>Status</span><select name="active"><option value="true">Active</option><option value="false">Inactive</option></select></label>
-          <label class="field field-wide"><span>Notes</span><textarea name="notes" rows="3"></textarea></label>
+          <label class="field"><span>Registrant type</span><label class="check-wrap field-checkbox"><input type="checkbox" name="is_new_registrant" /><span>New registrant</span></label></label>
+          <div class="field" id="member-delivery-field"><span>Book request</span><select name="delivery_method"><option value="none">No copy</option><option value="pickup">Pickup at PBRL</option><option value="transfer">Send to branch</option></select></div>
+          <label class="field" id="member-branch-field" hidden><span>Destination branch</span><input name="destination_branch" maxlength="200" /></label>
+          <label class="field field-wide"><span>Notes</span><textarea name="notes" rows="3" placeholder="Preferences, accessibility notes, anything worth remembering"></textarea></label>
         </div>
         <p class="form-error" id="member-error"></p>
         <div class="dialog-actions"><button class="text-button" type="button" data-close="member-dialog">Cancel</button><button class="primary-button" type="submit">Save member</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="form-dialog" id="club-settings-dialog">
+      <form id="club-settings-form">
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Club settings</p><h2>Club details</h2></div><button class="icon-button" type="button" data-close="club-settings-dialog">×</button></div>
+        <div class="form-grid">
+          <label class="field field-wide"><span>Club name <b>*</b></span><input name="name" required maxlength="200" /></label>
+          <label class="field field-wide"><span>Description</span><textarea name="description" rows="2"></textarea></label>
+          <label class="field"><span>Facilitator name</span><input name="organizer_name" maxlength="200" /></label>
+          <label class="field"><span>Home branch</span><input name="organizer_branch" maxlength="200" /></label>
+          <label class="field field-wide"><span>Video call link</span><input name="video_call_url" type="url" placeholder="https://zoom.us/j/…" /><small class="field-help">Used in calendar invites for hybrid meetings. Rarely changes.</small></label>
+          <label class="field"><span>Public page</span><select name="public"><option value="true">Public</option><option value="false">Private</option></select></label>
+        </div>
+        <p class="form-error" id="club-settings-error"></p>
+        <div class="dialog-actions"><button class="text-button" type="button" data-close="club-settings-dialog">Cancel</button><button class="primary-button" type="submit">Save club</button></div>
       </form>
     </dialog>
 

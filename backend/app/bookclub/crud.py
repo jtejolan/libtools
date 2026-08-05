@@ -1,15 +1,16 @@
 import re
 import secrets
+import urllib.parse
 from collections.abc import Mapping
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from pydantic import BaseModel
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
-from bookclub import models, schemas
+from bookclub import email_delivery, models, schemas
 
 DEFAULT_TEMPLATES = (
     {
@@ -59,6 +60,17 @@ DEFAULT_TEMPLATES = (
         ),
     },
     {
+        "key": "book_arrived",
+        "name": "New member — book arrived at branch",
+        "kind": "email",
+        "subject": "Your Sci-Fi Book Club book has arrived",
+        "body": (
+            "Hi {{first_name}},\n\nYour copy of {{book_title}} by "
+            "{{book_author}} has arrived at {{destination_branch}} and is "
+            "ready for pickup!\n\nJosh"
+        ),
+    },
+    {
         "key": "transit_label",
         "name": "Book transit label",
         "kind": "print",
@@ -72,6 +84,16 @@ DEFAULT_TEMPLATES = (
 )
 
 PLACEHOLDER_PATTERN = re.compile(r"{{\s*([a-zA-Z][a-zA-Z0-9_]*)\s*}}")
+
+ONBOARDING_TEMPLATE_KEYS = {
+    "pickup": "onboarding_pickup",
+    "transfer": "onboarding_transfer",
+    "none": "onboarding_no_copy",
+}
+
+
+def onboarding_template_key(delivery_method: str) -> str:
+    return ONBOARDING_TEMPLATE_KEYS[delivery_method]
 
 
 def _data(
@@ -102,7 +124,10 @@ def _club_id(db: Session) -> int:
 def create_member(
     db: Session, value: schemas.MemberCreate
 ) -> models.BookClubMember:
-    member = models.BookClubMember(club_id=_club_id(db), **value.model_dump())
+    data = value.model_dump()
+    if data["delivery_method"] != "transfer":
+        data["destination_branch"] = None
+    member = models.BookClubMember(club_id=_club_id(db), **data)
     db.add(member)
     return _commit(db, member)
 
@@ -153,6 +178,10 @@ def update_member(
         return None
     for field, value in _data(changes, exclude_unset=True).items():
         setattr(member, field, value)
+    if member.delivery_method != "transfer":
+        member.destination_branch = None
+    elif not member.destination_branch:
+        raise ValueError("destination_branch is required for a transfer")
     return _commit(db, member)
 
 
@@ -254,7 +283,7 @@ def create_meeting(
     value: schemas.MeetingCreate,
     book: models.BookClubBook,
 ) -> models.BookClubMeeting:
-    data = value.model_dump(exclude={"add_active_members", "book_id"})
+    data = value.model_dump(exclude={"book_id"})
     meeting = models.BookClubMeeting(
         **data,
         club_id=_club_id(db),
@@ -262,18 +291,6 @@ def create_meeting(
         book_title=book.title,
         book_author=book.author,
     )
-    if value.add_active_members:
-        members = db.scalars(
-            select(models.BookClubMember)
-            .where(
-                models.BookClubMember.active.is_(True),
-                models.BookClubMember.club_id == _club_id(db),
-            )
-            .order_by(models.BookClubMember.id)
-        )
-        meeting.participants = [
-            models.BookClubParticipation(member=member) for member in members
-        ]
     db.add(meeting)
     return _commit(db, meeting)
 
@@ -371,11 +388,20 @@ def update_participation(
         db.add(participation)
     for field, value in _data(changes, exclude_unset=True).items():
         setattr(participation, field, value)
-    if participation.delivery_method != "transfer":
-        participation.destination_branch = None
-    elif not participation.destination_branch:
-        raise ValueError("destination_branch is required for a transfer")
     return _commit(db, participation)
+
+
+def remove_participation(db: Session, meeting_id: int, member_id: int) -> bool:
+    participation = get_participation(db, meeting_id, member_id)
+    if participation is None:
+        return False
+    try:
+        db.delete(participation)
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    return True
 
 
 def list_participation(
@@ -391,69 +417,82 @@ def list_participation(
     return list(db.scalars(statement))
 
 
-def sync_roster(db: Session, meeting_id: int) -> tuple[int, int] | None:
-    meeting = get_meeting(db, meeting_id)
-    if meeting is None:
-        return None
-    existing_ids = set(
-        db.scalars(
-            select(models.BookClubParticipation.member_id).where(
-                models.BookClubParticipation.meeting_id == meeting_id
-            )
-        )
-    )
-    members = list(
-        db.scalars(
-            select(models.BookClubMember).where(
-                models.BookClubMember.active.is_(True),
-                models.BookClubMember.club_id == _club_id(db),
-                models.BookClubMember.id.not_in(existing_ids),
-            )
-        )
-    )
-    db.add_all(
-        [
-            models.BookClubParticipation(meeting=meeting, member=member)
-            for member in members
-        ]
-    )
-    try:
-        db.commit()
-    except SQLAlchemyError:
-        db.rollback()
-        raise
-    total = db.scalar(
-        select(func.count(models.BookClubParticipation.id)).where(
-            models.BookClubParticipation.meeting_id == meeting_id
-        )
-    )
-    return len(members), int(total or 0)
-
-
-def list_recipients(
-    db: Session, meeting_id: int, recipient_filter: schemas.RecipientFilter
-) -> list[models.BookClubMember]:
-    statement = (
-        select(models.BookClubMember)
-        .join(models.BookClubParticipation)
-        .where(
-            models.BookClubParticipation.meeting_id == meeting_id,
-            models.BookClubMember.active.is_(True),
-        )
-    )
+def member_participation_summary(
+    db: Session,
+) -> list[schemas.MemberParticipationSummary]:
+    club_id = _club_id(db)
+    member = models.BookClubMember
     participation = models.BookClubParticipation
-    filters = {
-        "checked_out": participation.book_checked_out.is_(True),
-        "not_checked_out": participation.book_checked_out.is_(False),
-        "pickup": participation.delivery_method == "pickup",
-        "transfer": participation.delivery_method == "transfer",
-        "no_copy": participation.delivery_method == "none",
-    }
-    if recipient_filter != "all":
-        statement = statement.where(filters[recipient_filter])
-    return list(
-        db.scalars(statement.order_by(models.BookClubMember.name)).unique()
+    meeting = models.BookClubMeeting
+
+    attended_date = case(
+        (participation.attended.is_(True), meeting.meeting_date), else_=None
     )
+    statement = (
+        select(
+            member,
+            func.count(participation.id),
+            func.sum(case((participation.attended.is_(True), 1), else_=0)),
+            func.max(attended_date),
+        )
+        .outerjoin(participation, participation.member_id == member.id)
+        .outerjoin(meeting, meeting.id == participation.meeting_id)
+        .where(member.club_id == club_id)
+        .group_by(member.id)
+        .order_by(member.name)
+    )
+    rows = db.execute(statement).all()
+
+    giveaway_counts = dict(
+        db.execute(
+            select(meeting.giveaway_winner_member_id, func.count(meeting.id))
+            .where(
+                meeting.club_id == club_id,
+                meeting.giveaway_winner_member_id.is_not(None),
+            )
+            .group_by(meeting.giveaway_winner_member_id)
+        ).all()
+    )
+
+    all_meeting_dates = list(
+        db.scalars(
+            select(meeting.meeting_date)
+            .where(meeting.club_id == club_id)
+            .order_by(meeting.meeting_date)
+        )
+    )
+
+    def meetings_since(reference_date: date) -> int:
+        return sum(1 for entry in all_meeting_dates if entry > reference_date)
+
+    summaries = []
+    for (
+        member_obj,
+        meetings_total,
+        attended_count,
+        last_attended_date,
+    ) in rows:
+        contacted_candidates = [
+            value
+            for value in (
+                member_obj.onboarding_email_sent_at,
+                member_obj.last_reminder_sent_at,
+            )
+            if value is not None
+        ]
+        reference_date = last_attended_date or member_obj.joined_on
+        summaries.append(
+            schemas.MemberParticipationSummary(
+                member=member_obj,
+                meetings_total=int(meetings_total or 0),
+                attended_count=int(attended_count or 0),
+                giveaways_won=giveaway_counts.get(member_obj.id, 0),
+                last_attended_date=last_attended_date,
+                last_contacted_at=max(contacted_candidates) if contacted_candidates else None,
+                meetings_since_last_attended=meetings_since(reference_date),
+            )
+        )
+    return summaries
 
 
 def member_history(
@@ -499,6 +538,115 @@ def draw_giveaway_winner(
     meeting.giveaway_winner_member_id = winner.id
     _commit(db, meeting)
     return winner
+
+
+def render_onboarding_email(
+    db: Session,
+    meeting: models.BookClubMeeting,
+    member: models.BookClubMember,
+) -> schemas.TemplateRenderResponse:
+    template_key = onboarding_template_key(member.delivery_method)
+    template = get_template(db, template_key)
+    if template is None:
+        raise LookupError(f"Template {template_key} not found")
+    return render_template(template, template_context(meeting, member))
+
+
+def send_onboarding_email(
+    db: Session,
+    meeting: models.BookClubMeeting,
+    member: models.BookClubMember,
+) -> schemas.OnboardingSendResponse:
+    rendered = render_onboarding_email(db, meeting, member)
+    already_sent_before = member.onboarding_email_sent_at is not None
+    sent = email_delivery.send_onboarding_email(
+        recipient=member.email,
+        subject=rendered.subject or "",
+        body=rendered.body,
+    )
+    member.onboarding_email_sent_at = datetime.now(timezone.utc)
+    _commit(db, member)
+    return schemas.OnboardingSendResponse(
+        member_id=member.id, sent=sent, already_sent_before=already_sent_before
+    )
+
+
+def render_arrival_email(
+    db: Session,
+    meeting: models.BookClubMeeting,
+    member: models.BookClubMember,
+) -> schemas.TemplateRenderResponse:
+    template = get_template(db, "book_arrived")
+    if template is None:
+        raise LookupError("Template book_arrived not found")
+    return render_template(template, template_context(meeting, member))
+
+
+def send_arrival_email(
+    db: Session,
+    meeting: models.BookClubMeeting,
+    member: models.BookClubMember,
+) -> schemas.OnboardingSendResponse:
+    rendered = render_arrival_email(db, meeting, member)
+    already_sent_before = member.arrival_email_sent_at is not None
+    sent = email_delivery.send_onboarding_email(
+        recipient=member.email,
+        subject=rendered.subject or "",
+        body=rendered.body,
+    )
+    member.arrival_email_sent_at = datetime.now(timezone.utc)
+    _commit(db, member)
+    return schemas.OnboardingSendResponse(
+        member_id=member.id, sent=sent, already_sent_before=already_sent_before
+    )
+
+
+def transit_label_context(
+    db: Session,
+    member: models.BookClubMember,
+    destination_branch: str,
+    *,
+    organizer_name: str | None = None,
+    organizer_branch: str | None = None,
+) -> dict[str, Any]:
+    club = db.get(models.BookClub, _club_id(db))
+    return {
+        "member_name": member.name,
+        "destination_branch": destination_branch,
+        "organizer_name": organizer_name or club.organizer_name or "Facilitator",
+        "organizer_branch": organizer_branch or club.organizer_branch or "the library",
+    }
+
+
+def send_reminder_batch(
+    db: Session,
+    meeting: models.BookClubMeeting,
+    members: list[models.BookClubMember],
+) -> schemas.ReminderSendResponse:
+    template = get_template(db, "monthly_reminder")
+    if template is None:
+        raise LookupError("Template monthly_reminder not found")
+    rendered = render_template(template, meeting_template_context(meeting))
+    already_sent_before = meeting.reminder_sent_at is not None
+    sent = email_delivery.send_reminder_batch(
+        recipients=[member.email for member in members],
+        subject=rendered.subject or "",
+        body=rendered.body,
+    )
+    now = datetime.now(timezone.utc)
+    meeting.reminder_sent_at = now
+    for member in members:
+        member.last_reminder_sent_at = now
+    try:
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    return schemas.ReminderSendResponse(
+        sent=sent,
+        recipient_count=len(members),
+        already_sent_before=already_sent_before,
+    )
 
 
 def ensure_default_templates(db: Session) -> None:
@@ -622,15 +770,91 @@ def render_template(
     )
 
 
-def template_context(
+_MEETING_TIME_FORMATS = ("%I:%M %p", "%I:%M%p", "%H:%M", "%I %p", "%I%p")
+
+
+def _parse_meeting_time(meeting_time: str | None):
+    if not meeting_time:
+        return None
+    cleaned = meeting_time.strip().upper().replace(".", "")
+    for fmt in _MEETING_TIME_FORMATS:
+        try:
+            return datetime.strptime(cleaned, fmt).time()
+        except ValueError:
+            continue
+    return None
+
+
+def build_calendar_link(
+    meeting: models.BookClubMeeting, video_call_url: str | None
+) -> str:
+    """A Google Calendar "add event" link for a meeting.
+
+    meeting_time is free-text (e.g. "7:00 PM"), so this degrades to an
+    all-day event rather than erroring when it can't be parsed.
+    """
+    parsed_time = _parse_meeting_time(meeting.meeting_time)
+    params: dict[str, str] = {
+        "action": "TEMPLATE",
+        "text": f"Book club: {meeting.book.title}",
+    }
+    if parsed_time is not None:
+        start = datetime.combine(meeting.meeting_date, parsed_time)
+        end = start + timedelta(hours=2)
+        params["dates"] = (
+            f"{start.strftime('%Y%m%dT%H%M%S')}/{end.strftime('%Y%m%dT%H%M%S')}"
+        )
+    else:
+        start_date = meeting.meeting_date
+        end_date = start_date + timedelta(days=1)
+        params["dates"] = (
+            f"{start_date.strftime('%Y%m%d')}/{end_date.strftime('%Y%m%d')}"
+        )
+    if meeting.location:
+        params["location"] = meeting.location
+    details_parts = [meeting.notes] if meeting.notes else []
+    if video_call_url:
+        details_parts.append(f"Join via Zoom: {video_call_url}")
+    if details_parts:
+        params["details"] = "\n\n".join(details_parts)
+    return f"https://calendar.google.com/calendar/render?{urllib.parse.urlencode(params)}"
+
+
+def meeting_template_context(
     meeting: models.BookClubMeeting,
-    participation: models.BookClubParticipation,
     *,
     organizer_name: str | None = None,
     organizer_branch: str | None = None,
 ) -> dict[str, Any]:
-    member = participation.member
+    """Meeting-level template variables only — no per-member fields.
+
+    Used for the weekly reminder batch, which is one email BCC'd to many
+    people rather than a personalized send.
+    """
     club = meeting.club
+    video_call_url = club.video_call_url
+    return {
+        "book_title": meeting.book.title,
+        "book_author": meeting.book.author,
+        "meeting_date": meeting.meeting_date.isoformat(),
+        "meeting_time": meeting.meeting_time,
+        "meeting_location": meeting.location,
+        "organizer_name": organizer_name or club.organizer_name or "Facilitator",
+        "organizer_branch": organizer_branch or club.organizer_branch or "the library",
+        "video_call_url": video_call_url,
+        "calendar_link": build_calendar_link(meeting, video_call_url),
+    }
+
+
+def template_context(
+    meeting: models.BookClubMeeting,
+    member: models.BookClubMember,
+    *,
+    organizer_name: str | None = None,
+    organizer_branch: str | None = None,
+) -> dict[str, Any]:
+    club = meeting.club
+    video_call_url = club.video_call_url
     return {
         "first_name": member.name.split()[0],
         "member_name": member.name,
@@ -640,9 +864,11 @@ def template_context(
         "meeting_date": meeting.meeting_date.isoformat(),
         "meeting_time": meeting.meeting_time,
         "meeting_location": meeting.location,
-        "destination_branch": participation.destination_branch,
+        "destination_branch": member.destination_branch,
         "organizer_name": organizer_name or club.organizer_name or "Facilitator",
         "organizer_branch": organizer_branch or club.organizer_branch or "the library",
+        "video_call_url": video_call_url,
+        "calendar_link": build_calendar_link(meeting, video_call_url),
     }
 
 
