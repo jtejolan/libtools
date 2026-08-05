@@ -207,12 +207,14 @@ class LenderyItemUpdate(BaseModel):
     library_url: HttpUrl | None = None
     physical_manual_included: bool | None = None
     physical_manual_missing: bool | None = None
+    checkin_card_missing: bool | None = None
 
     @field_validator(
         "name",
         "barcode",
         "physical_manual_included",
         "physical_manual_missing",
+        "checkin_card_missing",
     )
     @classmethod
     def required_values_cannot_be_null(cls, value: object) -> object:
@@ -239,6 +241,7 @@ class LenderyItemResponse(LenderyItemBase):
     availability_checked_at: datetime | None = None
     availability_error: str | None = None
     physical_manual_missing: bool = False
+    checkin_card_missing: bool = False
     lifecycle_status: LifecycleStatus = "active"
     lifecycle_note: str | None = None
     lifecycle_changed_at: datetime
@@ -525,6 +528,7 @@ INVENTORY_EXPORT_FIELD_KEYS = {
     "open_maintenance_case_count",
     "physical_manual_included",
     "physical_manual_missing",
+    "checkin_card_missing",
     "notes",
     "created_at",
     "updated_at",

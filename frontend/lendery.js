@@ -1289,6 +1289,20 @@ const renderDrawer = (item) => {
               <div class="checklist-track"><span id="checklist-bar" style="width: ${checklistPercent}%"></span></div>`
             : ""
         }
+        <div class="physical-manual-row checkin-card-row ${item.checkin_card_missing ? "missing" : ""}">
+          <span class="physical-manual-check">Check-in card</span>
+          ${
+            item.checkin_card_missing
+              ? `<span class="physical-manual-status">Missing</span>${
+                  canManage()
+                    ? `<button class="physical-manual-action" type="button" id="checkin-card-found">Mark found</button>`
+                    : ""
+                }`
+              : canManage()
+                ? `<button class="physical-manual-action" type="button" id="checkin-card-flag">Flag missing</button>`
+                : ""
+          }
+        </div>
         ${
           item.physical_manual_included
             ? `<div class="physical-manual-row ${item.physical_manual_missing ? "missing" : ""}">
@@ -2284,6 +2298,43 @@ document.addEventListener("click", async (event) => {
       state.activityByItem.set(itemId, activity);
       if (state.selectedId === itemId) renderDrawer(item);
       showToast("Physical manual marked as found.");
+    } catch (error) {
+      showToast(error.message);
+    }
+    return;
+  }
+
+  if (event.target.closest("#checkin-card-flag")) {
+    try {
+      const item = await request(`/lendery/items/${itemId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ checkin_card_missing: true }),
+      });
+      replaceItem(item);
+      await request(`/lendery/items/${itemId}/maintenance`, {
+        method: "POST",
+        body: JSON.stringify({ title: "Check-in card missing" }),
+      });
+      await reloadMaintenance(itemId);
+      if (state.selectedId === itemId) renderDrawer(item);
+      showToast("Flagged the check-in card as missing.");
+    } catch (error) {
+      showToast(error.message);
+    }
+    return;
+  }
+
+  if (event.target.closest("#checkin-card-found")) {
+    try {
+      const item = await request(`/lendery/items/${itemId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ checkin_card_missing: false }),
+      });
+      replaceItem(item);
+      const activity = await request(`/lendery/items/${itemId}/activity`);
+      state.activityByItem.set(itemId, activity);
+      if (state.selectedId === itemId) renderDrawer(item);
+      showToast("Check-in card marked as found.");
     } catch (error) {
       showToast(error.message);
     }

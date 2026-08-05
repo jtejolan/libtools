@@ -89,6 +89,10 @@ class LenderyItem(Base):
         Boolean(), default=False, server_default="0"
     )
 
+    checkin_card_missing: Mapped[bool] = mapped_column(
+        Boolean(), default=False, server_default="0"
+    )
+
     lifecycle_status: Mapped[str] = mapped_column(
         String(20), default="active", server_default="active", index=True
     )

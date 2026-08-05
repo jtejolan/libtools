@@ -34,6 +34,7 @@ INVENTORY_EXPORT_FIELDS = {
     "open_maintenance_case_count": "Open maintenance cases",
     "physical_manual_included": "Physical manual included",
     "physical_manual_missing": "Physical manual missing",
+    "checkin_card_missing": "Check-in card missing",
     "notes": "Staff notes",
     "created_at": "Created at",
     "updated_at": "Updated at",
@@ -354,6 +355,7 @@ def _inventory_export_row(item: models.LenderyItem) -> dict[str, Any]:
         "open_maintenance_case_count": open_cases,
         "physical_manual_included": item.physical_manual_included,
         "physical_manual_missing": item.physical_manual_missing,
+        "checkin_card_missing": item.checkin_card_missing,
         "notes": item.notes,
         "created_at": item.created_at,
         "updated_at": item.updated_at,
@@ -411,6 +413,7 @@ def items_csv(db: Session) -> str:
         "open_maintenance_case_count",
         "physical_manual_included",
         "physical_manual_missing",
+        "checkin_card_missing",
         "notes",
     ]
     return _write_csv(
@@ -617,6 +620,7 @@ def update_item(
         and update_data["library_url"] != db_item.library_url
     )
     manual_was_missing = db_item.physical_manual_missing
+    checkin_card_was_missing = db_item.checkin_card_missing
     for field in (
         "name",
         "description",
@@ -630,6 +634,7 @@ def update_item(
         "library_url",
         "physical_manual_included",
         "physical_manual_missing",
+        "checkin_card_missing",
     ):
         if field in update_data:
             setattr(db_item, field, update_data[field])
@@ -660,6 +665,22 @@ def update_item(
             if db_item.physical_manual_missing
             else "Physical manual was found",
             component_name="Physical manual",
+        )
+
+    if (
+        "checkin_card_missing" in update_data
+        and db_item.checkin_card_missing != checkin_card_was_missing
+    ):
+        _record_activity(
+            db,
+            db_item,
+            "component_missing" if db_item.checkin_card_missing else "component_returned",
+            actor_id=actor_id,
+            actor_name=actor_name,
+            reason="Check-in card was reported missing"
+            if db_item.checkin_card_missing
+            else "Check-in card was found",
+            component_name="Check-in card",
         )
 
     db_item = _commit(db, db_item)

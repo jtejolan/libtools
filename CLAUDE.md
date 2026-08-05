@@ -110,6 +110,24 @@ dir (`LIBTOOLS_UPLOAD_DIR`, default `backend/uploads`).
 `frontend/public` exist but are currently empty — not part of the active
 build.
 
+## AI-context docs (`/docs`)
+
+`/docs` is a context index for Claude Code sessions working in this repo —
+more granular than this file, and not meant for human end-users (that's
+README.md's job). Before working on a package or frontend page you haven't
+touched recently, read `docs/README.md` first to find the 1-2 relevant
+files (e.g. `docs/backend/lendery.md` + `docs/code-index.md`) instead of
+grepping/reading source files cold.
+
+**Keeping it current**: when a change touches a package's models, routes,
+or a major behavior, make a small, targeted edit to that package's doc file
+(e.g. `docs/backend/lendery.md`) — add/update the specific table row or
+bullet the change affects. If a source file was added, removed, or
+substantially resized, update its row in `docs/code-index.md` too. Do NOT
+regenerate a doc file from scratch and do NOT re-scan the whole repo for a
+small change — these docs are maintained incrementally, the same way you'd
+maintain any other code in this repo.
+
 ## Deployment
 
 Deploys to Railway from the root `Dockerfile` (installs `backend/requirements.txt`,

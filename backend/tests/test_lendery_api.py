@@ -734,6 +734,41 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
         )
         viewer_client.close()
 
+    def test_checkin_card_missing_flag_is_tracked(self) -> None:
+        response = self.client.post(
+            "/lendery/items",
+            json={"name": "Telescope", "barcode": "CARD-1"},
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        created = response.json()
+        self.assertFalse(created["checkin_card_missing"])
+
+        flagged = self.client.patch(
+            f"/lendery/items/{created['id']}",
+            json={"checkin_card_missing": True},
+        )
+        self.assertEqual(flagged.status_code, 200, flagged.text)
+        self.assertTrue(flagged.json()["checkin_card_missing"])
+
+        unflagged = self.client.patch(
+            f"/lendery/items/{created['id']}",
+            json={"checkin_card_missing": False},
+        )
+        self.assertEqual(unflagged.status_code, 200, unflagged.text)
+        self.assertFalse(unflagged.json()["checkin_card_missing"])
+
+        history = self.client.get(
+            f"/lendery/items/{created['id']}/activity"
+        ).json()
+        self.assertEqual(
+            [entry["event_type"] for entry in history[:2]],
+            ["component_returned", "component_missing"],
+        )
+        self.assertEqual(history[0]["component_name"], "Check-in card")
+
+        csv_rows = self.client.get("/lendery/items/export.csv").text.splitlines()
+        self.assertIn("checkin_card_missing", csv_rows[0])
+
     def test_component_photo_upload_is_processed_and_served(self) -> None:
         item = self.create_linked_item()
         component = self.client.post(
