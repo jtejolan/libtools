@@ -136,7 +136,6 @@ def public_club(slug: str, db: DatabaseSession):
         .where(
             BookClubMeeting.club_id == club.id,
             BookClubMeeting.meeting_date >= today,
-            BookClubMeeting.status != "cancelled",
         )
         .order_by(BookClubMeeting.meeting_date, BookClubMeeting.id)
     )
@@ -146,7 +145,6 @@ def public_club(slug: str, db: DatabaseSession):
         .where(
             BookClubMeeting.club_id == club.id,
             BookClubMeeting.meeting_date < today,
-            BookClubMeeting.status != "cancelled",
         )
         .order_by(BookClubMeeting.meeting_date.desc(), BookClubMeeting.id.desc())
         .limit(SHELF_LIMIT)

@@ -324,6 +324,22 @@ def send_onboarding_email(meeting_id: int, member_id: int, db: DatabaseSession):
 
 
 @router.post(
+    "/meetings/{meeting_id}/members/{member_id}/onboarding-email/mark-sent",
+    response_model=schemas.OnboardingSendResponse,
+)
+def mark_onboarding_email_sent(meeting_id: int, member_id: int, db: DatabaseSession):
+    meeting = crud.get_meeting(db, meeting_id)
+    if meeting is None:
+        raise _not_found("Meeting not found")
+    member = crud.get_member(db, member_id)
+    if member is None:
+        raise _not_found("Member not found")
+    if crud.get_participation(db, meeting_id, member_id) is None:
+        raise _not_found("This member is not on the meeting roster")
+    return crud.mark_onboarding_email_sent(db, member)
+
+
+@router.post(
     "/meetings/{meeting_id}/members/{member_id}/arrival-email/preview",
     response_model=schemas.TemplateRenderResponse,
 )
@@ -359,6 +375,22 @@ def send_arrival_email(meeting_id: int, member_id: int, db: DatabaseSession):
         return crud.send_arrival_email(db, meeting, member)
     except LookupError as exc:
         raise _not_found(str(exc)) from exc
+
+
+@router.post(
+    "/meetings/{meeting_id}/members/{member_id}/arrival-email/mark-sent",
+    response_model=schemas.OnboardingSendResponse,
+)
+def mark_arrival_email_sent(meeting_id: int, member_id: int, db: DatabaseSession):
+    meeting = crud.get_meeting(db, meeting_id)
+    if meeting is None:
+        raise _not_found("Meeting not found")
+    member = crud.get_member(db, member_id)
+    if member is None:
+        raise _not_found("Member not found")
+    if crud.get_participation(db, meeting_id, member_id) is None:
+        raise _not_found("This member is not on the meeting roster")
+    return crud.mark_arrival_email_sent(db, member)
 
 
 @router.post(

@@ -10,9 +10,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/bookclub.css?v=24" />
+    <link rel="stylesheet" href="/static/bookclub.css?v=27" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub.js?v=24" defer></script>
+    <script src="/static/bookclub.js?v=27" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -29,11 +29,10 @@
 
         <nav aria-label="Book Club Manager navigation">
           <p class="nav-label">Manage</p>
-          <button class="nav-item active" type="button" data-view="meetings"><span>◫</span><span>All meetings</span></button>
+          <button class="nav-item active" type="button" data-view="meetings"><span>◫</span><span>Meetings</span></button>
           <button class="nav-item" type="button" data-view="books"><span>▥</span><span>Books</span></button>
           <button class="nav-item" type="button" data-view="members"><span>◎</span><span>Members</span></button>
-          <button class="nav-item" type="button" data-view="templates"><span>▤</span><span>Templates</span></button>
-          <button class="nav-item" id="edit-club-settings" type="button"><span>⚙</span><span>Club settings</span></button>
+          <button class="nav-item" type="button" data-view="club-settings"><span>⚙</span><span>Club settings</span></button>
         </nav>
 
         <div class="sidebar-note">
@@ -81,6 +80,24 @@
 
         <section class="view active" id="view-meeting">
           <div class="content">
+            <div id="meeting-archive-view" hidden>
+              <header class="page-heading archive-hero">
+                <div class="meeting-identity">
+                  <div class="meeting-detail-cover" id="archive-cover" aria-hidden="true"></div>
+                  <div>
+                    <p class="eyebrow"><span></span> Session archive</p>
+                    <h1 id="archive-heading">Session summary</h1>
+                    <p class="intro" id="archive-intro"></p>
+                  </div>
+                </div>
+                <div class="heading-actions">
+                  <button class="secondary-button" id="edit-session" type="button">Edit session</button>
+                </div>
+              </header>
+              <div id="archive-content"></div>
+            </div>
+
+            <div id="meeting-edit-view">
             <header class="page-heading">
               <div class="meeting-identity">
                 <div class="meeting-detail-cover" id="meeting-cover" aria-hidden="true"></div>
@@ -91,7 +108,6 @@
                 </div>
               </div>
               <div class="heading-actions">
-                <button class="quiet-button" type="button" data-view="meetings">View all meetings</button>
                 <button class="secondary-button" id="edit-meeting" type="button">Edit meeting</button>
               </div>
             </header>
@@ -103,9 +119,13 @@
                 <button class="quiet-button" id="next-meeting" type="button">Next <span aria-hidden="true">→</span></button>
               </div>
               <div class="session-mode-controls">
-                <button class="reminder-trigger" id="open-reminder-dialog" type="button"><span class="reminder-trigger-icon" aria-hidden="true">✉</span><span><strong>Monthly reminder</strong><small id="reminder-inline-status">Not sent yet</small></span></button>
-                <label class="meeting-status-control"><span>Status</span><select id="meeting-status"><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></label>
+                <button class="reminder-trigger giveaway-trigger" id="open-giveaway-dialog" type="button"><span class="reminder-trigger-icon" aria-hidden="true">★</span><span><strong>Draw a Name</strong><small id="giveaway-inline-status">No winner yet</small></span></button>
+                <button class="reminder-trigger" id="open-reminder-dialog" type="button"><span class="reminder-trigger-icon" aria-hidden="true">✉</span><span><strong>Send Reminder</strong><small id="reminder-inline-status">Not sent yet</small></span></button>
+                <span class="status-pill meeting-status-badge" id="meeting-status-badge">Planned</span>
+                <button class="secondary-button" id="toggle-completed" type="button">Mark completed</button>
                 <button class="secondary-button" id="day-of-mode" type="button"><span aria-hidden="true">◉</span> Day-of mode</button>
+                <button class="secondary-button" id="toggle-archive-view" type="button">Archive</button>
+                <button class="text-button" id="unarchive-meeting" type="button" hidden>Unarchive</button>
               </div>
             </section>
 
@@ -131,26 +151,15 @@
               </div>
             </section>
 
-            <div class="meeting-lower-grid">
-              <section class="panel giveaway-panel">
-                <div class="panel-heading compact"><div><p class="eyebrow"><span></span> Monthly giveaway</p><h2>Pick a winner</h2></div></div>
-                <div id="giveaway-content" class="giveaway-content">
-                  <div class="giveaway-orbit" aria-hidden="true"><span>★</span></div>
-                  <p>Draw one name at random from everyone marked as attended.</p>
-                  <button class="primary-button" id="draw-winner" type="button">Draw a name</button>
-                </div>
-              </section>
-
-              <section class="panel discussion-notes-panel">
-                <div class="panel-heading compact">
-                  <div><p class="eyebrow"><span></span> The conversation</p><h2>Discussion notes</h2><p class="panel-description">Capture themes, reactions, and ideas while they are fresh.</p></div>
-                </div>
-                <div class="discussion-notes-editor">
-                  <textarea id="discussion-notes" rows="9" placeholder="What resonated with the group? What did people disagree about? What should you remember for next time?"></textarea>
-                  <div class="discussion-notes-actions"><span id="discussion-notes-status">No notes yet</span><button class="primary-button" id="save-discussion-notes" type="button">Save notes</button></div>
-                </div>
-              </section>
-            </div>
+            <section class="panel discussion-notes-panel">
+              <div class="panel-heading compact">
+                <div><p class="eyebrow"><span></span> The conversation</p><h2>Discussion notes</h2><p class="panel-description">Capture themes, reactions, and ideas while they are fresh.</p></div>
+              </div>
+              <div class="discussion-notes-editor">
+                <textarea id="discussion-notes" rows="9" placeholder="What resonated with the group? What did people disagree about? What should you remember for next time?"></textarea>
+                <div class="discussion-notes-actions"><span id="discussion-notes-status">No notes yet</span><button class="primary-button" id="save-discussion-notes" type="button">Save notes</button></div>
+              </div>
+            </section>
 
             <section class="panel recap-panel" id="post-meeting-recap">
               <div class="panel-heading">
@@ -160,6 +169,7 @@
               <div class="recap-grid" id="recap-grid"></div>
               <p class="recap-narrative" id="recap-narrative"></p>
             </section>
+            </div>
           </div>
         </section>
 
@@ -210,9 +220,27 @@
           </div>
         </section>
 
-        <section class="view" id="view-templates">
+        <section class="view" id="view-club-settings">
           <div class="content">
-            <header class="page-heading"><div><p class="eyebrow"><span></span> Reusable wording</p><h1>Editable templates</h1><p class="intro">Change the defaults once, or adjust an individual preview without overwriting them.</p></div></header>
+            <header class="page-heading"><div><p class="eyebrow"><span></span> Club administration</p><h1>Club settings</h1><p class="intro">Update how the club presents itself, and keep the club's email and label templates ready to send.</p></div></header>
+
+            <section class="panel settings-panel">
+              <div class="panel-heading compact"><div><p class="eyebrow"><span></span> Club identity</p><h2>Club details</h2></div></div>
+              <form id="club-settings-form">
+                <div class="form-grid">
+                  <label class="field field-wide"><span>Club name <b>*</b></span><input name="name" required maxlength="200" /></label>
+                  <label class="field field-wide"><span>Description</span><textarea name="description" rows="2"></textarea></label>
+                  <label class="field"><span>Facilitator name</span><input name="organizer_name" maxlength="200" /></label>
+                  <label class="field"><span>Home branch</span><input name="organizer_branch" maxlength="200" /></label>
+                  <label class="field field-wide"><span>Video call link</span><input name="video_call_url" type="url" placeholder="https://zoom.us/j/…" /><small class="field-help">Used in calendar invites for hybrid meetings. Rarely changes.</small></label>
+                  <label class="field"><span>Public page</span><select name="public"><option value="true">Public</option><option value="false">Private</option></select></label>
+                </div>
+                <p class="form-error" id="club-settings-error"></p>
+                <div class="dialog-actions"><button class="primary-button" type="submit">Save club settings</button></div>
+              </form>
+            </section>
+
+            <div class="settings-section-heading"><p class="eyebrow"><span></span> Reusable wording</p><h2>Email &amp; label templates</h2><p class="intro">Change the defaults once, or adjust an individual preview without overwriting them.</p></div>
             <div class="template-layout">
               <aside class="template-list" id="template-list"></aside>
               <section class="panel template-editor">
@@ -245,27 +273,11 @@
           <label class="field"><span>Status</span><select name="active"><option value="true">Active</option><option value="false">Inactive</option></select></label>
           <label class="field"><span>Member type</span><select name="is_new_registrant"><option value="false">Regular member</option><option value="true">New registrant</option></select></label>
           <div class="field" id="member-delivery-field"><span>Book request</span><select name="delivery_method"><option value="none">No copy</option><option value="pickup">Pickup at PBRL</option><option value="transfer">Send to branch</option></select></div>
-          <label class="field" id="member-branch-field" hidden><span>Destination branch</span><input name="destination_branch" maxlength="200" /></label>
+          <label class="field" id="member-branch-field" hidden><span>Destination branch</span><input name="destination_branch" maxlength="200" list="branch-suggestions" /></label>
           <label class="field field-wide"><span>Notes</span><textarea name="notes" rows="3" placeholder="Preferences, accessibility notes, anything worth remembering"></textarea></label>
         </div>
         <p class="form-error" id="member-error"></p>
         <div class="dialog-actions"><button class="text-button danger-text" id="delete-member" type="button" hidden>Delete member</button><div class="dialog-action-group"><button class="text-button" type="button" data-close="member-dialog">Cancel</button><button class="primary-button" type="submit">Save member</button></div></div>
-      </form>
-    </dialog>
-
-    <dialog class="form-dialog" id="club-settings-dialog">
-      <form id="club-settings-form">
-        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Club settings</p><h2>Club details</h2></div><button class="icon-button" type="button" data-close="club-settings-dialog">×</button></div>
-        <div class="form-grid">
-          <label class="field field-wide"><span>Club name <b>*</b></span><input name="name" required maxlength="200" /></label>
-          <label class="field field-wide"><span>Description</span><textarea name="description" rows="2"></textarea></label>
-          <label class="field"><span>Facilitator name</span><input name="organizer_name" maxlength="200" /></label>
-          <label class="field"><span>Home branch</span><input name="organizer_branch" maxlength="200" /></label>
-          <label class="field field-wide"><span>Video call link</span><input name="video_call_url" type="url" placeholder="https://zoom.us/j/…" /><small class="field-help">Used in calendar invites for hybrid meetings. Rarely changes.</small></label>
-          <label class="field"><span>Public page</span><select name="public"><option value="true">Public</option><option value="false">Private</option></select></label>
-        </div>
-        <p class="form-error" id="club-settings-error"></p>
-        <div class="dialog-actions"><button class="text-button" type="button" data-close="club-settings-dialog">Cancel</button><button class="primary-button" type="submit">Save club</button></div>
       </form>
     </dialog>
 
@@ -274,9 +286,18 @@
         <div class="dialog-heading"><div><p class="eyebrow"><span></span> Monthly meeting</p><h2 id="meeting-dialog-title">Add meeting</h2></div><button class="icon-button" type="button" data-close="meeting-dialog">×</button></div>
         <input name="id" type="hidden" />
         <div class="form-grid">
-          <label class="field field-wide"><span>Book <b>*</b></span><select name="book_id" required></select><small class="field-help">Add new titles from the Books section first.</small></label>
+          <div class="field field-wide">
+            <span>Book <b>*</b></span>
+            <div class="book-picker">
+              <label class="search-box"><span>⌕</span><span class="sr-only">Search for a book</span><input id="meeting-book-search" type="search" placeholder="Search by title or author…" autocomplete="off" /></label>
+              <div id="meeting-book-results" class="member-search-results" hidden></div>
+            </div>
+            <input name="book_id" type="hidden" />
+            <small class="field-help">Add new titles from the Books section first.</small>
+          </div>
           <label class="field"><span>Meeting date <b>*</b></span><input name="meeting_date" type="date" required /></label>
           <label class="field"><span>Time</span><input name="meeting_time" placeholder="7:00 PM" /></label>
+          <label class="field"><span>Duration</span><select name="meeting_duration_minutes"><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">1 hour</option><option value="90" selected>1 hour 30 minutes</option><option value="120">2 hours</option><option value="150">2 hours 30 minutes</option><option value="180">3 hours</option></select></label>
           <label class="field field-wide"><span>Location</span><input name="location" placeholder="Pierre Berton Resource Library" /></label>
           <label class="field field-wide"><span>Logistics notes</span><textarea name="notes" rows="2" placeholder="Room setup, access details, or other planning notes"></textarea></label>
         </div>
@@ -326,7 +347,7 @@
         <div class="dialog-heading"><div><p class="eyebrow"><span></span> Send a book</p><h2 id="send-book-title">Prepare transit label</h2></div><button class="icon-button" type="button" data-close="send-book-dialog">×</button></div>
         <input name="member_id" type="hidden" />
         <p class="action-dialog-intro" id="send-book-context"></p>
-        <label class="field"><span>Destination branch</span><input name="destination_branch" required maxlength="200" placeholder="Branch name" /></label>
+        <label class="field"><span>Destination branch</span><input name="destination_branch" required maxlength="200" placeholder="Branch name" list="branch-suggestions" /></label>
         <p class="field-help">Printing the label marks this member as awaiting their book and creates an arrival follow-up prompt.</p>
         <p class="form-error" id="send-book-error"></p>
         <div class="dialog-actions"><button class="text-button" type="button" data-close="send-book-dialog">Cancel</button><button class="primary-button" type="submit">Print label &amp; mark awaiting</button></div>
@@ -338,7 +359,12 @@
         <div class="dialog-heading"><div><p class="eyebrow"><span></span> Member follow-up</p><h2 id="followup-title">Email follow-up</h2></div><button class="icon-button" type="button" data-close="followup-dialog">×</button></div>
         <div class="followup-member" id="followup-member"></div>
         <p class="action-dialog-intro" id="followup-context"></p>
-        <div class="dialog-actions followup-actions"><button class="secondary-button" id="followup-copy" type="button">Copy email</button><button class="primary-button" id="followup-send" type="button">Send email</button></div>
+        <div class="dialog-actions followup-actions">
+          <button class="secondary-button" id="followup-copy-address" type="button">Copy address</button>
+          <button class="secondary-button" id="followup-copy" type="button">Copy email text</button>
+          <button class="secondary-button" id="followup-mark-sent" type="button">Mark as sent</button>
+          <button class="primary-button" id="followup-send" type="button">Send email</button>
+        </div>
       </div>
     </dialog>
 
@@ -350,6 +376,17 @@
           <button class="secondary-button" id="copy-reminder-list" type="button">Copy address list</button>
           <button class="secondary-button" id="copy-reminder-text" type="button">Copy email text</button>
           <button class="primary-button" id="send-reminder" type="button">Send reminder</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog class="form-dialog compact-dialog action-dialog" id="giveaway-dialog">
+      <div class="action-dialog-content">
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Monthly giveaway</p><h2>Pick a winner</h2></div><button class="icon-button" type="button" data-close="giveaway-dialog">×</button></div>
+        <div id="giveaway-content" class="giveaway-content">
+          <div class="giveaway-orbit" aria-hidden="true"><span>★</span></div>
+          <p>Draw one name at random from everyone marked as attended.</p>
+          <button class="primary-button" id="draw-winner" type="button">Draw a name</button>
         </div>
       </div>
     </dialog>
@@ -390,6 +427,8 @@
         <button class="primary-button" type="submit">Create club</button>
       </form>
     </dialog>
+
+    <datalist id="branch-suggestions"></datalist>
 
     <div class="toast" id="toast" role="status"></div>
     <section class="print-sheet" id="print-sheet"></section>

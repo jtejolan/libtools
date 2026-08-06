@@ -249,12 +249,13 @@ class BookImportResponse(BaseModel):
 class MeetingBase(BaseModel):
     meeting_date: date
     meeting_time: str | None = Field(default=None, max_length=50)
+    meeting_duration_minutes: int = Field(default=90, ge=15, le=480)
     location: str | None = Field(default=None, max_length=200)
     notes: str | None = None
     discussion_notes: str | None = None
-    status: Literal["planned", "in_progress", "completed", "cancelled"] = (
-        "planned"
-    )
+    # "in_progress" is computed client-side from meeting time + duration,
+    # never stored. "cancelled" doesn't exist — delete the meeting instead.
+    status: Literal["planned", "completed"] = "planned"
 
 
 class MeetingCreate(MeetingBase):
@@ -264,13 +265,16 @@ class MeetingCreate(MeetingBase):
 class MeetingUpdate(BaseModel):
     meeting_date: date | None = None
     meeting_time: str | None = Field(default=None, max_length=50)
+    meeting_duration_minutes: int | None = Field(default=None, ge=15, le=480)
     location: str | None = Field(default=None, max_length=200)
     book_id: int | None = Field(default=None, ge=1)
     notes: str | None = None
     discussion_notes: str | None = None
-    status: Literal["planned", "in_progress", "completed", "cancelled"] | None = (
-        None
-    )
+    status: Literal["planned", "completed"] | None = None
+    # Settable directly — a display-mode toggle (which view a session opens
+    # to), not an audit-trail field, so it doesn't need a dedicated endpoint
+    # the way the email-sent timestamps do. Null clears it (unarchive).
+    archived_at: datetime | None = None
 
     @field_validator("meeting_date", "book_id", "status")
     @classmethod
@@ -286,6 +290,9 @@ class MeetingResponse(MeetingBase):
     book: BookResponse
     giveaway_winner_member_id: int | None = None
     reminder_sent_at: datetime | None = None
+    archived_at: datetime | None = None
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 

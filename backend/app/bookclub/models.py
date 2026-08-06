@@ -13,6 +13,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from bookclub.scheduling import meeting_datetime_range
 from database import Base
 
 
@@ -131,6 +132,9 @@ class BookClubMeeting(Base):
     )
     meeting_date: Mapped[date] = mapped_column(Date(), index=True)
     meeting_time: Mapped[str | None] = mapped_column(String(50))
+    meeting_duration_minutes: Mapped[int] = mapped_column(
+        Integer(), default=90, server_default="90"
+    )
     location: Mapped[str | None] = mapped_column(String(200))
     book_id: Mapped[int] = mapped_column(
         ForeignKey("bookclub_books.id", ondelete="RESTRICT"),
@@ -151,6 +155,9 @@ class BookClubMeeting(Base):
     reminder_sent_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True)
     )
+    archived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
 
     participants: Mapped[list["BookClubParticipation"]] = relationship(
         back_populates="meeting",
@@ -168,6 +175,23 @@ class BookClubMeeting(Base):
     )
     book: Mapped[BookClubBook] = relationship(back_populates="meetings")
     club: Mapped[BookClub] = relationship()
+
+    # Not mapped columns — plain Python properties that MeetingResponse
+    # picks up via from_attributes, same as any other attribute. Null
+    # when meeting_time doesn't parse (it's free text, e.g. "7:00 PM").
+    @property
+    def starts_at(self) -> datetime | None:
+        time_range = meeting_datetime_range(
+            self.meeting_date, self.meeting_time, self.meeting_duration_minutes
+        )
+        return time_range[0] if time_range else None
+
+    @property
+    def ends_at(self) -> datetime | None:
+        time_range = meeting_datetime_range(
+            self.meeting_date, self.meeting_time, self.meeting_duration_minutes
+        )
+        return time_range[1] if time_range else None
 
 
 class BookClubParticipation(Base):

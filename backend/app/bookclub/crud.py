@@ -11,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from bookclub import email_delivery, models, schemas
+from bookclub.scheduling import meeting_datetime_range, parse_meeting_time
 
 DEFAULT_TEMPLATES = (
     {
@@ -610,6 +611,20 @@ def send_onboarding_email(
     )
 
 
+def mark_onboarding_email_sent(
+    db: Session,
+    member: models.BookClubMember,
+) -> schemas.OnboardingSendResponse:
+    """Record that the welcome email was sent outside the website (e.g. the
+    staff member copied the composed text and sent it from their own inbox)."""
+    already_sent_before = member.onboarding_email_sent_at is not None
+    member.onboarding_email_sent_at = datetime.now(timezone.utc)
+    _commit(db, member)
+    return schemas.OnboardingSendResponse(
+        member_id=member.id, sent=True, already_sent_before=already_sent_before
+    )
+
+
 def render_arrival_email(
     db: Session,
     meeting: models.BookClubMeeting,
@@ -637,6 +652,19 @@ def send_arrival_email(
     _commit(db, member)
     return schemas.OnboardingSendResponse(
         member_id=member.id, sent=sent, already_sent_before=already_sent_before
+    )
+
+
+def mark_arrival_email_sent(
+    db: Session,
+    member: models.BookClubMember,
+) -> schemas.OnboardingSendResponse:
+    """Record that the arrival email was sent outside the website."""
+    already_sent_before = member.arrival_email_sent_at is not None
+    member.arrival_email_sent_at = datetime.now(timezone.utc)
+    _commit(db, member)
+    return schemas.OnboardingSendResponse(
+        member_id=member.id, sent=True, already_sent_before=already_sent_before
     )
 
 
@@ -827,21 +855,6 @@ def render_template(
     )
 
 
-_MEETING_TIME_FORMATS = ("%I:%M %p", "%I:%M%p", "%H:%M", "%I %p", "%I%p")
-
-
-def _parse_meeting_time(meeting_time: str | None):
-    if not meeting_time:
-        return None
-    cleaned = meeting_time.strip().upper().replace(".", "")
-    for fmt in _MEETING_TIME_FORMATS:
-        try:
-            return datetime.strptime(cleaned, fmt).time()
-        except ValueError:
-            continue
-    return None
-
-
 def build_calendar_link(
     meeting: models.BookClubMeeting, video_call_url: str | None
 ) -> str:
@@ -850,14 +863,15 @@ def build_calendar_link(
     meeting_time is free-text (e.g. "7:00 PM"), so this degrades to an
     all-day event rather than erroring when it can't be parsed.
     """
-    parsed_time = _parse_meeting_time(meeting.meeting_time)
+    time_range = meeting_datetime_range(
+        meeting.meeting_date, meeting.meeting_time, meeting.meeting_duration_minutes
+    )
     params: dict[str, str] = {
         "action": "TEMPLATE",
         "text": f"Book club: {meeting.book.title}",
     }
-    if parsed_time is not None:
-        start = datetime.combine(meeting.meeting_date, parsed_time)
-        end = start + timedelta(hours=2)
+    if time_range is not None:
+        start, end = time_range
         params["dates"] = (
             f"{start.strftime('%Y%m%dT%H%M%S')}/{end.strftime('%Y%m%dT%H%M%S')}"
         )

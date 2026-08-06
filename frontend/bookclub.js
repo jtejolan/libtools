@@ -8,6 +8,7 @@ const state = {
   meetings: [],
   meetingId: null,
   roster: [],
+  viewingEdit: true,
   dayOfMode: false,
   discussionNotesDirty: false,
   templates: [],
@@ -92,9 +93,9 @@ const applyClub = (club) => {
   publicLink.href = `/clubs/${encodeURIComponent(club.slug)}`;
 };
 
-const openClubSettingsDialog = () => {
+const populateClubSettingsForm = () => {
   const club = state.club;
-  if (!club) return showToast("Choose a club first.");
+  if (!club) return;
   const form = $("#club-settings-form");
   form.reset();
   form.elements.name.value = club.name || "";
@@ -104,7 +105,6 @@ const openClubSettingsDialog = () => {
   form.elements.video_call_url.value = club.video_call_url || "";
   form.elements.public.value = String(club.public ?? true);
   $("#club-settings-error").textContent = "";
-  $("#club-settings-dialog").showModal();
 };
 
 const renderClubChoices = () => {
@@ -199,35 +199,57 @@ const MEETING_STATUS_LABELS = {
   planned: "Planned",
   in_progress: "In progress",
   completed: "Completed",
-  cancelled: "Cancelled",
+};
+
+// "in_progress" is never stored — it's computed from the meeting's time
+// window (starts_at/ends_at, server-computed from meeting_time + duration,
+// null when meeting_time doesn't parse). "completed" is the one manual
+// stored state besides the "planned" default.
+const effectiveMeetingStatus = (meeting) => {
+  if (!meeting) return "planned";
+  if (meeting.status === "completed") return "completed";
+  if (meeting.starts_at && meeting.ends_at) {
+    const now = new Date();
+    if (now >= new Date(meeting.starts_at) && now < new Date(meeting.ends_at)) {
+      return "in_progress";
+    }
+  }
+  return "planned";
 };
 
 const meetingStatusLabel = (meeting) =>
-  MEETING_STATUS_LABELS[meeting?.status] || "Planned";
+  MEETING_STATUS_LABELS[effectiveMeetingStatus(meeting)];
 
 const chooseDefaultMeeting = () => {
   if (!state.meetings.length) return null;
   const upcoming = state.meetings
-    .filter(
-      (meeting) =>
-        meeting.meeting_date >= today() && meeting.status !== "cancelled",
-    )
+    .filter((meeting) => meeting.meeting_date >= today())
     .sort((a, b) => a.meeting_date.localeCompare(b.meeting_date));
-  const mostRecentActive = state.meetings.find(
-    (meeting) => meeting.status !== "cancelled",
-  );
-  return upcoming[0]?.id || mostRecentActive?.id || state.meetings[0].id;
+  return upcoming[0]?.id || state.meetings[0].id;
+};
+
+// Lets staff pick a previously-used branch again instead of retyping it —
+// native <datalist> autocomplete fed by the distinct branches already on
+// file, no backend endpoint needed.
+const renderBranchSuggestions = () => {
+  const branches = [...new Set(state.members.map((member) => member.destination_branch).filter(Boolean))].sort();
+  $("#branch-suggestions").innerHTML = branches
+    .map((branch) => `<option value="${escapeHtml(branch)}"></option>`)
+    .join("");
 };
 
 const loadCoreData = async () => {
-  const [members, books, meetings] = await Promise.all([
+  const [members, books, meetings, participation] = await Promise.all([
     request("/bookclub/members?limit=500"),
     request("/bookclub/books?limit=500"),
     request("/bookclub/meetings?limit=500"),
+    request("/bookclub/members/participation-summary"),
   ]);
   state.members = members;
   state.books = books;
   state.meetings = meetings;
+  state.participation = participation;
+  renderBranchSuggestions();
   if (!state.meetings.some((meeting) => meeting.id === state.meetingId)) {
     state.meetingId = chooseDefaultMeeting();
   }
@@ -239,6 +261,10 @@ const loadCoreData = async () => {
 
 const loadSelectedMeeting = async () => {
   state.discussionNotesDirty = false;
+  // Default landing view for this meeting: archive summary if it's been
+  // archived, the normal workspace otherwise. Whichever the user then
+  // switches to (via Archive/Edit session) sticks until the next meeting.
+  state.viewingEdit = !currentMeeting()?.archived_at;
   if (!state.meetingId) {
     state.roster = [];
     renderMeetingView();
@@ -284,17 +310,16 @@ const renderMeetings = () => {
       year: new Intl.DateTimeFormat("en-CA", { year: "numeric" }).format(date),
     };
   };
-  const nextUpcomingId = upcoming.find(
-    (meeting) => meeting.status !== "cancelled",
-  )?.id;
+  const nextUpcomingId = upcoming[0]?.id;
   const upcomingCards = upcoming.map((meeting) => {
     const date = meetingDateParts(meeting);
     const cover = safeImageUrl(meeting.book.cover_image_url);
     const featured = meeting.id === nextUpcomingId;
-    const statusLabel = meeting.status === "planned"
+    const effectiveStatus = effectiveMeetingStatus(meeting);
+    const statusLabel = effectiveStatus === "planned"
       ? featured ? "Next meeting" : "Coming up"
       : meetingStatusLabel(meeting);
-    return `<button class="upcoming-meeting-card ${featured ? "next-meeting-card" : ""} status-${escapeHtml(meeting.status)}" type="button" data-open-meeting="${meeting.id}">
+    return `<button class="upcoming-meeting-card ${featured ? "next-meeting-card" : ""} status-${escapeHtml(effectiveStatus)}" type="button" data-open-meeting="${meeting.id}">
       <div class="meeting-card-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="" />` : escapeHtml(initials(meeting.book.title))}</div>
       <div class="upcoming-meeting-copy">
         <span class="meeting-status-label">${escapeHtml(statusLabel)}</span>
@@ -309,7 +334,7 @@ const renderMeetings = () => {
   const pastCards = past.map((meeting) => {
     const date = meetingDateParts(meeting);
     const cover = safeImageUrl(meeting.book.cover_image_url);
-    return `<button class="past-meeting-card status-${escapeHtml(meeting.status)}" type="button" data-open-meeting="${meeting.id}">
+    return `<button class="past-meeting-card status-${escapeHtml(effectiveMeetingStatus(meeting))}" type="button" data-open-meeting="${meeting.id}">
       <div class="past-meeting-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="" />` : escapeHtml(initials(meeting.book.title))}</div>
       <div><span class="past-meeting-date">${escapeHtml(date.month)} ${escapeHtml(date.day)}, ${escapeHtml(date.year)} · ${escapeHtml(meetingStatusLabel(meeting))}</span><h3>${escapeHtml(meeting.book.title)}</h3><p>by ${escapeHtml(meeting.book.author)}</p></div>
       <span aria-hidden="true">→</span>
@@ -446,6 +471,15 @@ const renderMeetingView = () => {
   renderGiveaway();
   renderPostMeetingRecap();
   renderReminderPanel();
+
+  const showArchive = Boolean(meeting?.archived_at) && !state.viewingEdit;
+  $("#meeting-archive-view").hidden = !showArchive;
+  $("#meeting-edit-view").hidden = showArchive;
+  const archiveToggle = $("#toggle-archive-view");
+  archiveToggle.disabled = !meeting;
+  archiveToggle.textContent = meeting?.archived_at ? "View archive" : "Archive";
+  $("#unarchive-meeting").hidden = !meeting?.archived_at;
+  if (showArchive) renderArchiveView();
 };
 
 const chronologicalMeetings = () => [...state.meetings].sort(
@@ -467,9 +501,15 @@ const renderSessionControls = () => {
   $("#meeting-position").textContent = meeting
     ? `${index + 1} of ${ordered.length}`
     : "No meetings";
-  $("#meeting-status").disabled = !meeting;
-  $("#meeting-status").value = meeting?.status || "planned";
-  $("#day-of-mode").disabled = !meeting || meeting.status === "cancelled";
+  const effectiveStatus = effectiveMeetingStatus(meeting);
+  const statusBadge = $("#meeting-status-badge");
+  statusBadge.textContent = MEETING_STATUS_LABELS[effectiveStatus];
+  statusBadge.className = `status-pill meeting-status-badge ${effectiveStatus}`;
+  const toggleCompletedButton = $("#toggle-completed");
+  toggleCompletedButton.disabled = !meeting;
+  toggleCompletedButton.textContent =
+    meeting?.status === "completed" ? "Reopen session" : "Mark completed";
+  $("#day-of-mode").disabled = !meeting;
   $("#day-of-mode").innerHTML = state.dayOfMode
     ? '<span aria-hidden="true">×</span> Exit day-of mode'
     : '<span aria-hidden="true">◉</span> Day-of mode';
@@ -494,6 +534,8 @@ const sessionRecap = () => {
   const meeting = currentMeeting();
   if (!meeting) return null;
   const attended = state.roster.filter((entry) => entry.attended);
+  const notAttended = state.roster.filter((entry) => !entry.attended);
+  const newMembers = state.roster.filter((entry) => isFirstAttendedSession(entry));
   const pages = attended.length * (meeting.book.page_count || 0);
   const winner = meeting.giveaway_winner_member_id
     ? state.members.find(
@@ -504,7 +546,7 @@ const sessionRecap = () => {
     (count, entry) => count + memberPendingBadges(entry.member).length,
     0,
   );
-  return { meeting, attended, pages, winner, followups };
+  return { meeting, attended, notAttended, newMembers, pages, winner, followups };
 };
 
 const sessionRecapText = () => {
@@ -530,6 +572,98 @@ const sessionRecapText = () => {
       ? `Participant notes:\n${participantNotes.join("\n")}`
       : null,
   ].filter(Boolean).join("\n\n");
+};
+
+// The archive view is a read-only presentation of the same live data the
+// edit view uses — archiving only changes which view opens by default, it
+// never freezes a snapshot. Editing (roster, notes, giveaway) only happens
+// in the edit view, reached via "Edit session".
+const renderArchiveView = () => {
+  const recap = sessionRecap();
+  if (!recap) return;
+  const { meeting, attended, notAttended, newMembers, pages, winner, followups } = recap;
+  const cover = $("#archive-cover");
+  const coverUrl = safeImageUrl(meeting.book.cover_image_url);
+  cover.innerHTML = coverUrl
+    ? `<img src="${escapeHtml(coverUrl)}" alt="" />`
+    : escapeHtml(initials(meeting.book.title));
+  $("#archive-heading").textContent = meeting.book.title;
+  $("#archive-intro").textContent = [
+    `by ${meeting.book.author}`,
+    formatDate(meeting.meeting_date),
+    meeting.meeting_time,
+    meeting.location,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const nameList = (entries, emptyMessage) =>
+    entries.length
+      ? `<ul class="archive-name-list">${entries
+          .map((entry) => `<li>${escapeHtml(entry.member.name)}</li>`)
+          .join("")}</ul>`
+      : `<p class="archive-empty">${escapeHtml(emptyMessage)}</p>`;
+
+  $("#archive-content").innerHTML = `
+    <div class="archive-stats-row">
+      <article class="archive-stat"><span class="stat-icon green">◎</span><div><strong>${attended.length}<small> / ${state.roster.length}</small></strong><span>Attended</span></div></article>
+      <article class="archive-stat"><span class="stat-icon gold">✦</span><div><strong>${newMembers.length}</strong><span>First-timers</span></div></article>
+      <article class="archive-stat"><span class="stat-icon orange">▥</span><div><strong>${pages.toLocaleString("en-CA")}</strong><span>Pages read together</span></div></article>
+      <article class="archive-stat"><span class="stat-icon blue">✉</span><div><strong>${followups}</strong><span>Follow-ups remaining</span></div></article>
+    </div>
+
+    <section class="panel archive-giveaway-panel">
+      <div class="giveaway-orbit" aria-hidden="true"><span>★</span></div>
+      ${
+        winner
+          ? `<p class="winner-name">${escapeHtml(winner.name)}</p><p>Monthly book giveaway winner</p>`
+          : `<p>No giveaway winner was drawn for this session.</p>`
+      }
+    </section>
+
+    <section class="archive-attendance-lists">
+      <div>
+        <h3>Attended (${attended.length})</h3>
+        ${nameList(attended, "No one was marked as attended.")}
+      </div>
+      <div>
+        <h3>Didn't make it (${notAttended.length})</h3>
+        ${nameList(notAttended, "Everyone on the roster attended.")}
+      </div>
+      ${
+        newMembers.length
+          ? `<div>
+              <h3>First meeting (${newMembers.length})</h3>
+              ${nameList(newMembers, "")}
+            </div>`
+          : ""
+      }
+    </section>
+
+    ${
+      meeting.discussion_notes
+        ? `<section class="panel archive-notes-panel">
+            <div class="panel-heading compact"><div><p class="eyebrow"><span></span> The conversation</p><h2>Discussion notes</h2></div></div>
+            <p class="archive-notes-text">${escapeHtml(meeting.discussion_notes)}</p>
+          </section>`
+        : ""
+    }
+
+    ${
+      state.roster.some((entry) => entry.notes)
+        ? `<section class="panel archive-notes-panel">
+            <div class="panel-heading compact"><div><p class="eyebrow"><span></span> Individually</p><h2>Participant notes</h2></div></div>
+            <ul class="archive-participant-notes">${state.roster
+              .filter((entry) => entry.notes)
+              .map(
+                (entry) =>
+                  `<li><strong>${escapeHtml(entry.member.name)}</strong><span>${escapeHtml(entry.notes)}</span></li>`,
+              )
+              .join("")}</ul>
+          </section>`
+        : ""
+    }
+  `;
 };
 
 const renderPostMeetingRecap = () => {
@@ -559,6 +693,17 @@ const renderPostMeetingRecap = () => {
   );
 };
 
+// A member's first-ever attended meeting is this one: their lifetime
+// attended_count is 1 and that single attendance falls on this meeting's
+// date. Guarded by entry.attended so the badge never shows before the
+// roster checkbox is actually ticked.
+const isFirstAttendedSession = (entry) => {
+  const meeting = currentMeeting();
+  if (!meeting || !entry.attended) return false;
+  const summary = state.participation.find((row) => row.member.id === entry.member.id);
+  return summary?.attended_count === 1 && summary.last_attended_date === meeting.meeting_date;
+};
+
 const renderRoster = () => {
   const body = $("#roster-table");
   if (!state.meetingId) {
@@ -573,15 +718,18 @@ const renderRoster = () => {
   body.innerHTML = entries
     .map((entry) => {
       const member = entry.member;
+      const newMemberBadgeHtml = isFirstAttendedSession(entry)
+        ? '<span class="status-pill first-session-badge" title="First session attended">✦ First meeting</span>'
+        : "";
       const pendingBadgeHtml = memberPendingBadges(member)
         .map(
           (badge) => `<button class="status-pill ${badge.className} roster-email-badge" type="button" data-open-followup="${member.id}" data-stage="${badge.stage}">${escapeHtml(badge.label)}</button>`,
         )
         .join("");
       return `<tr data-member-id="${member.id}">
-        <td><button class="roster-remove-button" type="button" data-remove-from-roster="${member.id}" aria-label="Remove ${escapeHtml(member.name)} from this meeting">×</button><div class="member-cell" title="${escapeHtml(member.notes || "")}"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small>${pendingBadgeHtml}</div></div>${entry.notes ? `<p class="participant-note-preview"><span>Note</span>${escapeHtml(entry.notes)}</p>` : ""}</td>
+        <td><button class="roster-remove-button" type="button" data-remove-from-roster="${member.id}" aria-label="Remove ${escapeHtml(member.name)} from this meeting">×</button><div class="member-cell" title="${escapeHtml(member.notes || "")}"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small>${newMemberBadgeHtml}${pendingBadgeHtml}</div></div>${entry.notes ? `<p class="participant-note-preview"><span>Note</span>${escapeHtml(entry.notes)}</p>` : ""}</td>
         <td><label class="check-wrap attendance-toggle ${entry.attended ? "is-attended" : ""}"><input type="checkbox" data-roster-field="attended" aria-label="Mark ${escapeHtml(member.name)} as attended" ${entry.attended ? "checked" : ""} /><span>${entry.attended ? "Attended" : "Unattended"}</span></label></td>
-        <td><div class="roster-card-actions"><button class="send-book-button" type="button" data-send-book="${member.id}">Send a book</button><button class="row-action" type="button" data-participant-note="${member.id}">${entry.notes ? "Edit note" : "+ Note"}</button></div></td>
+        <td><div class="roster-card-actions"><button class="send-book-button" type="button" data-send-book="${member.id}">Send a book</button><button class="row-action" type="button" data-participant-note="${member.id}">${entry.notes ? "Edit" : "+ Note"}</button></div></td>
       </tr>`;
     })
     .join("");
@@ -595,6 +743,9 @@ const saveParticipation = async (memberId, changes) => {
   const index = state.roster.findIndex((entry) => entry.member_id === memberId);
   if (index >= 0) state.roster[index] = saved;
   else state.roster.push(saved);
+  if ("attended" in changes) {
+    state.participation = await request("/bookclub/members/participation-summary");
+  }
   renderMeetingView();
 };
 
@@ -612,6 +763,13 @@ const renderGiveaway = () => {
     content.innerHTML = '<div class="giveaway-orbit"><span>★</span></div><p>Draw one name at random from everyone marked as attended.</p><button class="primary-button" id="draw-winner" type="button">Draw a name</button>';
   }
   $("#draw-winner").addEventListener("click", drawWinner);
+  $("#giveaway-inline-status").textContent = winner ? `${winner.name} won` : "No winner yet";
+};
+
+const openGiveawayDialog = () => {
+  if (!currentMeeting()) return showToast("Add a meeting first.");
+  renderGiveaway();
+  $("#giveaway-dialog").showModal();
 };
 
 const drawWinner = async () => {
@@ -619,16 +777,21 @@ const drawWinner = async () => {
   if (!meeting) return showToast("Add a meeting first.");
   const redraw = Boolean(meeting.giveaway_winner_member_id);
   if (redraw && !window.confirm("Replace the saved giveaway winner?")) return;
+  $("#giveaway-content").innerHTML = '<div class="giveaway-orbit drawing" aria-hidden="true"><span>★</span></div><p>Drawing a name…</p>';
   try {
-    const result = await request(
-      `/bookclub/meetings/${meeting.id}/giveaway/draw${redraw ? "?redraw=true" : ""}`,
-      { method: "POST" },
-    );
+    const [result] = await Promise.all([
+      request(
+        `/bookclub/meetings/${meeting.id}/giveaway/draw${redraw ? "?redraw=true" : ""}`,
+        { method: "POST" },
+      ),
+      new Promise((resolve) => setTimeout(resolve, 5000)),
+    ]);
     meeting.giveaway_winner_member_id = result.member.id;
     renderGiveaway();
     renderPostMeetingRecap();
     showToast(`${result.member.name} wins this month’s book!`);
   } catch (error) {
+    renderGiveaway();
     showToast(error.message);
   }
 };
@@ -764,7 +927,7 @@ const renderMembers = () => {
             .join("");
           return `<article class="member-profile-card ${lapsed ? "needs-attention" : ""}">
             <header class="member-profile-heading">
-              <div class="member-cell"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small></div></div>
+              <div class="member-cell"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><span class="member-email-row"><small class="member-email">${escapeHtml(member.email)}</small><button class="copy-email-button" type="button" data-copy-email="${escapeHtml(member.email)}" aria-label="Copy ${escapeHtml(member.name)}'s email address" title="Copy email address">⧉</button></span></div></div>
               <span class="status-pill ${member.active ? "" : "inactive"}">${member.active ? "Active" : "Inactive"}</span>
             </header>
             <div class="member-badge-row">${lapsed ? '<span class="status-pill attention-badge">May need a hello</span>' : ""}${badgeHtml}</div>
@@ -798,10 +961,15 @@ const openFollowupDialog = (memberId, stage) => {
   $("#followup-context").textContent = stage === "arrival"
     ? `${member.name}'s book was sent to ${member.destination_branch || "their branch"}. Use this when it arrives to confirm pickup details.`
     : `Welcome ${member.name} and share the book and meeting details for this session.`;
+  const copyAddressButton = $("#followup-copy-address");
   const copyButton = $("#followup-copy");
+  const markSentButton = $("#followup-mark-sent");
   const sendButton = $("#followup-send");
+  copyAddressButton.dataset.copyEmail = member.email;
   copyButton.dataset.copyRegistrantEmail = memberId;
   copyButton.dataset.stage = stage;
+  markSentButton.dataset.markRegistrantSent = memberId;
+  markSentButton.dataset.stage = stage;
   sendButton.dataset.sendRegistrantEmail = memberId;
   sendButton.dataset.stage = stage;
   dialog.showModal();
@@ -858,17 +1026,19 @@ const updateMemberDeliveryFieldVisibility = () => {
 const openMeetingDialog = (meeting = null) => {
   const form = $("#meeting-form");
   form.reset();
-  form.elements.book_id.innerHTML = state.books.length
-    ? state.books
-        .map(
-          (book) => `<option value="${book.id}">${escapeHtml(book.title)} — ${escapeHtml(book.author)}</option>`,
-        )
-        .join("")
-    : '<option value="">Add a book first</option>';
+  const selectedBook = meeting
+    ? state.books.find((book) => book.id === meeting.book_id)
+    : null;
+  form.elements.book_id.value = meeting?.book_id || "";
+  $("#meeting-book-search").value = selectedBook
+    ? `${selectedBook.title} — ${selectedBook.author}`
+    : "";
+  $("#meeting-book-results").hidden = true;
+  $("#meeting-book-results").innerHTML = "";
   form.elements.id.value = meeting?.id || "";
-  form.elements.book_id.value = meeting?.book_id || state.books[0]?.id || "";
   form.elements.meeting_date.value = meeting?.meeting_date || today();
   form.elements.meeting_time.value = meeting?.meeting_time || "";
+  form.elements.meeting_duration_minutes.value = meeting?.meeting_duration_minutes || 90;
   form.elements.location.value = meeting?.location || "PBRL";
   form.elements.notes.value = meeting?.notes || "";
   $("#meeting-dialog-title").textContent = meeting ? "Edit meeting" : "Add meeting";
@@ -1004,6 +1174,7 @@ const printTransitLabel = async (memberId, destinationBranch) => {
     renderRoster();
     renderMembers();
     renderPostMeetingRecap();
+    renderBranchSuggestions();
     $("#print-sheet").innerHTML = `<article class="print-label">${escapeHtml(rendered.body)}</article>`;
     window.print();
     return true;
@@ -1063,13 +1234,16 @@ const setView = async (view) => {
     meeting: currentMeeting()?.book.title || "Meeting",
     books: "Books",
     members: "Members",
-    templates: "Templates",
+    "club-settings": "Club settings",
   };
   $("#breadcrumb-page").textContent = labels[view];
   if (view === "meetings") renderMeetings();
   if (view === "books") renderBooks();
   if (view === "members") await loadParticipation();
-  if (view === "templates" && !state.templates.length) await loadTemplates();
+  if (view === "club-settings") {
+    populateClubSettingsForm();
+    if (!state.templates.length) await loadTemplates();
+  }
 };
 
 $("#roster-table").addEventListener("change", async (event) => {
@@ -1146,6 +1320,45 @@ $("#roster-add-results").addEventListener("click", async (event) => {
   } catch (error) {
     showToast(error.message);
   }
+});
+
+// Same shape as renderMemberSearchResults, for the Add Meeting book picker.
+// No "add new" fallback — books must already exist in the Books section.
+const renderBookSearchResults = (container, query) => {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    container.hidden = true;
+    container.innerHTML = "";
+    return [];
+  }
+  const lower = trimmed.toLowerCase();
+  const matches = state.books
+    .filter((book) => [book.title, book.author].join(" ").toLowerCase().includes(lower))
+    .slice(0, 6);
+  container.hidden = false;
+  container.innerHTML = matches.length
+    ? matches
+        .map(
+          (book) => `<button class="member-search-result" type="button" data-book-result="${book.id}"><div><strong>${escapeHtml(book.title)}</strong><small>${escapeHtml(book.author)}</small></div></button>`,
+        )
+        .join("")
+    : '<p class="field-help">No matching books.</p>';
+  return matches;
+};
+
+$("#meeting-book-search").addEventListener("input", (event) => {
+  renderBookSearchResults($("#meeting-book-results"), event.target.value);
+});
+
+$("#meeting-book-results").addEventListener("click", (event) => {
+  const resultButton = event.target.closest("[data-book-result]");
+  if (!resultButton) return;
+  const book = state.books.find((entry) => entry.id === Number(resultButton.dataset.bookResult));
+  if (!book) return;
+  $("#meeting-form").elements.book_id.value = book.id;
+  $("#meeting-book-search").value = `${book.title} — ${book.author}`;
+  $("#meeting-book-results").hidden = true;
+  $("#meeting-book-results").innerHTML = "";
 });
 
 $("#member-form").elements.is_new_registrant.addEventListener("change", updateMemberDeliveryFieldVisibility);
@@ -1227,10 +1440,15 @@ $("#meeting-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const id = form.elements.id.value;
+  if (!form.elements.book_id.value) {
+    $("#meeting-error").textContent = "Search for and select a book.";
+    return;
+  }
   const data = {
     book_id: Number(form.elements.book_id.value),
     meeting_date: form.elements.meeting_date.value,
     meeting_time: form.elements.meeting_time.value.trim() || null,
+    meeting_duration_minutes: Number(form.elements.meeting_duration_minutes.value),
     location: form.elements.location.value.trim() || null,
     notes: form.elements.notes.value.trim() || null,
   };
@@ -1265,7 +1483,6 @@ $("#club-settings-form").addEventListener("submit", async (event) => {
       }),
     });
     applyClub(updated);
-    $("#club-settings-dialog").close();
     showToast("Club settings saved.");
   } catch (error) {
     $("#club-settings-error").textContent = error.message;
@@ -1547,6 +1764,16 @@ document.addEventListener("click", async (event) => {
     }
   }
 
+  const copyEmailButton = event.target.closest("[data-copy-email]");
+  if (copyEmailButton) {
+    try {
+      await navigator.clipboard.writeText(copyEmailButton.dataset.copyEmail);
+      return showToast("Email address copied.");
+    } catch (error) {
+      return showToast("Could not copy email address.");
+    }
+  }
+
   const copyRegistrantButton = event.target.closest("[data-copy-registrant-email]");
   if (copyRegistrantButton) {
     const memberId = Number(copyRegistrantButton.dataset.copyRegistrantEmail);
@@ -1561,6 +1788,36 @@ document.addEventListener("click", async (event) => {
         `To: ${member?.email || ""}\nSubject: ${rendered.subject}\n\n${rendered.body}`,
       );
       return showToast("Email copied.");
+    } catch (error) {
+      return showToast(error.message);
+    }
+  }
+
+  const markSentButton = event.target.closest("[data-mark-registrant-sent]");
+  if (markSentButton) {
+    const memberId = Number(markSentButton.dataset.markRegistrantSent);
+    const stage = markSentButton.dataset.stage;
+    const endpoint = stage === "arrival" ? "arrival-email" : "onboarding-email";
+    const rosterEntry = state.roster.find((entry) => entry.member_id === memberId);
+    const member = rosterEntry?.member;
+    const alreadySentAt = stage === "arrival" ? member?.arrival_email_sent_at : member?.onboarding_email_sent_at;
+    if (
+      alreadySentAt &&
+      !window.confirm(`This email was already marked sent on ${formatDate(alreadySentAt.slice(0, 10))} — mark it sent again?`)
+    ) {
+      return;
+    }
+    try {
+      await request(
+        `/bookclub/meetings/${state.meetingId}/members/${memberId}/${endpoint}/mark-sent`,
+        { method: "POST" },
+      );
+      await refreshMember(memberId);
+      renderMembers();
+      renderRoster();
+      renderPostMeetingRecap();
+      if ($("#followup-dialog").open) $("#followup-dialog").close();
+      return showToast("Marked as sent.");
     } catch (error) {
       return showToast(error.message);
     }
@@ -1620,12 +1877,12 @@ $("#book-unscheduled-filter").addEventListener("change", (event) => {
   renderBooks();
 });
 $("#add-member").addEventListener("click", () => openMemberDialog());
-$("#open-next-meeting").addEventListener("click", async () => {
+const openDefaultMeeting = async () => {
   state.meetingId = chooseDefaultMeeting();
   await loadSelectedMeeting();
   await setView(state.meetingId ? "meeting" : "meetings");
-});
-$("#edit-club-settings").addEventListener("click", openClubSettingsDialog);
+};
+$("#open-next-meeting").addEventListener("click", openDefaultMeeting);
 $("#add-book").addEventListener("click", () => openBookDialog());
 $("#book-list").addEventListener("click", (event) => {
   if (event.target.closest("#empty-add-book")) openBookDialog();
@@ -1677,51 +1934,76 @@ $("#previous-meeting").addEventListener("click", (event) =>
 $("#next-meeting").addEventListener("click", (event) =>
   openMeetingById(event.currentTarget.dataset.meetingId),
 );
-$("#meeting-status").addEventListener("change", async (event) => {
+$("#toggle-completed").addEventListener("click", async (event) => {
   const meeting = currentMeeting();
   if (!meeting) return;
-  const previousStatus = meeting.status;
+  const nextStatus = meeting.status === "completed" ? "planned" : "completed";
   event.target.disabled = true;
   try {
     const updated = await request(`/bookclub/meetings/${meeting.id}`, {
       method: "PATCH",
-      body: JSON.stringify({ status: event.target.value }),
+      body: JSON.stringify({ status: nextStatus }),
     });
     const index = state.meetings.findIndex((entry) => entry.id === updated.id);
     state.meetings[index] = updated;
-    if (updated.status === "cancelled" && state.dayOfMode) {
-      state.dayOfMode = false;
-      document.body.classList.remove("day-of-mode");
-    }
     renderMeetings();
     renderMeetingView();
-    showToast(`Meeting marked ${meetingStatusLabel(updated).toLowerCase()}.`);
+    showToast(
+      nextStatus === "completed" ? "Meeting marked completed." : "Session reopened.",
+    );
   } catch (error) {
-    event.target.value = previousStatus;
     showToast(error.message);
   } finally {
     event.target.disabled = false;
   }
 });
-$("#day-of-mode").addEventListener("click", async () => {
+$("#day-of-mode").addEventListener("click", () => {
   const meeting = currentMeeting();
   if (!meeting) return;
-  const entering = !state.dayOfMode;
-  if (entering && meeting.status === "planned") {
-    try {
-      const updated = await request(`/bookclub/meetings/${meeting.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: "in_progress" }),
-      });
-      const index = state.meetings.findIndex((entry) => entry.id === updated.id);
-      state.meetings[index] = updated;
-      renderMeetings();
-    } catch (error) {
-      return showToast(error.message);
-    }
+  state.dayOfMode = !state.dayOfMode;
+  document.body.classList.toggle("day-of-mode", state.dayOfMode);
+  renderMeetingView();
+});
+$("#toggle-archive-view").addEventListener("click", async () => {
+  const meeting = currentMeeting();
+  if (!meeting) return;
+  if (meeting.archived_at) {
+    state.viewingEdit = false;
+    return renderMeetingView();
   }
-  state.dayOfMode = entering;
-  document.body.classList.toggle("day-of-mode", entering);
+  try {
+    const updated = await request(`/bookclub/meetings/${meeting.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived_at: new Date().toISOString() }),
+    });
+    const index = state.meetings.findIndex((entry) => entry.id === updated.id);
+    state.meetings[index] = updated;
+    state.viewingEdit = false;
+    renderMeetingView();
+    showToast("Session archived.");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+$("#unarchive-meeting").addEventListener("click", async () => {
+  const meeting = currentMeeting();
+  if (!meeting) return;
+  try {
+    const updated = await request(`/bookclub/meetings/${meeting.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived_at: null }),
+    });
+    const index = state.meetings.findIndex((entry) => entry.id === updated.id);
+    state.meetings[index] = updated;
+    state.viewingEdit = true;
+    renderMeetingView();
+    showToast("Session unarchived.");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+$("#edit-session").addEventListener("click", () => {
+  state.viewingEdit = true;
   renderMeetingView();
 });
 $("#discussion-notes").addEventListener("input", () => {
@@ -1763,6 +2045,7 @@ $("#open-reminder-dialog").addEventListener("click", () => {
   renderReminderPanel();
   $("#reminder-dialog").showModal();
 });
+$("#open-giveaway-dialog").addEventListener("click", openGiveawayDialog);
 $("#copy-reminder-list").addEventListener("click", async () => {
   const emails = state.roster.map((entry) => entry.member.email);
   if (!emails.length) return showToast("No one is on this meeting's roster yet.");
@@ -1848,3 +2131,10 @@ const initialize = async () => {
 };
 
 initialize();
+
+// "In progress" is time-computed, not stored — recheck periodically so a
+// meeting flips live for anyone with the tab open through its start time,
+// without needing a manual refresh.
+setInterval(() => {
+  if (state.view === "meeting") renderSessionControls();
+}, 60000);

@@ -137,8 +137,8 @@ class BookClubApiTests(unittest.TestCase):
         entrypoint = self.client.get("/bookclub")
         self.assertEqual(entrypoint.status_code, 200)
         self.assertIn("Book Club Manager", entrypoint.text)
-        self.assertIn('/static/bookclub.js?v=24', entrypoint.text)
-        self.assertIn('/static/bookclub.css?v=24', entrypoint.text)
+        self.assertIn('/static/bookclub.js?v=27', entrypoint.text)
+        self.assertIn('/static/bookclub.css?v=27', entrypoint.text)
         self.assertNotIn('data-view="messages"', entrypoint.text)
         self.assertIn('id="open-reminder-dialog"', entrypoint.text)
         self.assertIn('id="send-book-dialog"', entrypoint.text)
@@ -447,13 +447,20 @@ class BookClubApiTests(unittest.TestCase):
         updated = self.client.patch(
             f"/bookclub/meetings/{meeting['id']}",
             json={
-                "status": "in_progress",
                 "discussion_notes": "The group focused on memory and identity.",
             },
         )
         self.assertEqual(updated.status_code, 200, updated.text)
-        self.assertEqual(updated.json()["status"], "in_progress")
+        self.assertEqual(updated.json()["status"], "planned")
         self.assertIn("memory and identity", updated.json()["discussion_notes"])
+
+        # "in_progress" is a computed display state, not a settable value —
+        # only "planned"/"completed" are valid to PATCH directly.
+        in_progress_rejected = self.client.patch(
+            f"/bookclub/meetings/{meeting['id']}",
+            json={"status": "in_progress"},
+        )
+        self.assertEqual(in_progress_rejected.status_code, 422)
 
         member = self.create_member("Alex Reader", "alex-session@example.com")
         participation = self.client.put(
@@ -476,6 +483,79 @@ class BookClubApiTests(unittest.TestCase):
             json={"status": "maybe"},
         )
         self.assertEqual(invalid.status_code, 422)
+
+        cancelled_rejected = self.client.patch(
+            f"/bookclub/meetings/{meeting['id']}",
+            json={"status": "cancelled"},
+        )
+        self.assertEqual(cancelled_rejected.status_code, 422)
+
+    def test_meeting_duration_and_computed_time_range(self) -> None:
+        book = self.create_book()
+        parseable = self.client.post(
+            "/bookclub/meetings",
+            json={
+                "meeting_date": "2026-09-10",
+                "meeting_time": "7:00 PM",
+                "meeting_duration_minutes": 60,
+                "book_id": book["id"],
+            },
+        ).json()
+        self.assertEqual(parseable["meeting_duration_minutes"], 60)
+        self.assertEqual(parseable["starts_at"], "2026-09-10T19:00:00")
+        self.assertEqual(parseable["ends_at"], "2026-09-10T20:00:00")
+
+        default_duration = self.client.post(
+            "/bookclub/meetings",
+            json={"meeting_date": "2026-09-11", "book_id": book["id"]},
+        ).json()
+        self.assertEqual(default_duration["meeting_duration_minutes"], 90)
+
+        unparseable = self.client.post(
+            "/bookclub/meetings",
+            json={
+                "meeting_date": "2026-09-12",
+                "meeting_time": "sometime in the evening",
+                "book_id": book["id"],
+            },
+        ).json()
+        self.assertIsNone(unparseable["starts_at"])
+        self.assertIsNone(unparseable["ends_at"])
+
+        too_short = self.client.post(
+            "/bookclub/meetings",
+            json={
+                "meeting_date": "2026-09-13",
+                "meeting_duration_minutes": 5,
+                "book_id": book["id"],
+            },
+        )
+        self.assertEqual(too_short.status_code, 422)
+
+        updated_duration = self.client.patch(
+            f"/bookclub/meetings/{parseable['id']}",
+            json={"meeting_duration_minutes": 120},
+        )
+        self.assertEqual(updated_duration.status_code, 200, updated_duration.text)
+        self.assertEqual(updated_duration.json()["ends_at"], "2026-09-10T21:00:00")
+
+    def test_archived_at_can_be_set_and_cleared(self) -> None:
+        meeting = self.create_meeting()
+        self.assertIsNone(meeting["archived_at"])
+
+        archived = self.client.patch(
+            f"/bookclub/meetings/{meeting['id']}",
+            json={"archived_at": "2026-09-11T12:00:00Z"},
+        )
+        self.assertEqual(archived.status_code, 200, archived.text)
+        self.assertIsNotNone(archived.json()["archived_at"])
+
+        unarchived = self.client.patch(
+            f"/bookclub/meetings/{meeting['id']}",
+            json={"archived_at": None},
+        )
+        self.assertEqual(unarchived.status_code, 200, unarchived.text)
+        self.assertIsNone(unarchived.json()["archived_at"])
 
     def test_onboarding_email_preview_and_send_track_sent_state(self) -> None:
         meeting = self.create_meeting()
@@ -564,6 +644,51 @@ class BookClubApiTests(unittest.TestCase):
             f"/bookclub/meetings/{meeting['id']}/members/{transfer_member['id']}/arrival-email/send"
         )
         self.assertTrue(second_send.json()["already_sent_before"])
+
+    def test_mark_sent_records_timestamp_without_calling_send(self) -> None:
+        meeting = self.create_meeting()
+        member = self.client.post(
+            "/bookclub/members",
+            json={
+                "name": "Manual Sender",
+                "email": "manual-sender@example.com",
+                "joined_on": "2026-08-01",
+                "is_new_registrant": True,
+                "delivery_method": "pickup",
+            },
+        ).json()
+        self.client.put(
+            f"/bookclub/meetings/{meeting['id']}/members/{member['id']}", json={}
+        )
+        self.assertIsNone(member["onboarding_email_sent_at"])
+        self.assertIsNone(member["arrival_email_sent_at"])
+
+        onboarding_marked = self.client.post(
+            f"/bookclub/meetings/{meeting['id']}/members/{member['id']}/onboarding-email/mark-sent"
+        )
+        self.assertEqual(onboarding_marked.status_code, 200, onboarding_marked.text)
+        self.assertTrue(onboarding_marked.json()["sent"])
+        self.assertFalse(onboarding_marked.json()["already_sent_before"])
+
+        arrival_marked = self.client.post(
+            f"/bookclub/meetings/{meeting['id']}/members/{member['id']}/arrival-email/mark-sent"
+        )
+        self.assertEqual(arrival_marked.status_code, 200, arrival_marked.text)
+        self.assertFalse(arrival_marked.json()["already_sent_before"])
+
+        updated_member = self.client.get(f"/bookclub/members/{member['id']}").json()
+        self.assertIsNotNone(updated_member["onboarding_email_sent_at"])
+        self.assertIsNotNone(updated_member["arrival_email_sent_at"])
+
+        marked_again = self.client.post(
+            f"/bookclub/meetings/{meeting['id']}/members/{member['id']}/onboarding-email/mark-sent"
+        )
+        self.assertTrue(marked_again.json()["already_sent_before"])
+
+        not_on_roster = self.client.post(
+            f"/bookclub/meetings/{meeting['id']}/members/999999/onboarding-email/mark-sent"
+        )
+        self.assertEqual(not_on_roster.status_code, 404)
 
     def test_reminder_send_updates_meeting_and_member_state(self) -> None:
         alex = self.create_member("Alex Reader", "alex-batch@example.com")
@@ -705,12 +830,13 @@ class BookClubApiTests(unittest.TestCase):
 
         make_meeting("2020-01-10", "Past Book")
         make_meeting("2999-01-10", "Upcoming Book")
-        cancelled = make_meeting("2099-01-10", "Cancelled Book")
-        cancelled_update = self.client.patch(
-            f"/bookclub/meetings/{cancelled['id']}",
-            json={"status": "cancelled"},
+        # There's no "cancelled" status — a meeting the club no longer wants
+        # showing up is just deleted instead.
+        deleted = make_meeting("2099-01-10", "Deleted Book")
+        deleted_response = self.client.delete(
+            f"/bookclub/meetings/{deleted['id']}"
         )
-        self.assertEqual(cancelled_update.status_code, 200, cancelled_update.text)
+        self.assertEqual(deleted_response.status_code, 204, deleted_response.text)
         undated_past = self.create_book("Undated Past Book")
         marked = self.client.patch(
             f"/bookclub/books/{undated_past['id']}",
@@ -749,6 +875,7 @@ class BuildCalendarLinkTests(unittest.TestCase):
         meeting = SimpleNamespace(
             meeting_date=date(2026, 9, 10),
             meeting_time="7:00 PM",
+            meeting_duration_minutes=120,
             location="Pierre Berton Resource Library",
             notes=None,
             book=SimpleNamespace(title="Project Hail Mary"),
@@ -769,6 +896,7 @@ class BuildCalendarLinkTests(unittest.TestCase):
         meeting = SimpleNamespace(
             meeting_date=date(2026, 9, 10),
             meeting_time="sometime in the evening",
+            meeting_duration_minutes=90,
             location=None,
             notes=None,
             book=SimpleNamespace(title="Project Hail Mary"),
