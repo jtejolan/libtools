@@ -3,16 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Manage Sci-Fi Book Club members, meetings, books, messages, and attendance." />
+    <meta name="description" content="Manage book club members, meetings, books, attendance, and follow-ups." />
     <meta name="theme-color" content="#173f35" />
     <title>Book Club Manager — Library Tools</title>
     <link rel="icon" type="image/svg+xml" href="/static/assets/library-tools-logo-classic.svg?v=1" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/bookclub.css?v=18" />
+    <link rel="stylesheet" href="/static/bookclub.css?v=24" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub.js?v=18" defer></script>
+    <script src="/static/bookclub.js?v=24" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -22,24 +22,18 @@
           <span>Library Tools</span>
         </a>
 
-        <div class="product-name">
+        <button class="product-name" id="open-next-meeting" type="button" aria-label="Open the upcoming meeting">
           <span class="product-icon"><img src="/static/assets/book-club-manager-logo-v2.png?v=1" alt="" /></span>
           <div><small id="sidebar-club-name">Choose a club</small><strong>Book Club Manager</strong></div>
-        </div>
-        <button class="sidebar-settings-link" id="edit-club-settings" type="button">⚙ Club settings</button>
+        </button>
 
         <nav aria-label="Book Club Manager navigation">
           <p class="nav-label">Manage</p>
-          <button class="nav-item active" type="button" data-view="meetings"><span>◫</span><span>Meetings</span></button>
+          <button class="nav-item active" type="button" data-view="meetings"><span>◫</span><span>All meetings</span></button>
           <button class="nav-item" type="button" data-view="books"><span>▥</span><span>Books</span></button>
           <button class="nav-item" type="button" data-view="members"><span>◎</span><span>Members</span></button>
-          <button class="nav-item" type="button" data-view="participation"><span>◈</span><span>Participation</span></button>
-          <button class="nav-item" type="button" data-view="messages"><span>✉</span><span>Messages &amp; labels</span></button>
           <button class="nav-item" type="button" data-view="templates"><span>▤</span><span>Templates</span></button>
-          <p class="nav-label">Library Tools</p>
-          <a class="nav-item" href="/lendery"><span>▦</span><span>Lendery</span></a>
-          <a class="nav-item" href="/"><span>⌂</span><span>All tools</span></a>
-          <a class="nav-item" href="/docs#/book%20club"><span>↗</span><span>API docs</span></a>
+          <button class="nav-item" id="edit-club-settings" type="button"><span>⚙</span><span>Club settings</span></button>
         </nav>
 
         <div class="sidebar-note">
@@ -50,7 +44,7 @@
 
       <main class="workspace">
         <header class="topbar">
-          <div class="breadcrumb"><span>Book Club Manager</span><i>/</i><strong id="breadcrumb-page">Meetings</strong></div>
+          <div class="breadcrumb"><span>Book Club Manager</span><i>/</i><strong id="breadcrumb-page">Next meeting</strong></div>
           <div class="topbar-actions">
             <a class="account-button" id="public-club-link" href="#" target="_blank" hidden>Public page ↗</a>
             <button class="club-switcher" id="switch-club" type="button">Choose club</button>
@@ -71,20 +65,21 @@
           </div>
         </header>
 
-        <section class="view active" id="view-meetings">
+        <section class="view" id="view-meetings">
           <div class="content">
             <header class="page-heading">
-              <div><p class="eyebrow"><span></span> Every monthly gathering</p><h1>Meetings</h1><p class="intro">Open an upcoming meeting or revisit the complete history of books, attendance, and giveaways.</p></div>
+              <div><p class="eyebrow"><span></span> The club calendar</p><h1>All meetings</h1><p class="intro">Plan what is coming next, then revisit the books and gatherings that shaped the club.</p></div>
               <button class="primary-button" data-add-meeting type="button"><span>＋</span> Add meeting</button>
             </header>
-            <section class="collection-toolbar">
+            <section class="collection-toolbar meeting-toolbar">
               <label class="search-box"><span>⌕</span><span class="sr-only">Search meetings</span><input id="meeting-search" type="search" placeholder="Search book, author, or date…" /></label>
+              <p id="meeting-count">—</p>
             </section>
-            <div class="meeting-list" id="meeting-list"></div>
+            <div class="meeting-collections" id="meeting-list"></div>
           </div>
         </section>
 
-        <section class="view" id="view-meeting">
+        <section class="view active" id="view-meeting">
           <div class="content">
             <header class="page-heading">
               <div class="meeting-identity">
@@ -96,9 +91,23 @@
                 </div>
               </div>
               <div class="heading-actions">
+                <button class="quiet-button" type="button" data-view="meetings">View all meetings</button>
                 <button class="secondary-button" id="edit-meeting" type="button">Edit meeting</button>
               </div>
             </header>
+
+            <section class="session-command-bar" aria-label="Session controls">
+              <div class="session-navigation">
+                <button class="quiet-button" id="previous-meeting" type="button"><span aria-hidden="true">←</span> Previous</button>
+                <span id="meeting-position">—</span>
+                <button class="quiet-button" id="next-meeting" type="button">Next <span aria-hidden="true">→</span></button>
+              </div>
+              <div class="session-mode-controls">
+                <button class="reminder-trigger" id="open-reminder-dialog" type="button"><span class="reminder-trigger-icon" aria-hidden="true">✉</span><span><strong>Monthly reminder</strong><small id="reminder-inline-status">Not sent yet</small></span></button>
+                <label class="meeting-status-control"><span>Status</span><select id="meeting-status"><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></label>
+                <button class="secondary-button" id="day-of-mode" type="button"><span aria-hidden="true">◉</span> Day-of mode</button>
+              </div>
+            </section>
 
             <section class="stats-grid stats-grid-3" aria-label="Meeting overview">
               <article><span class="stat-icon green">◎</span><div><strong id="roster-stat">—</strong><span>Members</span></div></article>
@@ -109,18 +118,15 @@
             <section class="panel roster-panel">
               <div class="panel-heading">
                 <div><p class="eyebrow"><span></span> Monthly roster</p><h2>Members &amp; attendance</h2></div>
-                <div class="panel-actions">
-                  <label class="search-box"><span>⌕</span><span class="sr-only">Search this roster</span><input id="roster-search" type="search" placeholder="Find on this roster…" /></label>
+                <div class="panel-actions roster-add-bar">
+                  <label class="search-box roster-add-search"><span>＋</span><span class="sr-only">Add a member to this meeting</span><input id="roster-add-search" type="search" placeholder="Search members to add…" autocomplete="off" /></label>
+                  <div id="roster-add-results" class="member-search-results" hidden></div>
                 </div>
               </div>
-              <div class="roster-add-bar">
-                <label class="search-box roster-add-search"><span>＋</span><span class="sr-only">Add a member to this meeting</span><input id="roster-add-search" type="search" placeholder="Search members to add to this meeting…" autocomplete="off" /></label>
-                <div id="roster-add-results" class="member-search-results" hidden></div>
-              </div>
-              <div class="table-wrap">
-                <table>
+              <div class="table-wrap roster-grid-wrap">
+                <table class="roster-grid-table">
                   <thead><tr><th>Member</th><th>Attended</th><th></th></tr></thead>
-                  <tbody id="roster-table"><tr><td colspan="3" class="loading-cell">Loading the meeting roster…</td></tr></tbody>
+                  <tbody id="roster-table"><tr class="roster-empty-row"><td colspan="3" class="loading-cell">Loading the meeting roster…</td></tr></tbody>
                 </table>
               </div>
             </section>
@@ -135,14 +141,25 @@
                 </div>
               </section>
 
-              <section class="panel questions-panel">
+              <section class="panel discussion-notes-panel">
                 <div class="panel-heading compact">
-                  <div><p class="eyebrow"><span></span> Conversation starter</p><h2>Discussion questions</h2></div>
+                  <div><p class="eyebrow"><span></span> The conversation</p><h2>Discussion notes</h2><p class="panel-description">Capture themes, reactions, and ideas while they are fresh.</p></div>
                 </div>
-                <ol class="question-list" id="question-list"><li class="empty-inline">No questions added yet.</li></ol>
-                <button class="text-button" id="add-question" type="button">＋ Add your own question</button>
+                <div class="discussion-notes-editor">
+                  <textarea id="discussion-notes" rows="9" placeholder="What resonated with the group? What did people disagree about? What should you remember for next time?"></textarea>
+                  <div class="discussion-notes-actions"><span id="discussion-notes-status">No notes yet</span><button class="primary-button" id="save-discussion-notes" type="button">Save notes</button></div>
+                </div>
               </section>
             </div>
+
+            <section class="panel recap-panel" id="post-meeting-recap">
+              <div class="panel-heading">
+                <div><p class="eyebrow"><span></span> After the conversation</p><h2>Post-meeting recap</h2><p class="panel-description" id="recap-context">A live summary of this session.</p></div>
+                <button class="secondary-button" id="copy-session-recap" type="button">Copy recap</button>
+              </div>
+              <div class="recap-grid" id="recap-grid"></div>
+              <p class="recap-narrative" id="recap-narrative"></p>
+            </section>
           </div>
         </section>
 
@@ -171,84 +188,24 @@
         <section class="view" id="view-members">
           <div class="content">
             <header class="page-heading">
-              <div><p class="eyebrow"><span></span> Your regulars</p><h1>Members</h1><p class="intro">Everyone who has joined, whether or not they register each month.</p></div>
+              <div><p class="eyebrow"><span></span> People &amp; participation</p><h1>Club community</h1><p class="intro">Member records and engagement history, together in one view.</p></div>
               <button class="primary-button" id="add-member" type="button"><span>＋</span> Add member</button>
             </header>
-            <section class="panel">
+            <section class="stats-grid member-stats" aria-label="Member overview">
+              <article><span class="stat-icon green">◎</span><div><strong id="member-stat-active">—</strong><span>Active members</span></div></article>
+              <article><span class="stat-icon gold">%</span><div><strong id="member-stat-attendance">—</strong><span>Overall attendance</span></div></article>
+              <article><span class="stat-icon orange">∑</span><div><strong id="member-stat-pages">—</strong><span>Pages read together</span></div></article>
+              <article><span class="stat-icon blue">↻</span><div><strong id="member-stat-lapsed">—</strong><span>May need a hello</span></div></article>
+            </section>
+            <section class="panel member-directory-panel">
               <div class="panel-heading">
-                <div><h2>Master member list</h2><p class="panel-description" id="member-count">—</p></div>
-                <label class="search-box"><span>⌕</span><span class="sr-only">Search all members</span><input id="member-search" type="search" placeholder="Search name or email…" /></label>
-              </div>
-              <div class="table-wrap">
-                <table><thead><tr><th>Member</th><th>Joined</th><th>Status</th><th>History</th><th></th></tr></thead><tbody id="members-table"></tbody></table>
-              </div>
-            </section>
-          </div>
-        </section>
-
-        <section class="view" id="view-participation">
-          <div class="content">
-            <header class="page-heading">
-              <div><p class="eyebrow"><span></span> Engagement over time</p><h1>Participation</h1><p class="intro">See attendance, giveaways, and contact history across every member and meeting.</p></div>
-            </header>
-            <section class="panel">
-              <div class="panel-heading">
-                <div><h2>Every member</h2><p class="panel-description" id="participation-count">—</p></div>
-              </div>
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th><button class="sort-header" type="button" data-sort="name">Member</button></th>
-                      <th><button class="sort-header" type="button" data-sort="meetings_total">Meetings</button></th>
-                      <th><button class="sort-header" type="button" data-sort="attended_count">Attended</button></th>
-                      <th><button class="sort-header" type="button" data-sort="giveaways_won">Giveaways</button></th>
-                      <th><button class="sort-header" type="button" data-sort="last_attended_date">Last attended</button></th>
-                      <th><button class="sort-header" type="button" data-sort="last_contacted_at">Last contacted</button></th>
-                      <th>Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody id="participation-table"><tr><td colspan="7" class="loading-cell">Loading participation…</td></tr></tbody>
-                </table>
-              </div>
-            </section>
-          </div>
-        </section>
-
-        <section class="view" id="view-messages">
-          <div class="content">
-            <header class="page-heading"><div><p class="eyebrow"><span></span> Keep everyone informed</p><h1>Messages &amp; labels</h1><p class="intro" id="message-meeting-context">Prepare this meeting's registrant emails, monthly reminder, and transit labels.</p></div></header>
-
-            <section class="panel welcome-panel">
-              <div class="panel-heading compact"><div><h2>New registrant emails</h2><p class="panel-description">Welcome email, then a follow-up once a transfer arrives.</p></div></div>
-              <div id="welcome-list" class="welcome-list"><div class="empty-card"><span>✉</span><p>No new registrants need an email right now.</p></div></div>
-            </section>
-
-            <section class="panel reminder-panel">
-              <div class="panel-heading compact">
-                <div><h2>Monthly reminder</h2><p class="panel-description" id="reminder-status">Add a meeting first.</p></div>
-              </div>
-              <div class="reminder-body">
-                <p class="field-help" id="reminder-recipient-count"></p>
-                <div class="reminder-actions">
-                  <button class="secondary-button" id="copy-reminder-list" type="button">Copy address list</button>
-                  <button class="primary-button" id="send-reminder" type="button">Send to everyone on this roster</button>
+                <div><p class="eyebrow"><span></span> The whole club</p><h2>Member directory</h2><p class="panel-description" id="member-count">—</p></div>
+                <div class="member-directory-tools">
+                  <label class="search-box"><span>⌕</span><span class="sr-only">Search all members</span><input id="member-search" type="search" placeholder="Search name or email…" /></label>
+                  <label class="member-sort-control"><span>Sort by</span><select id="member-sort"><option value="name">Name</option><option value="attendance">Attendance</option><option value="pages">Pages read</option><option value="last_attended">Last attended</option><option value="joined">Recently joined</option></select></label>
                 </div>
               </div>
-            </section>
-
-            <section class="panel label-panel">
-              <div class="panel-heading compact"><div><h2>Print a transit label</h2><p class="panel-description">For anyone whose book needs to go to another branch — a new registrant or the odd regular.</p></div></div>
-              <div class="transit-composer">
-                <div class="field">
-                  <span>Member</span>
-                  <input id="transit-member-search" type="search" placeholder="Search members…" autocomplete="off" />
-                  <div id="transit-member-results" class="member-search-results" hidden></div>
-                </div>
-                <label class="field"><span>Destination branch</span><input id="transit-destination" maxlength="200" placeholder="Branch name" /></label>
-                <button class="secondary-button full-button" id="print-transit-label" type="button" disabled>Print label</button>
-                <p class="helper-text">The wording can be changed at any time under Templates.</p>
-              </div>
+              <div class="member-card-grid" id="members-grid"><div class="empty-card member-grid-loading"><span>◎</span><p>Loading the club community…</p></div></div>
             </section>
           </div>
         </section>
@@ -286,13 +243,13 @@
           <label class="field"><span>Email <b>*</b></span><input name="email" type="email" required maxlength="320" /></label>
           <label class="field"><span>Date joined <b>*</b></span><input name="joined_on" type="date" required /></label>
           <label class="field"><span>Status</span><select name="active"><option value="true">Active</option><option value="false">Inactive</option></select></label>
-          <label class="field"><span>Registrant type</span><label class="check-wrap field-checkbox"><input type="checkbox" name="is_new_registrant" /><span>New registrant</span></label></label>
+          <label class="field"><span>Member type</span><select name="is_new_registrant"><option value="false">Regular member</option><option value="true">New registrant</option></select></label>
           <div class="field" id="member-delivery-field"><span>Book request</span><select name="delivery_method"><option value="none">No copy</option><option value="pickup">Pickup at PBRL</option><option value="transfer">Send to branch</option></select></div>
           <label class="field" id="member-branch-field" hidden><span>Destination branch</span><input name="destination_branch" maxlength="200" /></label>
           <label class="field field-wide"><span>Notes</span><textarea name="notes" rows="3" placeholder="Preferences, accessibility notes, anything worth remembering"></textarea></label>
         </div>
         <p class="form-error" id="member-error"></p>
-        <div class="dialog-actions"><button class="text-button" type="button" data-close="member-dialog">Cancel</button><button class="primary-button" type="submit">Save member</button></div>
+        <div class="dialog-actions"><button class="text-button danger-text" id="delete-member" type="button" hidden>Delete member</button><div class="dialog-action-group"><button class="text-button" type="button" data-close="member-dialog">Cancel</button><button class="primary-button" type="submit">Save member</button></div></div>
       </form>
     </dialog>
 
@@ -321,7 +278,7 @@
           <label class="field"><span>Meeting date <b>*</b></span><input name="meeting_date" type="date" required /></label>
           <label class="field"><span>Time</span><input name="meeting_time" placeholder="7:00 PM" /></label>
           <label class="field field-wide"><span>Location</span><input name="location" placeholder="Pierre Berton Resource Library" /></label>
-          <label class="field field-wide"><span>Notes</span><textarea name="notes" rows="2"></textarea></label>
+          <label class="field field-wide"><span>Logistics notes</span><textarea name="notes" rows="2" placeholder="Room setup, access details, or other planning notes"></textarea></label>
         </div>
         <p class="form-error" id="meeting-error"></p>
         <div class="dialog-actions"><button class="text-button danger-text" id="delete-meeting" type="button" hidden>Delete meeting</button><div class="dialog-action-group"><button class="text-button" type="button" data-close="meeting-dialog">Cancel</button><button class="primary-button" type="submit">Save meeting</button></div></div>
@@ -346,6 +303,7 @@
           <label class="field"><span>Page count</span><input name="page_count" type="number" min="1" /></label>
           <label class="field"><span>Genres or subjects</span><input name="genres" maxlength="500" placeholder="Science fiction, space opera" /></label>
           <label class="field"><span>Series</span><input name="series" maxlength="300" /></label>
+          <label class="field field-wide"><span>Club history</span><select name="is_past_selection"><option value="false">Not marked as a past selection</option><option value="true">Past club selection</option></select><small class="field-help">Use this for a book the club already read without creating a dated meeting.</small></label>
           <label class="field field-wide"><span>Book-club notes</span><textarea name="discussion_notes" rows="3" placeholder="Themes, context, or ideas worth returning to"></textarea></label>
         </div>
         <p class="form-error" id="book-error"></p>
@@ -353,14 +311,47 @@
       </form>
     </dialog>
 
-    <dialog class="form-dialog compact-dialog" id="question-dialog">
-      <form id="question-form">
-        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Discussion guide</p><h2 id="question-dialog-title">Add question</h2></div><button class="icon-button" type="button" data-close="question-dialog">×</button></div>
-        <input name="id" type="hidden" />
-        <label class="field"><span>Question</span><textarea name="text" rows="4" required></textarea></label>
-        <p class="form-error" id="question-error"></p>
-        <div class="dialog-actions"><button class="text-button" type="button" data-close="question-dialog">Cancel</button><button class="primary-button" type="submit">Save question</button></div>
+    <dialog class="form-dialog compact-dialog" id="participant-note-dialog">
+      <form id="participant-note-form">
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> This session only</p><h2 id="participant-note-title">Participant note</h2></div><button class="icon-button" type="button" data-close="participant-note-dialog">×</button></div>
+        <input name="member_id" type="hidden" />
+        <label class="field"><span>Note</span><textarea name="notes" rows="5" placeholder="Joining by Zoom, needs a copy, follow up next month…"></textarea></label>
+        <p class="form-error" id="participant-note-error"></p>
+        <div class="dialog-actions"><button class="text-button" type="button" data-close="participant-note-dialog">Cancel</button><button class="primary-button" type="submit">Save note</button></div>
       </form>
+    </dialog>
+
+    <dialog class="form-dialog compact-dialog action-dialog" id="send-book-dialog">
+      <form id="send-book-form">
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Send a book</p><h2 id="send-book-title">Prepare transit label</h2></div><button class="icon-button" type="button" data-close="send-book-dialog">×</button></div>
+        <input name="member_id" type="hidden" />
+        <p class="action-dialog-intro" id="send-book-context"></p>
+        <label class="field"><span>Destination branch</span><input name="destination_branch" required maxlength="200" placeholder="Branch name" /></label>
+        <p class="field-help">Printing the label marks this member as awaiting their book and creates an arrival follow-up prompt.</p>
+        <p class="form-error" id="send-book-error"></p>
+        <div class="dialog-actions"><button class="text-button" type="button" data-close="send-book-dialog">Cancel</button><button class="primary-button" type="submit">Print label &amp; mark awaiting</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="form-dialog compact-dialog action-dialog" id="followup-dialog">
+      <div class="action-dialog-content">
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Member follow-up</p><h2 id="followup-title">Email follow-up</h2></div><button class="icon-button" type="button" data-close="followup-dialog">×</button></div>
+        <div class="followup-member" id="followup-member"></div>
+        <p class="action-dialog-intro" id="followup-context"></p>
+        <div class="dialog-actions followup-actions"><button class="secondary-button" id="followup-copy" type="button">Copy email</button><button class="primary-button" id="followup-send" type="button">Send email</button></div>
+      </div>
+    </dialog>
+
+    <dialog class="form-dialog compact-dialog action-dialog" id="reminder-dialog">
+      <div class="action-dialog-content">
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Everyone on this roster</p><h2>Monthly reminder</h2><p class="panel-description" id="reminder-status">Add a meeting first.</p></div><button class="icon-button" type="button" data-close="reminder-dialog">×</button></div>
+        <p class="reminder-recipient-summary" id="reminder-recipient-count"></p>
+        <div class="reminder-actions">
+          <button class="secondary-button" id="copy-reminder-list" type="button">Copy address list</button>
+          <button class="secondary-button" id="copy-reminder-text" type="button">Copy email text</button>
+          <button class="primary-button" id="send-reminder" type="button">Send reminder</button>
+        </div>
+      </div>
     </dialog>
 
     <dialog class="form-dialog history-dialog" id="history-dialog">

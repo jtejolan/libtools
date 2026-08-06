@@ -89,6 +89,15 @@ def update_member(
     return member
 
 
+@router.delete(
+    "/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_member(member_id: int, db: DatabaseSession) -> Response:
+    if not crud.delete_member(db, member_id):
+        raise _not_found("Member not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get(
     "/members/{member_id}/history",
     response_model=list[schemas.MemberHistoryResponse],
@@ -353,6 +362,20 @@ def send_arrival_email(meeting_id: int, member_id: int, db: DatabaseSession):
 
 
 @router.post(
+    "/meetings/{meeting_id}/reminder/preview",
+    response_model=schemas.TemplateRenderResponse,
+)
+def preview_reminder(meeting_id: int, db: DatabaseSession):
+    meeting = crud.get_meeting(db, meeting_id)
+    if meeting is None:
+        raise _not_found("Meeting not found")
+    try:
+        return crud.render_reminder_email(db, meeting)
+    except LookupError as exc:
+        raise _not_found(str(exc)) from exc
+
+
+@router.post(
     "/meetings/{meeting_id}/reminder/send",
     response_model=schemas.ReminderSendResponse,
 )
@@ -483,6 +506,23 @@ def render_transit_label(request: schemas.TransitLabelRenderRequest, db: Databas
         raise _not_found("Transit label template not found")
     context = crud.transit_label_context(db, member, request.destination_branch)
     return crud.render_template(template, context)
+
+
+@router.post(
+    "/transit-labels/print",
+    response_model=schemas.TemplateRenderResponse,
+)
+def print_transit_label(request: schemas.TransitLabelRenderRequest, db: DatabaseSession):
+    member = crud.get_member(db, request.member_id)
+    if member is None:
+        raise _not_found("Member not found")
+    template = crud.get_template(db, "transit_label")
+    if template is None:
+        raise _not_found("Transit label template not found")
+    context = crud.transit_label_context(db, member, request.destination_branch)
+    rendered = crud.render_template(template, context)
+    crud.mark_transit_label_printed(db, member, request.destination_branch)
+    return rendered
 
 
 @router.get(

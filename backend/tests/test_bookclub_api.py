@@ -137,8 +137,12 @@ class BookClubApiTests(unittest.TestCase):
         entrypoint = self.client.get("/bookclub")
         self.assertEqual(entrypoint.status_code, 200)
         self.assertIn("Book Club Manager", entrypoint.text)
-        self.assertIn('/static/bookclub.js?v=18', entrypoint.text)
-        self.assertIn('/static/bookclub.css?v=18', entrypoint.text)
+        self.assertIn('/static/bookclub.js?v=24', entrypoint.text)
+        self.assertIn('/static/bookclub.css?v=24', entrypoint.text)
+        self.assertNotIn('data-view="messages"', entrypoint.text)
+        self.assertIn('id="open-reminder-dialog"', entrypoint.text)
+        self.assertIn('id="send-book-dialog"', entrypoint.text)
+        self.assertIn('id="followup-dialog"', entrypoint.text)
         self.assertIn('href="/signup">Create an account</a>', entrypoint.text)
         self.assertEqual(entrypoint.headers["cache-control"], "no-store")
 
@@ -285,6 +289,22 @@ class BookClubApiTests(unittest.TestCase):
         )
         self.assertEqual(missing_removal.status_code, 404)
 
+        deleted_member = self.client.delete(f"/bookclub/members/{alex['id']}")
+        self.assertEqual(deleted_member.status_code, 204)
+        self.assertEqual(
+            self.client.get(f"/bookclub/meetings/{meeting['id']}/roster").json(),
+            [],
+        )
+        self.assertIsNone(
+            self.client.get(f"/bookclub/meetings/{meeting['id']}").json()[
+                "giveaway_winner_member_id"
+            ]
+        )
+        self.assertEqual(
+            self.client.delete(f"/bookclub/members/{alex['id']}").status_code,
+            404,
+        )
+
     def test_member_transfer_requires_destination_branch(self) -> None:
         missing_branch = self.client.post(
             "/bookclub/members",
@@ -363,6 +383,21 @@ class BookClubApiTests(unittest.TestCase):
         self.assertIn("Maple Library", response.json()["body"])
         self.assertIn("Josh at PBRL", response.json()["body"])
         self.assertEqual(response.json()["missing_variables"], [])
+        self.assertIsNone(
+            self.client.get(f"/bookclub/members/{alex['id']}").json()[
+                "transit_label_printed_at"
+            ]
+        )
+
+        printed = self.client.post(
+            "/bookclub/transit-labels/print",
+            json={"member_id": alex["id"], "destination_branch": "Maple Library"},
+        )
+        self.assertEqual(printed.status_code, 200, printed.text)
+        updated_member = self.client.get(f"/bookclub/members/{alex['id']}").json()
+        self.assertIsNotNone(updated_member["transit_label_printed_at"])
+        self.assertEqual(updated_member["delivery_method"], "transfer")
+        self.assertEqual(updated_member["destination_branch"], "Maple Library")
 
         missing_member = self.client.post(
             "/bookclub/transit-labels/render",
@@ -403,6 +438,44 @@ class BookClubApiTests(unittest.TestCase):
             f"/bookclub/meetings/{meeting['id']}/questions"
         )
         self.assertEqual(empty_again.json(), [])
+
+    def test_session_workspace_tracks_status_discussion_and_participant_notes(self) -> None:
+        meeting = self.create_meeting()
+        self.assertEqual(meeting["status"], "planned")
+        self.assertIsNone(meeting["discussion_notes"])
+
+        updated = self.client.patch(
+            f"/bookclub/meetings/{meeting['id']}",
+            json={
+                "status": "in_progress",
+                "discussion_notes": "The group focused on memory and identity.",
+            },
+        )
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertEqual(updated.json()["status"], "in_progress")
+        self.assertIn("memory and identity", updated.json()["discussion_notes"])
+
+        member = self.create_member("Alex Reader", "alex-session@example.com")
+        participation = self.client.put(
+            f"/bookclub/meetings/{meeting['id']}/members/{member['id']}",
+            json={"attended": True, "notes": "Joining by Zoom."},
+        )
+        self.assertEqual(participation.status_code, 200, participation.text)
+        self.assertTrue(participation.json()["attended"])
+        self.assertEqual(participation.json()["notes"], "Joining by Zoom.")
+
+        completed = self.client.patch(
+            f"/bookclub/meetings/{meeting['id']}",
+            json={"status": "completed"},
+        )
+        self.assertEqual(completed.status_code, 200, completed.text)
+        self.assertEqual(completed.json()["status"], "completed")
+
+        invalid = self.client.patch(
+            f"/bookclub/meetings/{meeting['id']}",
+            json={"status": "maybe"},
+        )
+        self.assertEqual(invalid.status_code, 422)
 
     def test_onboarding_email_preview_and_send_track_sent_state(self) -> None:
         meeting = self.create_meeting()
@@ -507,6 +580,15 @@ class BookClubApiTests(unittest.TestCase):
         self.client.put(f"/bookclub/meetings/{meeting['id']}/members/{alex['id']}", json={})
         self.client.put(f"/bookclub/meetings/{meeting['id']}/members/{casey['id']}", json={})
 
+        preview = self.client.post(
+            f"/bookclub/meetings/{meeting['id']}/reminder/preview"
+        )
+        self.assertEqual(preview.status_code, 200, preview.text)
+        self.assertIn(meeting["book"]["title"], preview.json()["subject"])
+        self.assertIn(meeting["book"]["title"], preview.json()["body"])
+        self.assertIn("Hi everyone", preview.json()["body"])
+        self.assertEqual(preview.json()["missing_variables"], [])
+
         send = self.client.post(
             f"/bookclub/meetings/{meeting['id']}/reminder/send",
             json={"member_ids": [alex["id"], casey["id"]]},
@@ -587,6 +669,7 @@ class BookClubApiTests(unittest.TestCase):
         self.assertEqual(alex_row["meetings_total"], 3)
         self.assertEqual(alex_row["attended_count"], 2)
         self.assertEqual(alex_row["giveaways_won"], 1)
+        self.assertEqual(alex_row["pages_read"], 608)
         self.assertEqual(alex_row["last_attended_date"], "2026-02-10")
         self.assertEqual(alex_row["meetings_since_last_attended"], 1)
         self.assertIsNone(alex_row["last_contacted_at"])
@@ -595,6 +678,7 @@ class BookClubApiTests(unittest.TestCase):
         self.assertEqual(casey_row["meetings_total"], 0)
         self.assertEqual(casey_row["attended_count"], 0)
         self.assertEqual(casey_row["giveaways_won"], 0)
+        self.assertEqual(casey_row["pages_read"], 0)
         self.assertIsNone(casey_row["last_attended_date"])
         self.assertEqual(casey_row["meetings_since_last_attended"], 0)
 
@@ -621,13 +705,33 @@ class BookClubApiTests(unittest.TestCase):
 
         make_meeting("2020-01-10", "Past Book")
         make_meeting("2999-01-10", "Upcoming Book")
+        cancelled = make_meeting("2099-01-10", "Cancelled Book")
+        cancelled_update = self.client.patch(
+            f"/bookclub/meetings/{cancelled['id']}",
+            json={"status": "cancelled"},
+        )
+        self.assertEqual(cancelled_update.status_code, 200, cancelled_update.text)
+        undated_past = self.create_book("Undated Past Book")
+        marked = self.client.patch(
+            f"/bookclub/books/{undated_past['id']}",
+            json={"is_past_selection": True},
+        )
+        self.assertEqual(marked.status_code, 200, marked.text)
+        self.assertTrue(marked.json()["is_past_selection"])
 
         page = self.client.get("/api/public/clubs/science-fiction-book-club")
         self.assertEqual(page.status_code, 200, page.text)
         body = page.json()
         self.assertEqual(body["upcoming_meeting"]["book"]["title"], "Upcoming Book")
-        self.assertEqual(len(body["shelf"]), 1)
-        self.assertEqual(body["shelf"][0]["title"], "Past Book")
+        self.assertEqual(len(body["shelf"]), 2)
+        self.assertEqual(
+            {book["title"] for book in body["shelf"]},
+            {"Past Book", "Undated Past Book"},
+        )
+        undated = next(
+            book for book in body["shelf"] if book["title"] == "Undated Past Book"
+        )
+        self.assertIsNone(undated["meeting_date"])
 
         self.client.patch("/bookclub/clubs/1", json={"public": False})
         hidden = self.client.get("/api/public/clubs/science-fiction-book-club")

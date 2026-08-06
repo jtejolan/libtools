@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from accounts.auth import CurrentUser
 from bookclub import crud, schemas
 from bookclub.access import accessible_club_statement, require_bookclub_tool, slugify
-from bookclub.models import BookClub, BookClubAccess, BookClubMeeting
+from bookclub.models import BookClub, BookClubAccess, BookClubBook, BookClubMeeting
 from dependencies import DatabaseSession
 
 router = APIRouter(prefix="/bookclub/clubs", tags=["book clubs"])
@@ -136,19 +136,21 @@ def public_club(slug: str, db: DatabaseSession):
         .where(
             BookClubMeeting.club_id == club.id,
             BookClubMeeting.meeting_date >= today,
+            BookClubMeeting.status != "cancelled",
         )
         .order_by(BookClubMeeting.meeting_date, BookClubMeeting.id)
     )
-    past_meetings = db.scalars(
+    past_meetings = list(db.scalars(
         select(BookClubMeeting)
         .options(selectinload(BookClubMeeting.book))
         .where(
             BookClubMeeting.club_id == club.id,
             BookClubMeeting.meeting_date < today,
+            BookClubMeeting.status != "cancelled",
         )
         .order_by(BookClubMeeting.meeting_date.desc(), BookClubMeeting.id.desc())
         .limit(SHELF_LIMIT)
-    )
+    ))
     shelf = [
         schemas.PublicShelfBookResponse(
             title=past.book.title,
@@ -158,6 +160,34 @@ def public_club(slug: str, db: DatabaseSession):
         )
         for past in past_meetings
     ]
+    remaining = SHELF_LIMIT - len(shelf)
+    if remaining:
+        scheduled_book_ids = set(
+            db.scalars(
+                select(BookClubMeeting.book_id).where(
+                    BookClubMeeting.club_id == club.id
+                )
+            )
+        )
+        flagged_statement = select(BookClubBook).where(
+            BookClubBook.club_id == club.id,
+            BookClubBook.is_past_selection.is_(True),
+        )
+        if scheduled_book_ids:
+            flagged_statement = flagged_statement.where(
+                BookClubBook.id.not_in(scheduled_book_ids)
+            )
+        flagged_books = db.scalars(
+            flagged_statement.order_by(BookClubBook.title, BookClubBook.id).limit(remaining)
+        )
+        shelf.extend(
+            schemas.PublicShelfBookResponse(
+                title=book.title,
+                author=book.author,
+                cover_image_url=book.cover_image_url,
+            )
+            for book in flagged_books
+        )
     return schemas.PublicClubResponse(
         name=club.name,
         slug=club.slug,

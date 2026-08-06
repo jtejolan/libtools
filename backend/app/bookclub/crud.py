@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from pydantic import BaseModel
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, delete, func, or_, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
@@ -183,6 +183,32 @@ def update_member(
     elif not member.destination_branch:
         raise ValueError("destination_branch is required for a transfer")
     return _commit(db, member)
+
+
+def delete_member(db: Session, member_id: int) -> bool:
+    member = get_member(db, member_id)
+    if member is None:
+        return False
+    try:
+        db.execute(
+            update(models.BookClubMeeting)
+            .where(
+                models.BookClubMeeting.club_id == _club_id(db),
+                models.BookClubMeeting.giveaway_winner_member_id == member_id,
+            )
+            .values(giveaway_winner_member_id=None)
+        )
+        db.execute(
+            delete(models.BookClubParticipation).where(
+                models.BookClubParticipation.member_id == member_id
+            )
+        )
+        db.delete(member)
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    return True
 
 
 def create_book(
@@ -424,6 +450,7 @@ def member_participation_summary(
     member = models.BookClubMember
     participation = models.BookClubParticipation
     meeting = models.BookClubMeeting
+    book = models.BookClubBook
 
     attended_date = case(
         (participation.attended.is_(True), meeting.meeting_date), else_=None
@@ -434,9 +461,19 @@ def member_participation_summary(
             func.count(participation.id),
             func.sum(case((participation.attended.is_(True), 1), else_=0)),
             func.max(attended_date),
+            func.sum(
+                case(
+                    (
+                        participation.attended.is_(True),
+                        func.coalesce(book.page_count, 0),
+                    ),
+                    else_=0,
+                )
+            ),
         )
         .outerjoin(participation, participation.member_id == member.id)
         .outerjoin(meeting, meeting.id == participation.meeting_id)
+        .outerjoin(book, book.id == meeting.book_id)
         .where(member.club_id == club_id)
         .group_by(member.id)
         .order_by(member.name)
@@ -471,6 +508,7 @@ def member_participation_summary(
         meetings_total,
         attended_count,
         last_attended_date,
+        pages_read,
     ) in rows:
         contacted_candidates = [
             value
@@ -487,6 +525,7 @@ def member_participation_summary(
                 meetings_total=int(meetings_total or 0),
                 attended_count=int(attended_count or 0),
                 giveaways_won=giveaway_counts.get(member_obj.id, 0),
+                pages_read=int(pages_read or 0),
                 last_attended_date=last_attended_date,
                 last_contacted_at=max(contacted_candidates) if contacted_candidates else None,
                 meetings_since_last_attended=meetings_since(reference_date),
@@ -618,15 +657,23 @@ def transit_label_context(
     }
 
 
+def mark_transit_label_printed(
+    db: Session,
+    member: models.BookClubMember,
+    destination_branch: str,
+) -> models.BookClubMember:
+    member.delivery_method = "transfer"
+    member.destination_branch = destination_branch
+    member.transit_label_printed_at = datetime.now(timezone.utc)
+    return _commit(db, member)
+
+
 def send_reminder_batch(
     db: Session,
     meeting: models.BookClubMeeting,
     members: list[models.BookClubMember],
 ) -> schemas.ReminderSendResponse:
-    template = get_template(db, "monthly_reminder")
-    if template is None:
-        raise LookupError("Template monthly_reminder not found")
-    rendered = render_template(template, meeting_template_context(meeting))
+    rendered = render_reminder_email(db, meeting)
     already_sent_before = meeting.reminder_sent_at is not None
     sent = email_delivery.send_reminder_batch(
         recipients=[member.email for member in members],
@@ -647,6 +694,16 @@ def send_reminder_batch(
         recipient_count=len(members),
         already_sent_before=already_sent_before,
     )
+
+
+def render_reminder_email(
+    db: Session,
+    meeting: models.BookClubMeeting,
+) -> schemas.TemplateRenderResponse:
+    template = get_template(db, "monthly_reminder")
+    if template is None:
+        raise LookupError("Template monthly_reminder not found")
+    return render_template(template, meeting_template_context(meeting))
 
 
 def ensure_default_templates(db: Session) -> None:
@@ -834,6 +891,7 @@ def meeting_template_context(
     club = meeting.club
     video_call_url = club.video_call_url
     return {
+        "first_name": "everyone",
         "book_title": meeting.book.title,
         "book_author": meeting.book.author,
         "meeting_date": meeting.meeting_date.isoformat(),

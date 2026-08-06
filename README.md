@@ -16,12 +16,21 @@ workflow and provides:
 
 - a master member list with join dates and active status;
 - a reusable book collection with covers, descriptions, publication details,
-  catalogue links, and book-club notes;
+  catalogue links, book-club notes, and undated past-selection flags;
 - meeting rosters with per-book checkout, branch transfer, and attendance data;
-- attendance history and a saved random giveaway winner for each meeting;
+- roster-native book sending, arrival tracking, and member follow-up email
+  prompts without a separate messaging workspace;
+- a meeting-first landing view plus a visual upcoming/past club calendar;
+- planned, in-progress, completed, and cancelled session states with a focused
+  day-of mode;
+- discussion notes, meeting-specific participant notes, previous/next session
+  navigation, and copyable post-meeting recaps;
+- visual member reading histories with attended books, page totals, and saved
+  giveaway winners;
 - editable onboarding, reminder, and transit-label templates;
-- personalized email and printable transit-label previews; and
-- an optional blank space for manually added discussion questions.
+- personalized email and printable transit-label previews, including copyable
+  monthly reminder text; and
+- an optional blank space for meeting logistics and book-club notes.
 
 Creating a meeting adds all active members to its roster. Use
 `POST /bookclub/meetings/{meeting_id}/roster/sync` to add active members who

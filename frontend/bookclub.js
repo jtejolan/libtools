@@ -8,14 +8,13 @@ const state = {
   meetings: [],
   meetingId: null,
   roster: [],
-  questions: [],
+  dayOfMode: false,
+  discussionNotesDirty: false,
   templates: [],
   templateKey: null,
   participation: [],
-  participationSort: { key: "name", dir: 1 },
-  transitSelectedMemberId: null,
+  memberSort: "name",
   bookUnscheduledOnly: false,
-  rosterQuery: "",
   memberQuery: "",
   meetingQuery: "",
   bookQuery: "",
@@ -144,7 +143,7 @@ const chooseClub = async (clubId) => {
   applyClub(club);
   clubDialog.close();
   await loadCoreData();
-  await setView("meetings");
+  await setView(state.meetingId ? "meeting" : "meetings");
   await runDashboardAction();
 };
 
@@ -160,7 +159,7 @@ const loadClubs = async () => {
   if (selected && state.clubs.some((club) => club.id === selected.id)) {
     applyClub(selected);
     await loadCoreData();
-    await setView("meetings");
+    await setView(state.meetingId ? "meeting" : "meetings");
     await runDashboardAction();
   } else if (state.clubs.length === 1) {
     await chooseClub(state.clubs[0].id);
@@ -196,12 +195,28 @@ const initials = (name) =>
 const currentMeeting = () =>
   state.meetings.find((meeting) => meeting.id === state.meetingId) || null;
 
+const MEETING_STATUS_LABELS = {
+  planned: "Planned",
+  in_progress: "In progress",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
+const meetingStatusLabel = (meeting) =>
+  MEETING_STATUS_LABELS[meeting?.status] || "Planned";
+
 const chooseDefaultMeeting = () => {
   if (!state.meetings.length) return null;
   const upcoming = state.meetings
-    .filter((meeting) => meeting.meeting_date >= today())
+    .filter(
+      (meeting) =>
+        meeting.meeting_date >= today() && meeting.status !== "cancelled",
+    )
     .sort((a, b) => a.meeting_date.localeCompare(b.meeting_date));
-  return upcoming[0]?.id || state.meetings[0].id;
+  const mostRecentActive = state.meetings.find(
+    (meeting) => meeting.status !== "cancelled",
+  );
+  return upcoming[0]?.id || mostRecentActive?.id || state.meetings[0].id;
 };
 
 const loadCoreData = async () => {
@@ -223,16 +238,13 @@ const loadCoreData = async () => {
 };
 
 const loadSelectedMeeting = async () => {
+  state.discussionNotesDirty = false;
   if (!state.meetingId) {
     state.roster = [];
-    state.questions = [];
     renderMeetingView();
     return;
   }
-  [state.roster, state.questions] = await Promise.all([
-    request(`/bookclub/meetings/${state.meetingId}/roster`),
-    request(`/bookclub/meetings/${state.meetingId}/questions`),
-  ]);
+  state.roster = await request(`/bookclub/meetings/${state.meetingId}/roster`);
   renderMeetingView();
 };
 
@@ -250,20 +262,70 @@ const renderMeetings = () => {
       .toLowerCase()
       .includes(query),
   );
+  const upcoming = meetings
+    .filter((meeting) => meeting.meeting_date >= today())
+    .sort((a, b) => a.meeting_date.localeCompare(b.meeting_date));
+  const past = meetings
+    .filter((meeting) => meeting.meeting_date < today())
+    .sort((a, b) => b.meeting_date.localeCompare(a.meeting_date));
   const list = $("#meeting-list");
+  $("#meeting-count").textContent = query
+    ? `${meetings.length} matching`
+    : `${upcoming.length} upcoming · ${past.length} past`;
   if (!meetings.length) {
     list.innerHTML = `<div class="empty-collection"><span>◫</span><h2>${query ? "No matching meetings" : "No meetings yet"}</h2><p>${query ? "Try a different search." : "Add the first meeting after creating a book for the club."}</p>${query ? "" : '<button class="primary-button" type="button" data-add-meeting>＋ Add meeting</button>'}</div>`;
     return;
   }
-  list.innerHTML = meetings
-    .map(
-      (meeting) => `<button class="meeting-card" type="button" data-open-meeting="${meeting.id}"><div class="meeting-date">${escapeHtml(
-        new Intl.DateTimeFormat("en-CA", { month: "short", day: "numeric" }).format(
-          new Date(`${meeting.meeting_date}T12:00:00`),
-        ),
-      )}<span>${escapeHtml(String(new Date(`${meeting.meeting_date}T12:00:00`).getFullYear()))}</span></div><div><h2>${escapeHtml(meeting.book.title)}</h2><p>by ${escapeHtml(meeting.book.author)}${meeting.location ? ` · ${escapeHtml(meeting.location)}` : ""}</p></div><span class="card-arrow">→</span></button>`,
-    )
-    .join("");
+  const meetingDateParts = (meeting) => {
+    const date = new Date(`${meeting.meeting_date}T12:00:00`);
+    return {
+      month: new Intl.DateTimeFormat("en-CA", { month: "short" }).format(date),
+      day: new Intl.DateTimeFormat("en-CA", { day: "numeric" }).format(date),
+      year: new Intl.DateTimeFormat("en-CA", { year: "numeric" }).format(date),
+    };
+  };
+  const nextUpcomingId = upcoming.find(
+    (meeting) => meeting.status !== "cancelled",
+  )?.id;
+  const upcomingCards = upcoming.map((meeting) => {
+    const date = meetingDateParts(meeting);
+    const cover = safeImageUrl(meeting.book.cover_image_url);
+    const featured = meeting.id === nextUpcomingId;
+    const statusLabel = meeting.status === "planned"
+      ? featured ? "Next meeting" : "Coming up"
+      : meetingStatusLabel(meeting);
+    return `<button class="upcoming-meeting-card ${featured ? "next-meeting-card" : ""} status-${escapeHtml(meeting.status)}" type="button" data-open-meeting="${meeting.id}">
+      <div class="meeting-card-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="" />` : escapeHtml(initials(meeting.book.title))}</div>
+      <div class="upcoming-meeting-copy">
+        <span class="meeting-status-label">${escapeHtml(statusLabel)}</span>
+        <p class="meeting-calendar-date"><strong>${escapeHtml(date.day)}</strong><span>${escapeHtml(date.month)} ${escapeHtml(date.year)}</span></p>
+        <h2>${escapeHtml(meeting.book.title)}</h2>
+        <p class="meeting-card-author">by ${escapeHtml(meeting.book.author)}</p>
+        <div class="meeting-card-meta">${meeting.meeting_time ? `<span>◷ ${escapeHtml(meeting.meeting_time)}</span>` : ""}${meeting.location ? `<span>⌖ ${escapeHtml(meeting.location)}</span>` : ""}</div>
+      </div>
+      <span class="meeting-card-arrow" aria-hidden="true">→</span>
+    </button>`;
+  }).join("");
+  const pastCards = past.map((meeting) => {
+    const date = meetingDateParts(meeting);
+    const cover = safeImageUrl(meeting.book.cover_image_url);
+    return `<button class="past-meeting-card status-${escapeHtml(meeting.status)}" type="button" data-open-meeting="${meeting.id}">
+      <div class="past-meeting-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="" />` : escapeHtml(initials(meeting.book.title))}</div>
+      <div><span class="past-meeting-date">${escapeHtml(date.month)} ${escapeHtml(date.day)}, ${escapeHtml(date.year)} · ${escapeHtml(meetingStatusLabel(meeting))}</span><h3>${escapeHtml(meeting.book.title)}</h3><p>by ${escapeHtml(meeting.book.author)}</p></div>
+      <span aria-hidden="true">→</span>
+    </button>`;
+  }).join("");
+  const upcomingSection = upcoming.length
+    ? `<section class="meeting-section upcoming-meetings"><header><div><p class="eyebrow"><span></span> On the horizon</p><h2>Upcoming book clubs</h2></div><span class="section-count">${upcoming.length}</span></header><div class="upcoming-meeting-grid">${upcomingCards}</div></section>`
+    : query
+      ? ""
+      : '<section class="meeting-section upcoming-meetings"><header><div><p class="eyebrow"><span></span> On the horizon</p><h2>Upcoming book clubs</h2></div><span class="section-count">0</span></header><div class="meeting-section-empty"><span>◫</span><div><strong>Nothing scheduled yet</strong><p>Add the next book and gathering when the club is ready.</p></div><button class="secondary-button" type="button" data-add-meeting>Plan a meeting</button></div></section>';
+  const pastSection = past.length
+    ? `<section class="meeting-section past-meetings"><header><div><p class="eyebrow"><span></span> The reading archive</p><h2>Past meetings</h2></div><span class="section-count">${past.length}</span></header><div class="past-meeting-grid">${pastCards}</div></section>`
+    : query
+      ? ""
+      : '<section class="meeting-section past-meetings"><header><div><p class="eyebrow"><span></span> The reading archive</p><h2>Past meetings</h2></div><span class="section-count">0</span></header><div class="meeting-section-empty quiet"><span>◇</span><div><strong>Your archive starts here</strong><p>Completed meetings will collect here automatically.</p></div></div></section>';
+  list.innerHTML = upcomingSection + pastSection;
 };
 
 const safeImageUrl = (value) => {
@@ -319,7 +381,9 @@ const renderBooks = () => {
       .includes(query),
   );
   if (state.bookUnscheduledOnly) {
-    books = books.filter((book) => !scheduled.has(book.id));
+    books = books.filter(
+      (book) => !scheduled.has(book.id) && !book.is_past_selection,
+    );
   }
   $("#book-count").textContent = `${state.books.length} ${state.books.length === 1 ? "book" : "books"}`;
   renderBookStats();
@@ -332,8 +396,13 @@ const renderBooks = () => {
     .map((book) => {
       const cover = safeImageUrl(book.cover_image_url);
       const publicationYear = book.publication_date?.slice(0, 4);
-      const unscheduled = !scheduled.has(book.id);
-      return `<article class="book-card">${unscheduled ? '<span class="status-pill unscheduled-badge">Not yet scheduled</span>' : ""}<div class="book-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="Cover of ${escapeHtml(book.title)}" loading="lazy" />` : escapeHtml(initials(book.title))}</div><div class="book-card-copy"><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author)}</p><p class="book-description">${escapeHtml(book.description || "No description has been added yet.")}</p><div class="book-meta">${publicationYear ? `<span>${escapeHtml(publicationYear)}</span>` : ""}${book.page_count ? `<span>${book.page_count} pages</span>` : ""}${book.genres ? `<span>${escapeHtml(book.genres)}</span>` : ""}</div></div><div class="book-card-actions"><button type="button" data-edit-book="${book.id}">Edit</button><button class="danger-text" type="button" data-delete-book="${book.id}">Delete</button></div></article>`;
+      const unscheduled = !scheduled.has(book.id) && !book.is_past_selection;
+      const statusBadge = book.is_past_selection
+        ? '<span class="status-pill past-selection-badge">Past selection</span>'
+        : unscheduled
+          ? '<span class="status-pill unscheduled-badge">Not yet scheduled</span>'
+          : "";
+      return `<article class="book-card">${statusBadge}<div class="book-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="Cover of ${escapeHtml(book.title)}" loading="lazy" />` : escapeHtml(initials(book.title))}</div><div class="book-card-copy"><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author)}</p><p class="book-description">${escapeHtml(book.description || "No description has been added yet.")}</p><div class="book-meta">${publicationYear ? `<span>${escapeHtml(publicationYear)}</span>` : ""}${book.page_count ? `<span>${book.page_count} pages</span>` : ""}${book.genres ? `<span>${escapeHtml(book.genres)}</span>` : ""}</div></div><div class="book-card-actions"><button type="button" data-edit-book="${book.id}">Edit</button><button class="danger-text" type="button" data-delete-book="${book.id}">Delete</button></div></article>`;
     })
     .join("");
 };
@@ -346,7 +415,7 @@ const renderMeetingView = () => {
   if (!meeting) {
     $("#meeting-heading").textContent = "Add your first meeting";
     $("#meeting-intro").textContent =
-      "Set the next book and date, then search below to build its roster.";
+      "Set the next book and date to begin building the club calendar.";
   } else {
     const coverUrl = safeImageUrl(meeting.book.cover_image_url);
     cover.innerHTML = coverUrl
@@ -369,39 +438,150 @@ const renderMeetingView = () => {
   $("#attendance-stat").textContent = state.roster.filter(
     (entry) => entry.attended,
   ).length;
+  renderSessionControls();
+  renderDiscussionNotes();
   $("#roster-add-search").value = "";
   $("#roster-add-results").hidden = true;
   renderRoster();
   renderGiveaway();
-  renderQuestions();
-  renderWelcomeEmails();
+  renderPostMeetingRecap();
   renderReminderPanel();
+};
+
+const chronologicalMeetings = () => [...state.meetings].sort(
+  (a, b) => a.meeting_date.localeCompare(b.meeting_date) || a.id - b.id,
+);
+
+const renderSessionControls = () => {
+  const meeting = currentMeeting();
+  const ordered = chronologicalMeetings();
+  const index = ordered.findIndex((entry) => entry.id === meeting?.id);
+  const previous = index > 0 ? ordered[index - 1] : null;
+  const next = index >= 0 && index < ordered.length - 1 ? ordered[index + 1] : null;
+  const previousButton = $("#previous-meeting");
+  const nextButton = $("#next-meeting");
+  previousButton.disabled = !previous;
+  nextButton.disabled = !next;
+  previousButton.dataset.meetingId = previous?.id || "";
+  nextButton.dataset.meetingId = next?.id || "";
+  $("#meeting-position").textContent = meeting
+    ? `${index + 1} of ${ordered.length}`
+    : "No meetings";
+  $("#meeting-status").disabled = !meeting;
+  $("#meeting-status").value = meeting?.status || "planned";
+  $("#day-of-mode").disabled = !meeting || meeting.status === "cancelled";
+  $("#day-of-mode").innerHTML = state.dayOfMode
+    ? '<span aria-hidden="true">×</span> Exit day-of mode'
+    : '<span aria-hidden="true">◉</span> Day-of mode';
+};
+
+const renderDiscussionNotes = () => {
+  const meeting = currentMeeting();
+  const textarea = $("#discussion-notes");
+  textarea.disabled = !meeting;
+  $("#save-discussion-notes").disabled = !meeting;
+  if (!state.discussionNotesDirty) {
+    textarea.value = meeting?.discussion_notes || "";
+  }
+  $("#discussion-notes-status").textContent = state.discussionNotesDirty
+    ? "Unsaved changes"
+    : meeting?.discussion_notes
+      ? "Notes saved"
+      : "No notes yet";
+};
+
+const sessionRecap = () => {
+  const meeting = currentMeeting();
+  if (!meeting) return null;
+  const attended = state.roster.filter((entry) => entry.attended);
+  const pages = attended.length * (meeting.book.page_count || 0);
+  const winner = meeting.giveaway_winner_member_id
+    ? state.members.find(
+        (member) => member.id === meeting.giveaway_winner_member_id,
+      )
+    : null;
+  const followups = state.roster.reduce(
+    (count, entry) => count + memberPendingBadges(entry.member).length,
+    0,
+  );
+  return { meeting, attended, pages, winner, followups };
+};
+
+const sessionRecapText = () => {
+  const recap = sessionRecap();
+  if (!recap) return "";
+  const { meeting, attended, pages, winner, followups } = recap;
+  const participantNotes = state.roster
+    .filter((entry) => entry.notes)
+    .map((entry) => `- ${entry.member.name}: ${entry.notes}`);
+  return [
+    `${meeting.book.title} — ${formatDate(meeting.meeting_date)}`,
+    `Status: ${meetingStatusLabel(meeting)}`,
+    `Attendance: ${attended.length} of ${state.roster.length}`,
+    meeting.book.page_count
+      ? `Pages read together: ${pages.toLocaleString("en-CA")}`
+      : null,
+    `Giveaway winner: ${winner?.name || "Not drawn"}`,
+    `Follow-ups remaining: ${followups}`,
+    meeting.discussion_notes
+      ? `Discussion notes:\n${meeting.discussion_notes}`
+      : null,
+    participantNotes.length
+      ? `Participant notes:\n${participantNotes.join("\n")}`
+      : null,
+  ].filter(Boolean).join("\n\n");
+};
+
+const renderPostMeetingRecap = () => {
+  const recap = sessionRecap();
+  const grid = $("#recap-grid");
+  $("#copy-session-recap").disabled = !recap;
+  if (!recap) {
+    grid.innerHTML = '<div class="empty-card"><p>Add a meeting to create its recap.</p></div>';
+    $("#recap-narrative").textContent = "";
+    return;
+  }
+  const { meeting, attended, pages, winner, followups } = recap;
+  $("#recap-context").textContent = meeting.status === "completed"
+    ? "This session is complete. The recap is ready to share or file."
+    : "This live summary updates as attendance and session details change.";
+  grid.innerHTML = `
+    <article><span>◎</span><strong>${attended.length}<small> / ${state.roster.length}</small></strong><p>Attended</p></article>
+    <article><span>∑</span><strong>${meeting.book.page_count ? pages.toLocaleString("en-CA") : "—"}</strong><p>Pages read together</p></article>
+    <article><span>★</span><strong>${escapeHtml(winner?.name || "Not drawn")}</strong><p>Giveaway winner</p></article>
+    <article><span>↻</span><strong>${followups}</strong><p>Follow-ups remaining</p></article>`;
+  $("#recap-narrative").textContent = attended.length
+    ? `${attended.length} ${attended.length === 1 ? "reader was" : "readers were"} part of the conversation about ${meeting.book.title}.`
+    : "Attendance has not been recorded for this session yet.";
+  $("#post-meeting-recap").classList.toggle(
+    "is-complete",
+    meeting.status === "completed",
+  );
 };
 
 const renderRoster = () => {
   const body = $("#roster-table");
   if (!state.meetingId) {
-    body.innerHTML = '<tr><td colspan="3" class="empty-cell">Add a meeting to start building its roster.</td></tr>';
+    body.innerHTML = '<tr class="roster-empty-row"><td colspan="3" class="empty-cell">Add a meeting to start building its roster.</td></tr>';
     return;
   }
-  const query = state.rosterQuery.trim().toLowerCase();
-  const entries = state.roster.filter((entry) =>
-    [entry.member.name, entry.member.email]
-      .join(" ")
-      .toLowerCase()
-      .includes(query),
-  );
+  const entries = state.roster;
   if (!entries.length) {
-    body.innerHTML = `<tr><td colspan="3" class="empty-cell">${query ? "No matching members." : "No one has been added to this meeting yet — search above to add someone."}</td></tr>`;
+    body.innerHTML = '<tr class="roster-empty-row"><td colspan="3" class="empty-cell">No one has been added yet — search above to build this meeting roster.</td></tr>';
     return;
   }
   body.innerHTML = entries
     .map((entry) => {
       const member = entry.member;
+      const pendingBadgeHtml = memberPendingBadges(member)
+        .map(
+          (badge) => `<button class="status-pill ${badge.className} roster-email-badge" type="button" data-open-followup="${member.id}" data-stage="${badge.stage}">${escapeHtml(badge.label)}</button>`,
+        )
+        .join("");
       return `<tr data-member-id="${member.id}">
-        <td><div class="member-cell" title="${escapeHtml(member.notes || "")}"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small></div></div></td>
-        <td><label class="check-wrap"><input type="checkbox" data-roster-field="attended" ${entry.attended ? "checked" : ""} /><span>${entry.attended ? "Yes" : "No"}</span></label></td>
-        <td><button class="row-action danger-text" type="button" data-remove-from-roster="${member.id}">Remove</button></td>
+        <td><button class="roster-remove-button" type="button" data-remove-from-roster="${member.id}" aria-label="Remove ${escapeHtml(member.name)} from this meeting">×</button><div class="member-cell" title="${escapeHtml(member.notes || "")}"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small>${pendingBadgeHtml}</div></div>${entry.notes ? `<p class="participant-note-preview"><span>Note</span>${escapeHtml(entry.notes)}</p>` : ""}</td>
+        <td><label class="check-wrap attendance-toggle ${entry.attended ? "is-attended" : ""}"><input type="checkbox" data-roster-field="attended" aria-label="Mark ${escapeHtml(member.name)} as attended" ${entry.attended ? "checked" : ""} /><span>${entry.attended ? "Attended" : "Unattended"}</span></label></td>
+        <td><div class="roster-card-actions"><button class="send-book-button" type="button" data-send-book="${member.id}">Send a book</button><button class="row-action" type="button" data-participant-note="${member.id}">${entry.notes ? "Edit note" : "+ Note"}</button></div></td>
       </tr>`;
     })
     .join("");
@@ -446,68 +626,34 @@ const drawWinner = async () => {
     );
     meeting.giveaway_winner_member_id = result.member.id;
     renderGiveaway();
+    renderPostMeetingRecap();
     showToast(`${result.member.name} wins this month’s book!`);
   } catch (error) {
     showToast(error.message);
   }
 };
 
-const renderQuestions = () => {
-  const list = $("#question-list");
-  if (!state.questions.length) {
-    list.innerHTML = '<li class="empty-inline">No questions added yet.</li>';
-    return;
-  }
-  list.innerHTML = state.questions
-    .map(
-      (question) => `<li>${escapeHtml(question.text)}<span class="question-actions"><button type="button" data-edit-question="${question.id}" aria-label="Edit question">✎</button><button type="button" data-delete-question="${question.id}" aria-label="Delete question">×</button></span></li>`,
-    )
-    .join("");
-};
-
 const DELIVERY_LABELS = { none: "No copy", pickup: "Pickup at PBRL", transfer: "Send to branch" };
 
-// A new registrant needs one or two emails over their lifetime: the
-// welcome email (always), then — only for a transfer — a follow-up once
-// the book actually lands at the destination branch. Both are one-time
-// sends tracked on the member, gated by whichever meeting they're on this
-// roster for (so book_title/date have somewhere to come from).
-const registrantEmailStage = (member) => {
-  if (!member.onboarding_email_sent_at) return "welcome";
-  if (member.delivery_method === "transfer" && !member.arrival_email_sent_at) return "arrival";
-  return null;
+const needsArrivalConfirmation = (member) => {
+  if (!member.transit_label_printed_at) return false;
+  if (!member.arrival_email_sent_at) return true;
+  return new Date(member.transit_label_printed_at) > new Date(member.arrival_email_sent_at);
+};
+
+// New registrants can need a welcome, while any member can need an arrival
+// follow-up after a transit label is printed. Both are tracked on the member
+// and use the selected meeting for book/date template details.
+const memberFollowupStages = (member) => {
+  const stages = [];
+  if (member.is_new_registrant && !member.onboarding_email_sent_at) stages.push("welcome");
+  if (needsArrivalConfirmation(member)) stages.push("arrival");
+  return stages;
 };
 
 const STAGE_LABELS = {
-  welcome: "Needs welcome email",
-  arrival: "Needs arrival confirmation",
-};
-
-const renderWelcomeEmails = () => {
-  const container = $("#welcome-list");
-  const rows = state.roster
-    .filter((entry) => entry.member.is_new_registrant)
-    .map((entry) => ({ entry, stage: registrantEmailStage(entry.member) }))
-    .filter((row) => row.stage);
-  if (!rows.length) {
-    container.innerHTML = '<div class="empty-card"><span>✉</span><p>No new registrants need an email right now.</p></div>';
-    return;
-  }
-  container.innerHTML = rows
-    .map(({ entry, stage }) => {
-      const member = entry.member;
-      const badgeDetail =
-        stage === "arrival" && member.destination_branch ? ` — ${escapeHtml(member.destination_branch)}` : "";
-      return `<article class="welcome-row">
-        <div class="member-cell"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small></div></div>
-        <span class="status-pill ${stage === "arrival" ? "arrival-badge" : ""}">${escapeHtml(STAGE_LABELS[stage])}${badgeDetail}</span>
-        <div class="welcome-row-actions">
-          <button class="quiet-button" type="button" data-copy-registrant-email="${member.id}" data-stage="${stage}">Copy</button>
-          <button class="primary-button" type="button" data-send-registrant-email="${member.id}" data-stage="${stage}">Send</button>
-        </div>
-      </article>`;
-    })
-    .join("");
+  welcome: "Welcome email needed",
+  arrival: "Awaiting book arrival",
 };
 
 const renderReminderPanel = () => {
@@ -517,11 +663,17 @@ const renderReminderPanel = () => {
   if (!meeting) {
     status.textContent = "Add a meeting first.";
     countEl.textContent = "";
+    $("#reminder-inline-status").textContent = "Add a meeting first";
+    $("#open-reminder-dialog").disabled = true;
     return;
   }
+  $("#open-reminder-dialog").disabled = false;
   status.textContent = meeting.reminder_sent_at
     ? `Reminder sent on ${formatDate(meeting.reminder_sent_at.slice(0, 10))}.`
     : "Not sent yet.";
+  $("#reminder-inline-status").textContent = meeting.reminder_sent_at
+    ? `Sent ${formatDate(meeting.reminder_sent_at.slice(0, 10))}`
+    : "Not sent yet";
   countEl.textContent = state.roster.length
     ? `${state.roster.length} ${state.roster.length === 1 ? "person" : "people"} on this meeting's roster.`
     : "No one has been added to this meeting yet.";
@@ -543,50 +695,131 @@ const refreshMember = async (memberId) => {
   return updated;
 };
 
-const memberPendingBadge = (member) => {
-  if (member.is_new_registrant && !member.onboarding_email_sent_at) {
-    return { label: "Needs welcome email", className: "new-badge" };
-  }
-  if (
-    member.is_new_registrant &&
-    member.delivery_method === "transfer" &&
-    !member.arrival_email_sent_at
-  ) {
-    return {
-      label: `Needs arrival confirmation${member.destination_branch ? ` — ${member.destination_branch}` : ""}`,
-      className: "arrival-badge",
-    };
-  }
-  return null;
-};
+const memberPendingBadges = (member) => memberFollowupStages(member).map((stage) => ({
+  stage,
+  label: stage === "arrival" && member.destination_branch
+    ? `${STAGE_LABELS[stage]} — ${member.destination_branch}`
+    : STAGE_LABELS[stage],
+  className: stage === "arrival" ? "arrival-badge" : "new-badge",
+}));
 
 const renderMembers = () => {
   const query = state.memberQuery.trim().toLowerCase();
-  const members = state.members.filter((member) =>
-    [member.name, member.email].join(" ").toLowerCase().includes(query),
+  const participationByMember = new Map(
+    state.participation.map((row) => [row.member.id, row]),
   );
-  $("#member-count").textContent = `${state.members.filter((member) => member.active).length} active · ${state.members.length} total`;
-  $("#members-table").innerHTML = members.length
+  const members = state.members
+    .filter((member) =>
+      [member.name, member.email].join(" ").toLowerCase().includes(query),
+    )
+    .sort((memberA, memberB) => {
+      const rowA = participationByMember.get(memberA.id);
+      const rowB = participationByMember.get(memberB.id);
+      if (state.memberSort === "attendance") {
+        const rateA = rowA?.meetings_total ? rowA.attended_count / rowA.meetings_total : -1;
+        const rateB = rowB?.meetings_total ? rowB.attended_count / rowB.meetings_total : -1;
+        return rateB - rateA || memberA.name.localeCompare(memberB.name);
+      }
+      if (state.memberSort === "last_attended") {
+        return (rowB?.last_attended_date || "").localeCompare(rowA?.last_attended_date || "") || memberA.name.localeCompare(memberB.name);
+      }
+      if (state.memberSort === "pages") {
+        return (rowB?.pages_read || 0) - (rowA?.pages_read || 0) || memberA.name.localeCompare(memberB.name);
+      }
+      if (state.memberSort === "joined") {
+        return memberB.joined_on.localeCompare(memberA.joined_on) || memberA.name.localeCompare(memberB.name);
+      }
+      return memberA.name.localeCompare(memberB.name);
+    });
+  const activeCount = state.members.filter((member) => member.active).length;
+  const totalMeetings = state.participation.reduce((total, row) => total + row.meetings_total, 0);
+  const totalAttended = state.participation.reduce((total, row) => total + row.attended_count, 0);
+  const totalPages = state.participation.reduce((total, row) => total + row.pages_read, 0);
+  const lapsedCount = state.participation.filter(
+    (row) => row.member.active && row.meetings_since_last_attended >= 3,
+  ).length;
+  $("#member-stat-active").textContent = activeCount;
+  $("#member-stat-attendance").textContent = totalMeetings
+    ? `${Math.round((totalAttended / totalMeetings) * 100)}%`
+    : "—";
+  $("#member-stat-pages").textContent = totalPages.toLocaleString("en-CA");
+  $("#member-stat-lapsed").textContent = lapsedCount;
+  $("#member-count").textContent = query
+    ? `${members.length} matching · ${state.members.length} total`
+    : `${activeCount} active · ${state.members.length} total`;
+  $("#members-grid").innerHTML = members.length
     ? members
         .map((member) => {
-          const badge = memberPendingBadge(member);
-          const badgeHtml = badge
-            ? `<button class="status-pill ${badge.className} jump-badge" type="button" data-jump-to-pending="${member.id}">${escapeHtml(badge.label)}</button>`
-            : "";
-          return `<tr><td><div class="member-cell" title="${escapeHtml(member.notes || "")}"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small>${badgeHtml}</div></div></td><td>${escapeHtml(formatDate(member.joined_on))}</td><td><span class="status-pill ${member.active ? "" : "inactive"}">${member.active ? "Active" : "Inactive"}</span></td><td><button class="row-action" type="button" data-member-history="${member.id}">View history</button></td><td><button class="row-action" type="button" data-edit-member="${member.id}">Edit</button></td></tr>`;
+          const participation = participationByMember.get(member.id);
+          const meetingsTotal = participation?.meetings_total || 0;
+          const attendedCount = participation?.attended_count || 0;
+          const attendanceRate = meetingsTotal
+            ? Math.round((attendedCount / meetingsTotal) * 100)
+            : 0;
+          const lapsed = member.active && (participation?.meetings_since_last_attended || 0) >= 3;
+          const badgeHtml = memberPendingBadges(member)
+            .map(
+              (badge) => `<button class="status-pill ${badge.className} jump-badge" type="button" data-jump-to-pending="${member.id}" data-stage="${badge.stage}">${escapeHtml(badge.label)}</button>`,
+            )
+            .join("");
+          return `<article class="member-profile-card ${lapsed ? "needs-attention" : ""}">
+            <header class="member-profile-heading">
+              <div class="member-cell"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small></div></div>
+              <span class="status-pill ${member.active ? "" : "inactive"}">${member.active ? "Active" : "Inactive"}</span>
+            </header>
+            <div class="member-badge-row">${lapsed ? '<span class="status-pill attention-badge">May need a hello</span>' : ""}${badgeHtml}</div>
+            <div class="member-engagement">
+              <div class="attendance-summary"><span>Attendance</span><strong>${attendedCount}<small> / ${meetingsTotal}</small></strong><div class="attendance-track" role="img" aria-label="${attendanceRate}% attendance"><span style="width: ${attendanceRate}%"></span></div></div>
+              <div class="giveaway-summary pages-summary"><span>Pages read</span><strong>${(participation?.pages_read || 0).toLocaleString("en-CA")}<small> pages</small></strong></div>
+            </div>
+            <dl class="member-detail-list">
+              <div><dt>Joined</dt><dd>${escapeHtml(formatDate(member.joined_on))}</dd></div>
+              <div><dt>Last attended</dt><dd>${participation?.last_attended_date ? escapeHtml(formatDate(participation.last_attended_date)) : "Not yet"}</dd></div>
+              <div><dt>Last contacted</dt><dd>${participation?.last_contacted_at ? escapeHtml(formatDate(participation.last_contacted_at.slice(0, 10))) : "Not yet"}</dd></div>
+            </dl>
+            ${member.notes ? `<p class="member-card-notes">${escapeHtml(member.notes)}</p>` : ""}
+            <footer class="member-profile-actions"><button class="quiet-button" type="button" data-member-history="${member.id}">View history</button><button class="secondary-button" type="button" data-edit-member="${member.id}">Edit member</button></footer>
+          </article>`;
         })
         .join("")
-    : '<tr><td colspan="5" class="empty-cell">No matching members.</td></tr>';
+    : `<div class="empty-card member-directory-empty"><span>◎</span><h3>${query ? "No matching members" : "No members yet"}</h3><p>${query ? "Try a different name or email." : "Add the first person to begin building your club community."}</p></div>`;
 };
 
-const jumpToPendingMeeting = async (memberId) => {
+const openFollowupDialog = (memberId, stage) => {
+  const member = state.members.find((entry) => entry.id === memberId);
+  if (!member) return showToast("Member not found.");
+  const dialog = $("#followup-dialog");
+  dialog.dataset.memberId = memberId;
+  dialog.dataset.stage = stage;
+  $("#followup-title").textContent = stage === "arrival"
+    ? "Book arrival follow-up"
+    : "Welcome email";
+  $("#followup-member").innerHTML = `<span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small></div>`;
+  $("#followup-context").textContent = stage === "arrival"
+    ? `${member.name}'s book was sent to ${member.destination_branch || "their branch"}. Use this when it arrives to confirm pickup details.`
+    : `Welcome ${member.name} and share the book and meeting details for this session.`;
+  const copyButton = $("#followup-copy");
+  const sendButton = $("#followup-send");
+  copyButton.dataset.copyRegistrantEmail = memberId;
+  copyButton.dataset.stage = stage;
+  sendButton.dataset.sendRegistrantEmail = memberId;
+  sendButton.dataset.stage = stage;
+  dialog.showModal();
+};
+
+const jumpToPendingMeeting = async (memberId, stage) => {
   try {
+    if (state.roster.some((entry) => entry.member_id === memberId)) {
+      await setView("meeting");
+      return openFollowupDialog(memberId, stage);
+    }
     const history = await request(`/bookclub/members/${memberId}/history`);
     const targetMeeting = history[0]?.meeting;
-    if (!targetMeeting) return showToast("No meeting found for this registrant.");
+    if (!targetMeeting) return showToast("No meeting found for this member.");
     state.meetingId = targetMeeting.id;
     await loadSelectedMeeting();
-    await setView("messages");
+    await setView("meeting");
+    openFollowupDialog(memberId, stage);
   } catch (error) {
     showToast(error.message);
   }
@@ -603,19 +836,20 @@ const openMemberDialog = (member = null, { addToRoster = false, prefillName = ""
   form.elements.email.value = member?.email || "";
   form.elements.joined_on.value = member?.joined_on || today();
   form.elements.active.value = String(member?.active ?? true);
-  form.elements.is_new_registrant.checked = member ? Boolean(member.is_new_registrant) : true;
+  form.elements.is_new_registrant.value = String(member?.is_new_registrant ?? true);
   form.elements.delivery_method.value = member?.delivery_method || "none";
   form.elements.destination_branch.value = member?.destination_branch || "";
   form.elements.notes.value = member?.notes || "";
   updateMemberDeliveryFieldVisibility();
   $("#member-dialog-title").textContent = member ? "Edit member" : "Add member";
+  $("#delete-member").hidden = !member;
   $("#member-error").textContent = "";
   $("#member-dialog").showModal();
 };
 
 const updateMemberDeliveryFieldVisibility = () => {
   const form = $("#member-form");
-  const isNewRegistrant = form.elements.is_new_registrant.checked;
+  const isNewRegistrant = form.elements.is_new_registrant.value === "true";
   $("#member-delivery-field").hidden = !isNewRegistrant;
   $("#member-branch-field").hidden =
     !isNewRegistrant || form.elements.delivery_method.value !== "transfer";
@@ -664,6 +898,7 @@ const openBookDialog = (book = null) => {
   fields.forEach((field) => {
     form.elements[field].value = book?.[field] || "";
   });
+  form.elements.is_past_selection.value = String(book?.is_past_selection ?? false);
   $("#book-dialog-title").textContent = book ? "Edit book" : "Add book";
   $("#book-error").textContent = "";
   const importStatus = $("#import-book-status");
@@ -722,33 +957,59 @@ const importBookDetails = async () => {
 const showMemberHistory = async (memberId) => {
   const member = state.members.find((entry) => entry.id === memberId);
   const history = await request(`/bookclub/members/${memberId}/history`);
-  $("#history-title").textContent = `${member.name}’s history`;
-  const deliveryHtml = member.is_new_registrant
+  const attended = history.filter((entry) => entry.attended);
+  const totalPages = attended.reduce(
+    (total, entry) => total + (entry.meeting.book.page_count || 0),
+    0,
+  );
+  const giveawaysWon = attended.filter(
+    (entry) => entry.meeting.giveaway_winner_member_id === memberId,
+  ).length;
+  $("#history-title").textContent = `${member.name}’s reading history`;
+  const deliveryHtml = member.delivery_method !== "none"
     ? `<p class="history-notes">${escapeHtml(DELIVERY_LABELS[member.delivery_method] || member.delivery_method)}${member.delivery_method === "transfer" && member.destination_branch ? ` — ${escapeHtml(member.destination_branch)}` : ""}</p>`
     : "";
   const notesHtml = member.notes
     ? `<p class="history-notes">${escapeHtml(member.notes)}</p>`
     : "";
-  $("#history-content").innerHTML = deliveryHtml + notesHtml + (history.length
-    ? `<div class="history-list">${history
-        .map(
-          (entry) => `<article class="history-row"><div><strong>${escapeHtml(entry.meeting.book.title)}</strong><small>${escapeHtml(formatDate(entry.meeting.meeting_date))}</small></div><span class="history-mark ${entry.attended ? "yes" : "no"}">${entry.attended ? "Attended ✓" : "Absent"}</span></article>`,
-        )
+  const summaryHtml = `<section class="history-summary-grid" aria-label="Reading totals">
+    <article><span>▥</span><strong>${attended.length}</strong><small>Books read</small></article>
+    <article><span>∑</span><strong>${totalPages.toLocaleString("en-CA")}</strong><small>Pages read</small></article>
+    <article><span>★</span><strong>${giveawaysWon}</strong><small>Giveaways won</small></article>
+  </section>`;
+  const booksHtml = attended.length
+    ? `<div class="history-book-grid">${attended
+        .map((entry) => {
+          const book = entry.meeting.book;
+          const cover = safeImageUrl(book.cover_image_url);
+          const won = entry.meeting.giveaway_winner_member_id === memberId;
+          return `<article class="history-book-card">
+            <div class="history-book-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="" />` : escapeHtml(initials(book.title))}</div>
+            <div><span class="history-book-date">${escapeHtml(formatDate(entry.meeting.meeting_date))}</span><strong>${escapeHtml(book.title)}</strong><small>by ${escapeHtml(book.author)}</small><p>${book.page_count ? `${book.page_count.toLocaleString("en-CA")} pages` : "Page count unavailable"}${won ? ' <b>★ Giveaway winner</b>' : ""}</p></div>
+          </article>`;
+        })
         .join("")}</div>`
-    : '<div class="empty-card"><p>No meeting history yet.</p></div>');
+    : '<div class="empty-card history-empty"><span>▥</span><h3>No books read yet</h3><p>Books will appear here when this member is marked as attended.</p></div>';
+  $("#history-content").innerHTML = summaryHtml + deliveryHtml + notesHtml + booksHtml;
   $("#history-dialog").showModal();
 };
 
 const printTransitLabel = async (memberId, destinationBranch) => {
   try {
-    const rendered = await request("/bookclub/transit-labels/render", {
+    const rendered = await request("/bookclub/transit-labels/print", {
       method: "POST",
       body: JSON.stringify({ member_id: memberId, destination_branch: destinationBranch }),
     });
+    await refreshMember(memberId);
+    renderRoster();
+    renderMembers();
+    renderPostMeetingRecap();
     $("#print-sheet").innerHTML = `<article class="print-label">${escapeHtml(rendered.body)}</article>`;
     window.print();
+    return true;
   } catch (error) {
     showToast(error.message);
+    return false;
   }
 };
 
@@ -778,53 +1039,15 @@ const renderTemplates = () => {
 
 const loadParticipation = async () => {
   state.participation = await request("/bookclub/members/participation-summary");
-  renderParticipation();
-};
-
-const participationSortValue = (row, key) => {
-  switch (key) {
-    case "name":
-      return row.member.name.toLowerCase();
-    case "last_attended_date":
-      return row.last_attended_date || "";
-    case "last_contacted_at":
-      return row.last_contacted_at || "";
-    default:
-      return row[key] ?? 0;
-  }
-};
-
-const renderParticipation = () => {
-  const { key, dir } = state.participationSort;
-  const rows = [...state.participation].sort((a, b) => {
-    const valueA = participationSortValue(a, key);
-    const valueB = participationSortValue(b, key);
-    if (valueA < valueB) return -1 * dir;
-    if (valueA > valueB) return 1 * dir;
-    return 0;
-  });
-  $("#participation-count").textContent = `${rows.length} ${rows.length === 1 ? "member" : "members"}`;
-  $("#participation-table").innerHTML = rows.length
-    ? rows
-        .map((row) => {
-          const member = row.member;
-          const lapsed = row.meetings_since_last_attended >= 3;
-          return `<tr class="${lapsed ? "lapsed-row" : ""}">
-            <td><div class="member-cell" title="${escapeHtml(member.notes || "")}"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small></div></div></td>
-            <td>${row.meetings_total}</td>
-            <td>${row.attended_count}</td>
-            <td>${row.giveaways_won}</td>
-            <td>${row.last_attended_date ? escapeHtml(formatDate(row.last_attended_date)) : '<span class="muted-dash">—</span>'}</td>
-            <td>${row.last_contacted_at ? escapeHtml(formatDate(row.last_contacted_at.slice(0, 10))) : '<span class="muted-dash">—</span>'}</td>
-            <td class="notes-cell">${escapeHtml(member.notes || "")}</td>
-          </tr>`;
-        })
-        .join("")
-    : '<tr><td colspan="7" class="empty-cell">No members yet.</td></tr>';
+  renderMembers();
 };
 
 const setView = async (view) => {
   state.view = view;
+  if (view !== "meeting" && state.dayOfMode) {
+    state.dayOfMode = false;
+    document.body.classList.remove("day-of-mode");
+  }
   $$(".view").forEach((section) =>
     section.classList.toggle("active", section.id === `view-${view}`),
   );
@@ -836,24 +1059,16 @@ const setView = async (view) => {
     ),
   );
   const labels = {
-    meetings: "Meetings",
+    meetings: "All meetings",
     meeting: currentMeeting()?.book.title || "Meeting",
     books: "Books",
     members: "Members",
-    participation: "Participation",
-    messages: "Messages & labels",
     templates: "Templates",
   };
   $("#breadcrumb-page").textContent = labels[view];
   if (view === "meetings") renderMeetings();
   if (view === "books") renderBooks();
-  if (view === "participation") await loadParticipation();
-  if (view === "messages") {
-    const meeting = currentMeeting();
-    $("#message-meeting-context").textContent = meeting
-      ? `Preparing messages for ${meeting.book.title} on ${formatDate(meeting.meeting_date)}.`
-      : "Add and open a meeting before preparing messages or labels.";
-  }
+  if (view === "members") await loadParticipation();
   if (view === "templates" && !state.templates.length) await loadTemplates();
 };
 
@@ -933,39 +1148,6 @@ $("#roster-add-results").addEventListener("click", async (event) => {
   }
 });
 
-const updateTransitPrintButton = () => {
-  $("#print-transit-label").disabled = !(
-    state.transitSelectedMemberId && $("#transit-destination").value.trim()
-  );
-};
-
-$("#transit-member-search").addEventListener("input", (event) => {
-  state.transitSelectedMemberId = null;
-  updateTransitPrintButton();
-  renderMemberSearchResults($("#transit-member-results"), event.target.value, {});
-});
-
-$("#transit-member-results").addEventListener("click", (event) => {
-  const resultButton = event.target.closest("[data-member-result]");
-  if (!resultButton) return;
-  const memberId = Number(resultButton.dataset.memberResult);
-  const member = state.members.find((entry) => entry.id === memberId);
-  if (!member) return;
-  state.transitSelectedMemberId = member.id;
-  $("#transit-member-search").value = member.name;
-  $("#transit-destination").value = member.destination_branch || "";
-  $("#transit-member-results").hidden = true;
-  updateTransitPrintButton();
-});
-
-$("#transit-destination").addEventListener("input", updateTransitPrintButton);
-
-$("#print-transit-label").addEventListener("click", async () => {
-  const destination = $("#transit-destination").value.trim();
-  if (!state.transitSelectedMemberId || !destination) return;
-  await printTransitLabel(state.transitSelectedMemberId, destination);
-});
-
 $("#member-form").elements.is_new_registrant.addEventListener("change", updateMemberDeliveryFieldVisibility);
 $("#member-form").elements.delivery_method.addEventListener("change", updateMemberDeliveryFieldVisibility);
 
@@ -973,10 +1155,12 @@ $("#member-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const id = form.elements.id.value;
-  const isNewRegistrant = form.elements.is_new_registrant.checked;
-  const deliveryMethod = isNewRegistrant ? form.elements.delivery_method.value : "none";
+  const isNewRegistrant = form.elements.is_new_registrant.value === "true";
+  const deliveryMethod = isNewRegistrant || id
+    ? form.elements.delivery_method.value
+    : "none";
   const destinationBranch = form.elements.destination_branch.value.trim();
-  if (isNewRegistrant && deliveryMethod === "transfer" && !destinationBranch) {
+  if (deliveryMethod === "transfer" && !destinationBranch) {
     $("#member-error").textContent = "Enter a destination branch.";
     return;
   }
@@ -1004,6 +1188,7 @@ $("#member-form").addEventListener("submit", async (event) => {
     }
     $("#member-dialog").close();
     await loadCoreData();
+    if (state.view === "members") await loadParticipation();
     showToast(
       id
         ? "Member updated."
@@ -1016,6 +1201,23 @@ $("#member-form").addEventListener("submit", async (event) => {
         await printTransitLabel(saved.id, destinationBranch);
       }
     }
+  } catch (error) {
+    $("#member-error").textContent = error.message;
+  }
+});
+
+$("#delete-member").addEventListener("click", async () => {
+  const form = $("#member-form");
+  const memberId = Number(form.elements.id.value);
+  const member = state.members.find((entry) => entry.id === memberId);
+  if (!member) return;
+  if (!window.confirm(`Delete ${member.name}? Their roster and reading history will also be removed.`)) return;
+  try {
+    await request(`/bookclub/members/${memberId}`, { method: "DELETE" });
+    $("#member-dialog").close();
+    await loadCoreData();
+    if (state.view === "members") await loadParticipation();
+    showToast("Member deleted.");
   } catch (error) {
     $("#member-error").textContent = error.message;
   }
@@ -1095,6 +1297,7 @@ $("#book-form").addEventListener("submit", async (event) => {
   const data = {
     title: form.elements.title.value.trim(),
     author: form.elements.author.value.trim(),
+    is_past_selection: form.elements.is_past_selection.value === "true",
     page_count: form.elements.page_count.value
       ? Number(form.elements.page_count.value)
       : null,
@@ -1116,27 +1319,35 @@ $("#book-form").addEventListener("submit", async (event) => {
   }
 });
 
-$("#question-form").addEventListener("submit", async (event) => {
+$("#participant-note-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
-  const id = form.elements.id.value;
+  const memberId = Number(form.elements.member_id.value);
   try {
-    await request(
-      id
-        ? `/bookclub/questions/${id}`
-        : `/bookclub/meetings/${state.meetingId}/questions`,
-      {
-        method: id ? "PATCH" : "POST",
-        body: JSON.stringify({ text: form.elements.text.value.trim() }),
-      },
+    await saveParticipation(
+      memberId,
+      { notes: form.elements.notes.value.trim() || null },
     );
-    $("#question-dialog").close();
-    state.questions = await request(
-      `/bookclub/meetings/${state.meetingId}/questions`,
-    );
-    renderQuestions();
+    $("#participant-note-dialog").close();
+    showToast("Participant note saved.");
   } catch (error) {
-    $("#question-error").textContent = error.message;
+    $("#participant-note-error").textContent = error.message;
+  }
+});
+
+$("#send-book-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const memberId = Number(form.elements.member_id.value);
+  const destination = form.elements.destination_branch.value.trim();
+  const submitButton = form.querySelector('[type="submit"]');
+  submitButton.disabled = true;
+  $("#send-book-error").textContent = "";
+  const printed = await printTransitLabel(memberId, destination);
+  submitButton.disabled = false;
+  if (printed) {
+    $("#send-book-dialog").close();
+    showToast("Transit label printed. Member marked as awaiting their book.");
   }
 });
 
@@ -1265,27 +1476,46 @@ document.addEventListener("click", async (event) => {
   const historyButton = event.target.closest("[data-member-history]");
   if (historyButton) return showMemberHistory(Number(historyButton.dataset.memberHistory));
   const jumpBadge = event.target.closest("[data-jump-to-pending]");
-  if (jumpBadge) return jumpToPendingMeeting(Number(jumpBadge.dataset.jumpToPending));
+  if (jumpBadge) return jumpToPendingMeeting(
+    Number(jumpBadge.dataset.jumpToPending),
+    jumpBadge.dataset.stage,
+  );
 
-  const editQuestion = event.target.closest("[data-edit-question]");
-  if (editQuestion) {
-    const question = state.questions.find(
-      (entry) => entry.id === Number(editQuestion.dataset.editQuestion),
+  const followupPrompt = event.target.closest("[data-open-followup]");
+  if (followupPrompt) {
+    return openFollowupDialog(
+      Number(followupPrompt.dataset.openFollowup),
+      followupPrompt.dataset.stage,
     );
-    const form = $("#question-form");
-    form.elements.id.value = question.id;
-    form.elements.text.value = question.text;
-    $("#question-dialog-title").textContent = "Edit question";
-    return $("#question-dialog").showModal();
   }
-  const deleteQuestion = event.target.closest("[data-delete-question]");
-  if (deleteQuestion) {
-    if (!window.confirm("Delete this discussion question?")) return;
-    await request(`/bookclub/questions/${deleteQuestion.dataset.deleteQuestion}`, {
-      method: "DELETE",
-    });
-    state.questions = await request(`/bookclub/meetings/${state.meetingId}/questions`);
-    return renderQuestions();
+
+  const sendBookButton = event.target.closest("[data-send-book]");
+  if (sendBookButton) {
+    const memberId = Number(sendBookButton.dataset.sendBook);
+    const member = state.members.find((entry) => entry.id === memberId);
+    if (!member) return;
+    const form = $("#send-book-form");
+    form.reset();
+    form.elements.member_id.value = memberId;
+    form.elements.destination_branch.value = member.destination_branch || "";
+    $("#send-book-title").textContent = `Send a book to ${member.name}`;
+    $("#send-book-context").textContent = `Prepare a transit label for ${member.name}'s copy of ${currentMeeting()?.book.title || "this month's book"}.`;
+    $("#send-book-error").textContent = "";
+    return $("#send-book-dialog").showModal();
+  }
+
+  const participantNoteButton = event.target.closest("[data-participant-note]");
+  if (participantNoteButton) {
+    const memberId = Number(participantNoteButton.dataset.participantNote);
+    const entry = state.roster.find((item) => item.member_id === memberId);
+    if (!entry) return;
+    const form = $("#participant-note-form");
+    form.reset();
+    form.elements.member_id.value = memberId;
+    form.elements.notes.value = entry.notes || "";
+    $("#participant-note-title").textContent = `${entry.member.name} — session note`;
+    $("#participant-note-error").textContent = "";
+    return $("#participant-note-dialog").showModal();
   }
 
   const templateButton = event.target.closest("[data-template-key]");
@@ -1299,14 +1529,6 @@ document.addEventListener("click", async (event) => {
     const token = `{{${variableButton.dataset.variable}}}`;
     textarea.setRangeText(token, textarea.selectionStart, textarea.selectionEnd, "end");
     return textarea.focus();
-  }
-
-  const sortHeaderButton = event.target.closest("[data-sort]");
-  if (sortHeaderButton) {
-    const key = sortHeaderButton.dataset.sort;
-    if (state.participationSort.key === key) state.participationSort.dir *= -1;
-    else state.participationSort = { key, dir: 1 };
-    return renderParticipation();
   }
 
   const removeFromRosterButton = event.target.closest("[data-remove-from-roster]");
@@ -1364,8 +1586,10 @@ document.addEventListener("click", async (event) => {
         { method: "POST" },
       );
       await refreshMember(memberId);
-      renderWelcomeEmails();
       renderMembers();
+      renderRoster();
+      renderPostMeetingRecap();
+      if ($("#followup-dialog").open) $("#followup-dialog").close();
       return showToast(
         result.sent ? "Email sent." : "Email delivery isn't configured — use Copy instead.",
       );
@@ -1375,12 +1599,12 @@ document.addEventListener("click", async (event) => {
   }
 });
 
-$("#roster-search").addEventListener("input", (event) => {
-  state.rosterQuery = event.target.value;
-  renderRoster();
-});
 $("#member-search").addEventListener("input", (event) => {
   state.memberQuery = event.target.value;
+  renderMembers();
+});
+$("#member-sort").addEventListener("change", (event) => {
+  state.memberSort = event.target.value;
   renderMembers();
 });
 $("#meeting-search").addEventListener("input", (event) => {
@@ -1396,6 +1620,11 @@ $("#book-unscheduled-filter").addEventListener("change", (event) => {
   renderBooks();
 });
 $("#add-member").addEventListener("click", () => openMemberDialog());
+$("#open-next-meeting").addEventListener("click", async () => {
+  state.meetingId = chooseDefaultMeeting();
+  await loadSelectedMeeting();
+  await setView(state.meetingId ? "meeting" : "meetings");
+});
 $("#edit-club-settings").addEventListener("click", openClubSettingsDialog);
 $("#add-book").addEventListener("click", () => openBookDialog());
 $("#book-list").addEventListener("click", (event) => {
@@ -1407,7 +1636,7 @@ $("#delete-meeting").addEventListener("click", async () => {
   if (!meeting) return;
   if (
     !window.confirm(
-      `Delete the ${formatDate(meeting.meeting_date)} meeting for ${meeting.book.title}? Attendance, the giveaway winner, and questions for this meeting will also be deleted.`,
+      `Delete the ${formatDate(meeting.meeting_date)} meeting for ${meeting.book.title}? Attendance, participant notes, discussion notes, and the giveaway winner will also be deleted.`,
     )
   ) {
     return;
@@ -1424,7 +1653,6 @@ $("#delete-meeting").addEventListener("click", async () => {
     );
     state.meetingId = chooseDefaultMeeting();
     state.roster = [];
-    state.questions = [];
     renderMeetings();
     renderMeetingView();
     await setView("meetings");
@@ -1436,19 +1664,127 @@ $("#delete-meeting").addEventListener("click", async () => {
     deleteButton.textContent = "Delete meeting";
   }
 });
-$("#add-question").addEventListener("click", () => {
-  if (!state.meetingId) return showToast("Add a meeting first.");
-  const form = $("#question-form");
-  form.reset();
-  form.elements.id.value = "";
-  $("#question-dialog-title").textContent = "Add question";
-  $("#question-dialog").showModal();
+const openMeetingById = async (meetingId) => {
+  if (!meetingId) return;
+  state.meetingId = Number(meetingId);
+  await loadSelectedMeeting();
+  await setView("meeting");
+};
+
+$("#previous-meeting").addEventListener("click", (event) =>
+  openMeetingById(event.currentTarget.dataset.meetingId),
+);
+$("#next-meeting").addEventListener("click", (event) =>
+  openMeetingById(event.currentTarget.dataset.meetingId),
+);
+$("#meeting-status").addEventListener("change", async (event) => {
+  const meeting = currentMeeting();
+  if (!meeting) return;
+  const previousStatus = meeting.status;
+  event.target.disabled = true;
+  try {
+    const updated = await request(`/bookclub/meetings/${meeting.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: event.target.value }),
+    });
+    const index = state.meetings.findIndex((entry) => entry.id === updated.id);
+    state.meetings[index] = updated;
+    if (updated.status === "cancelled" && state.dayOfMode) {
+      state.dayOfMode = false;
+      document.body.classList.remove("day-of-mode");
+    }
+    renderMeetings();
+    renderMeetingView();
+    showToast(`Meeting marked ${meetingStatusLabel(updated).toLowerCase()}.`);
+  } catch (error) {
+    event.target.value = previousStatus;
+    showToast(error.message);
+  } finally {
+    event.target.disabled = false;
+  }
+});
+$("#day-of-mode").addEventListener("click", async () => {
+  const meeting = currentMeeting();
+  if (!meeting) return;
+  const entering = !state.dayOfMode;
+  if (entering && meeting.status === "planned") {
+    try {
+      const updated = await request(`/bookclub/meetings/${meeting.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "in_progress" }),
+      });
+      const index = state.meetings.findIndex((entry) => entry.id === updated.id);
+      state.meetings[index] = updated;
+      renderMeetings();
+    } catch (error) {
+      return showToast(error.message);
+    }
+  }
+  state.dayOfMode = entering;
+  document.body.classList.toggle("day-of-mode", entering);
+  renderMeetingView();
+});
+$("#discussion-notes").addEventListener("input", () => {
+  state.discussionNotesDirty = true;
+  $("#discussion-notes-status").textContent = "Unsaved changes";
+});
+$("#save-discussion-notes").addEventListener("click", async () => {
+  const meeting = currentMeeting();
+  if (!meeting) return showToast("Add a meeting first.");
+  const button = $("#save-discussion-notes");
+  button.disabled = true;
+  try {
+    const updated = await request(`/bookclub/meetings/${meeting.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        discussion_notes: $("#discussion-notes").value.trim() || null,
+      }),
+    });
+    const index = state.meetings.findIndex((entry) => entry.id === updated.id);
+    state.meetings[index] = updated;
+    state.discussionNotesDirty = false;
+    renderDiscussionNotes();
+    renderPostMeetingRecap();
+    showToast("Discussion notes saved.");
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    button.disabled = false;
+  }
+});
+$("#copy-session-recap").addEventListener("click", async () => {
+  const recap = sessionRecapText();
+  if (!recap) return showToast("Add a meeting first.");
+  await navigator.clipboard.writeText(recap);
+  showToast("Session recap copied.");
+});
+$("#open-reminder-dialog").addEventListener("click", () => {
+  if (!currentMeeting()) return showToast("Add a meeting first.");
+  renderReminderPanel();
+  $("#reminder-dialog").showModal();
 });
 $("#copy-reminder-list").addEventListener("click", async () => {
   const emails = state.roster.map((entry) => entry.member.email);
   if (!emails.length) return showToast("No one is on this meeting's roster yet.");
   await navigator.clipboard.writeText(emails.join("; "));
   showToast("Address list copied.");
+});
+$("#copy-reminder-text").addEventListener("click", async () => {
+  const meeting = currentMeeting();
+  if (!meeting) return showToast("Add a meeting first.");
+  try {
+    const rendered = await request(
+      "/bookclub/meetings/" + meeting.id + "/reminder/preview",
+      { method: "POST" },
+    );
+    const emailText = rendered.subject
+      ? "Subject: " + rendered.subject + "\n\n" + rendered.body
+      : rendered.body;
+    await navigator.clipboard.writeText(emailText);
+    showToast("Reminder email text copied.");
+  } catch (error) {
+    showToast(error.message);
+  }
 });
 $("#send-reminder").addEventListener("click", async () => {
   const meeting = currentMeeting();

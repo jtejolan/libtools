@@ -81,6 +81,9 @@ class BookClubMember(Base):
     arrival_email_sent_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True)
     )
+    transit_label_printed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     last_reminder_sent_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True)
     )
@@ -110,6 +113,9 @@ class BookClubBook(Base):
     series: Mapped[str | None] = mapped_column(String(300))
     catalogue_url: Mapped[str | None] = mapped_column(String(500))
     discussion_notes: Mapped[str | None] = mapped_column(Text())
+    is_past_selection: Mapped[bool] = mapped_column(
+        Boolean(), default=False, server_default="0"
+    )
 
     meetings: Mapped[list["BookClubMeeting"]] = relationship(
         back_populates="book"
@@ -135,6 +141,10 @@ class BookClubMeeting(Base):
     book_title: Mapped[str] = mapped_column(String(300))
     book_author: Mapped[str] = mapped_column(String(200))
     notes: Mapped[str | None] = mapped_column(Text())
+    discussion_notes: Mapped[str | None] = mapped_column(Text())
+    status: Mapped[str] = mapped_column(
+        String(30), default="planned", server_default="planned"
+    )
     giveaway_winner_member_id: Mapped[int | None] = mapped_column(
         ForeignKey("bookclub_members.id", ondelete="SET NULL")
     )
@@ -182,6 +192,7 @@ class BookClubParticipation(Base):
     attended: Mapped[bool] = mapped_column(
         Boolean(), default=False, server_default="0"
     )
+    notes: Mapped[str | None] = mapped_column(Text())
 
     meeting: Mapped[BookClubMeeting] = relationship(
         back_populates="participants"

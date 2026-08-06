@@ -56,7 +56,7 @@ class PublicShelfBookResponse(BaseModel):
     title: str
     author: str
     cover_image_url: str | None = None
-    meeting_date: date
+    meeting_date: date | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -149,6 +149,7 @@ class MemberResponse(MemberBase):
     id: int
     onboarding_email_sent_at: datetime | None = None
     arrival_email_sent_at: datetime | None = None
+    transit_label_printed_at: datetime | None = None
     last_reminder_sent_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
@@ -166,6 +167,7 @@ class BookBase(BaseModel):
     series: str | None = Field(default=None, max_length=300)
     catalogue_url: HttpUrl | None = None
     discussion_notes: str | None = None
+    is_past_selection: bool = False
 
     @field_validator("title", "author")
     @classmethod
@@ -197,6 +199,14 @@ class BookUpdate(BaseModel):
     series: str | None = Field(default=None, max_length=300)
     catalogue_url: HttpUrl | None = None
     discussion_notes: str | None = None
+    is_past_selection: bool | None = None
+
+    @field_validator("is_past_selection")
+    @classmethod
+    def past_selection_cannot_be_null(cls, value: bool | None) -> bool:
+        if value is None:
+            raise ValueError("field cannot be null")
+        return value
 
     @field_validator("title", "author")
     @classmethod
@@ -241,6 +251,10 @@ class MeetingBase(BaseModel):
     meeting_time: str | None = Field(default=None, max_length=50)
     location: str | None = Field(default=None, max_length=200)
     notes: str | None = None
+    discussion_notes: str | None = None
+    status: Literal["planned", "in_progress", "completed", "cancelled"] = (
+        "planned"
+    )
 
 
 class MeetingCreate(MeetingBase):
@@ -253,8 +267,12 @@ class MeetingUpdate(BaseModel):
     location: str | None = Field(default=None, max_length=200)
     book_id: int | None = Field(default=None, ge=1)
     notes: str | None = None
+    discussion_notes: str | None = None
+    status: Literal["planned", "in_progress", "completed", "cancelled"] | None = (
+        None
+    )
 
-    @field_validator("meeting_date", "book_id")
+    @field_validator("meeting_date", "book_id", "status")
     @classmethod
     def required_values_cannot_be_null(cls, value: object) -> object:
         if value is None:
@@ -273,6 +291,7 @@ class MeetingResponse(MeetingBase):
 
 class ParticipationUpdate(BaseModel):
     attended: bool | None = None
+    notes: str | None = None
 
 
 class ParticipationResponse(BaseModel):
@@ -280,6 +299,7 @@ class ParticipationResponse(BaseModel):
     meeting_id: int
     member_id: int
     attended: bool
+    notes: str | None = None
     member: MemberResponse
     model_config = ConfigDict(from_attributes=True)
 
@@ -317,6 +337,7 @@ class MemberParticipationSummary(BaseModel):
     meetings_total: int
     attended_count: int
     giveaways_won: int
+    pages_read: int
     last_attended_date: date | None = None
     last_contacted_at: datetime | None = None
     meetings_since_last_attended: int
