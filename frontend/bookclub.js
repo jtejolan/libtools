@@ -732,7 +732,6 @@ const renderRoster = () => {
         : "";
       return `<article class="roster-member-card ${attended ? "is-attended" : ""}" data-roster-toggle="${member.id}" role="button" tabindex="0" aria-pressed="${attended ? "true" : "false"}" aria-label="${escapeHtml(member.name)}, ${attended ? "attended. Tap to mark as not attended." : "tap to mark as attended."}">
         <div class="roster-card-main">
-          <span class="roster-check-circle" aria-hidden="true"></span>
           <span class="avatar">${escapeHtml(initials(member.name))}</span>
           <div class="roster-card-identity">
             <strong>${escapeHtml(member.name)}</strong>
@@ -1252,7 +1251,7 @@ const setView = async (view) => {
     meeting: currentMeeting()?.book.title || "Meeting",
     books: "Books",
     members: "Members",
-    "club-settings": "Club settings",
+    "club-settings": "Settings",
   };
   $("#breadcrumb-page").textContent = labels[view];
   if (view === "meetings") renderMeetings();
@@ -1519,7 +1518,7 @@ $("#club-settings-form").addEventListener("submit", async (event) => {
       }),
     });
     applyClub(updated);
-    showToast("Club settings saved.");
+    showToast("Settings saved.");
   } catch (error) {
     $("#club-settings-error").textContent = error.message;
   }

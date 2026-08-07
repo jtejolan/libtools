@@ -291,6 +291,13 @@ class MeetingResponse(MeetingBase):
     giveaway_winner_member_id: int | None = None
     reminder_sent_at: datetime | None = None
     archived_at: datetime | None = None
+    # Widened from MeetingBase's Literal on purpose: this is read-only output,
+    # not something a client is choosing, so a stray legacy value (e.g. a
+    # pre-migration "in_progress"/"cancelled" row) should still be reported
+    # rather than 500ing the whole list. Writes stay strict via
+    # MeetingBase/MeetingUpdate's Literal — this doesn't loosen what can be
+    # newly saved.
+    status: str = "planned"
     starts_at: datetime | None = None
     ends_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)

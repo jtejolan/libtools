@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from database import Base
 from accounts.models import LibtoolsUser
-from bookclub.models import BookClub, BookClubAccess
+from bookclub.models import BookClub, BookClubAccess, BookClubMeeting
 from lendery.routes import get_db
 from main import app
 from security import hash_password
@@ -137,8 +137,8 @@ class BookClubApiTests(unittest.TestCase):
         entrypoint = self.client.get("/bookclub")
         self.assertEqual(entrypoint.status_code, 200)
         self.assertIn("Book Club Manager", entrypoint.text)
-        self.assertIn('/static/bookclub.js?v=27', entrypoint.text)
-        self.assertIn('/static/bookclub.css?v=27', entrypoint.text)
+        self.assertIn('/static/bookclub.js?v=30', entrypoint.text)
+        self.assertIn('/static/bookclub.css?v=30', entrypoint.text)
         self.assertNotIn('data-view="messages"', entrypoint.text)
         self.assertIn('id="open-reminder-dialog"', entrypoint.text)
         self.assertIn('id="send-book-dialog"', entrypoint.text)
@@ -556,6 +556,32 @@ class BookClubApiTests(unittest.TestCase):
         )
         self.assertEqual(unarchived.status_code, 200, unarchived.text)
         self.assertIsNone(unarchived.json()["archived_at"])
+
+    def test_legacy_invalid_status_value_does_not_500_on_read(self) -> None:
+        # A "cancelled"/"in_progress" row from before status was narrowed to
+        # planned/completed (e.g. a dev DB snapshot committed pre-migration)
+        # must still be readable — status is read-only output here, so it
+        # shouldn't be able to break the whole list response.
+        meeting = self.create_meeting()
+        with self.sessions() as db:
+            db.query(BookClubMeeting).filter(
+                BookClubMeeting.id == meeting["id"]
+            ).update({"status": "in_progress"})
+            db.commit()
+
+        listed = self.client.get("/bookclub/meetings")
+        self.assertEqual(listed.status_code, 200, listed.text)
+        matching = next(
+            entry for entry in listed.json() if entry["id"] == meeting["id"]
+        )
+        self.assertEqual(matching["status"], "in_progress")
+
+        patched = self.client.patch(
+            f"/bookclub/meetings/{meeting['id']}",
+            json={"notes": "still readable"},
+        )
+        self.assertEqual(patched.status_code, 200, patched.text)
+        self.assertEqual(patched.json()["status"], "in_progress")
 
     def test_onboarding_email_preview_and_send_track_sent_state(self) -> None:
         meeting = self.create_meeting()

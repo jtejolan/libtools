@@ -71,13 +71,20 @@ Multi-tenant book club manager. Every club-owned table is scoped by
   startup — this is a one-way, bootstrap-time-only dependency (see
   `docs/dependency-map.md`), not a sign that `accounts` generally depends on
   `bookclub`.
-- `BookClubMeeting.status` only has two persisted values now:
-  `"planned"`/`"completed"` (`Literal` in `schemas.py`). `"in_progress"` is
-  **never stored** — it's a frontend-computed display state (now vs.
-  `starts_at`/`ends_at`). `"cancelled"` doesn't exist at all — a meeting the
-  club no longer wants is deleted, not cancelled. Migration `f06fece22726`
-  (current head) normalizes any pre-existing `cancelled`/`in_progress` rows
-  to `"planned"`.
+- `BookClubMeeting.status` only has two valid *write* values:
+  `"planned"`/`"completed"` (`Literal` in `MeetingBase`/`MeetingUpdate`).
+  `"in_progress"` is **never stored** — it's a frontend-computed display
+  state (now vs. `starts_at`/`ends_at`). `"cancelled"` doesn't exist at all —
+  a meeting the club no longer wants is deleted, not cancelled. Migration
+  `f06fece22726` (current head) normalizes any pre-existing
+  `cancelled`/`in_progress` rows to `"planned"` — but that's a one-time
+  UPDATE, not an enforced constraint, so a row can still end up with a
+  stale/legacy status value outside dev flows the migration didn't run
+  against (e.g. a `librarytools.db` snapshot committed from an
+  earlier/parallel state — this bit us once). `MeetingResponse.status` is
+  therefore deliberately widened back to plain `str` (not the `Literal`) so
+  reading a bad legacy value reports it instead of 500ing the whole list —
+  only writes stay strict.
 - `archived_at` (same migration) is a plain settable field via the generic
   `PATCH /bookclub/meetings/{id}` — unlike the email-sent timestamps below,
   it's a display-mode toggle (which view a session opens to by default), not

@@ -500,10 +500,6 @@ footer { padding: 26px 38px; display: flex; justify-content: space-between; gap:
 .roster-member-card:focus-visible { outline: 2px solid var(--forest-soft); outline-offset: 2px; }
 .roster-member-card.is-attended { border-color: rgba(36,83,72,.55); background: linear-gradient(145deg, rgba(36,83,72,.16), rgba(36,83,72,.07)); box-shadow: 0 10px 24px rgba(22,62,52,.13); }
 .roster-card-main { min-width: 0; display: flex; align-items: center; gap: 11px; padding-right: 26px; }
-.roster-check-circle { width: 24px; height: 24px; flex: 0 0 auto; position: relative; border: 2px solid rgba(24,59,51,.2); border-radius: 50%; background: rgba(255,255,255,.6); transition: background-color .18s ease, border-color .18s ease, transform .18s ease; }
-.roster-check-circle::after { content: "✓"; position: absolute; inset: 0; display: grid; place-items: center; color: var(--paper); font-size: 13px; font-weight: 800; opacity: 0; transform: scale(.5); transition: opacity .16s ease, transform .16s ease; }
-.roster-member-card.is-attended .roster-check-circle { border-color: var(--forest-soft); background: var(--forest-soft); transform: scale(1.06); }
-.roster-member-card.is-attended .roster-check-circle::after { opacity: 1; transform: scale(1); }
 .roster-card-identity { min-width: 0; display: grid; gap: 1px; }
 .roster-card-identity strong { overflow: hidden; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
 .roster-card-status { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; transition: color .18s ease; }
