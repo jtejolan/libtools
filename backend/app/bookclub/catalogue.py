@@ -80,12 +80,13 @@ def _display_author(value: str) -> str:
 
 def _field_values(record: dict, field_name: str) -> list[str]:
     result: list[str] = []
-    for group in record.get("fields", []):
-        for item in group.get("items", []):
-            if item.get("fieldName") != field_name:
+    for group in record.get("fields") or []:
+        for item in (group or {}).get("items") or []:
+            if (item or {}).get("fieldName") != field_name:
                 continue
-            for field_value in item.get("fieldValues", []):
-                result.extend(field_value.get("primary", {}).get("values", []))
+            for field_value in (item or {}).get("fieldValues") or []:
+                primary = (field_value or {}).get("primary") or {}
+                result.extend(primary.get("values") or [])
     return result
 
 
@@ -98,7 +99,8 @@ def parse_catalogue_record(
         brief = record["brief"]
     except (KeyError, TypeError) as exc:
         raise CatalogueImportError("The catalogue record could not be read.") from exc
-
+    if not isinstance(brief, dict):
+        raise CatalogueImportError("The catalogue record could not be read.")
 
     creators = brief.get("creators") or []
     authors = [
@@ -106,7 +108,7 @@ def parse_catalogue_record(
         for item in creators
         if item.get("fullName")
     ]
-    isbn_values = _field_values(record, "ISBN") or brief.get("isbns", [])
+    isbn_values = _field_values(record, "ISBN") or brief.get("isbns") or []
     isbn = next(
         (
             value
@@ -197,4 +199,11 @@ def fetch_catalogue_page(value: str) -> tuple[str, str, str]:
 
 def fetch_catalogue_book(value: str) -> dict:
     page, url, record_id = fetch_catalogue_page(value)
-    return parse_catalogue_record(page, url, record_id)
+    try:
+        return parse_catalogue_record(page, url, record_id)
+    except CatalogueImportError:
+        raise
+    except Exception as exc:
+        raise CatalogueImportError(
+            "The catalogue record could not be read."
+        ) from exc
