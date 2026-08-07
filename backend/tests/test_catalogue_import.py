@@ -131,6 +131,77 @@ class CatalogueImportTests(unittest.TestCase):
                 "S130C1",
             )
 
+    def test_skips_null_entries_within_a_values_list(self) -> None:
+        # Real BiblioCommons data seen in the wild: a SUBJECT heading that
+        # failed to resolve comes back as {"values": [null]} - the list
+        # itself is present, but one entry inside it is null.
+        record = {
+            "brief": {"title": "Eversion"},
+            "fields": [
+                {
+                    "items": [
+                        {
+                            "fieldName": "SUBJECT",
+                            "fieldValues": [
+                                {"primary": {"values": ["Explorers — Fiction."]}},
+                                {"primary": {"values": [None]}},
+                            ],
+                        },
+                    ]
+                },
+            ],
+        }
+        state = {"entities": {"catalogBibs": {"S130C758565": record}}}
+        page = (
+            '<script type="application/json" data-iso-key="_0">'
+            + json.dumps(state)
+            + "</script>"
+        )
+        result = parse_catalogue_record(
+            page,
+            "https://vaughanpl.bibliocommons.com/v2/record/S130C758565",
+            "S130C758565",
+        )
+        self.assertEqual(result["genres"], "Explorers — Fiction")
+
+    def test_isbn_field_strips_marc_qualifier_and_price(self) -> None:
+        # e.g. "9780316462822 (trade paperback) $25.99" - only the leading
+        # token is the ISBN; naively stripping non-digits from the whole
+        # string folds the price digits into the ISBN.
+        record = {
+            "brief": {"title": "Eversion"},
+            "fields": [
+                {
+                    "items": [
+                        {
+                            "fieldName": "ISBN",
+                            "fieldValues": [
+                                {
+                                    "primary": {
+                                        "values": [
+                                            "9780316462822 (trade paperback) $25.99"
+                                        ]
+                                    }
+                                }
+                            ],
+                        },
+                    ]
+                },
+            ],
+        }
+        state = {"entities": {"catalogBibs": {"S130C758565": record}}}
+        page = (
+            '<script type="application/json" data-iso-key="_0">'
+            + json.dumps(state)
+            + "</script>"
+        )
+        result = parse_catalogue_record(
+            page,
+            "https://vaughanpl.bibliocommons.com/v2/record/S130C758565",
+            "S130C758565",
+        )
+        self.assertEqual(result["isbn"], "9780316462822")
+
     def test_rejects_non_vaughan_and_non_record_urls(self) -> None:
         for url in (
             "https://example.com/v2/record/S130C532272",

@@ -86,7 +86,7 @@ def _field_values(record: dict, field_name: str) -> list[str]:
                 continue
             for field_value in (item or {}).get("fieldValues") or []:
                 primary = (field_value or {}).get("primary") or {}
-                result.extend(primary.get("values") or [])
+                result.extend(v for v in primary.get("values") or [] if v)
     return result
 
 
@@ -109,17 +109,16 @@ def parse_catalogue_record(
         if item.get("fullName")
     ]
     isbn_values = _field_values(record, "ISBN") or brief.get("isbns") or []
-    isbn = next(
-        (
-            value
-            for value in isbn_values
-            if len(re.sub(r"\D", "", value)) == 13
-        ),
-        None,
-    )
-    isbn = isbn or next(iter(isbn_values), None)
-    if isbn:
-        isbn = re.sub(r"[^0-9Xx]", "", isbn).upper()
+    # MARC ISBN fields often carry a trailing qualifier/price, e.g.
+    # "9780316462822 (trade paperback) $25.99" - only the leading token
+    # is the actual ISBN, the rest must not be folded into it.
+    isbn_candidates = [
+        re.sub(r"[^0-9Xx]", "", value.split()[0]).upper()
+        for value in isbn_values
+        if value and value.split()
+    ]
+    isbn = next((value for value in isbn_candidates if len(value) == 13), None)
+    isbn = isbn or next(iter(isbn_candidates), None)
 
     publication = next(iter(_field_values(record, "PUBLICATION")), "")
     publisher_match = re.search(r":\s*([^,;]+)", publication)
