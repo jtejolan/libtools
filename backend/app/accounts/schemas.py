@@ -158,10 +158,19 @@ class DashboardMeetingSummary(BaseModel):
     book_title: str
 
 
+class DashboardFollowupSummary(BaseModel):
+    club_id: int
+    member_id: int
+    member_name: str
+    stage: str
+
+
 class DashboardBookClubSummary(BaseModel):
     has_access: bool
     club_count: int
     next_meeting: DashboardMeetingSummary | None = None
+    followup_count: int = 0
+    next_followup: DashboardFollowupSummary | None = None
 
 
 class DashboardSummary(BaseModel):

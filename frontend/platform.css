@@ -100,6 +100,13 @@ a { color:inherit; text-decoration:none; }
 .dash-scan-form label { display:block; margin-bottom:7px; color:var(--muted); font-size:11px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; }
 .dash-scan-form input { width:100%; height:46px; padding:0 14px; border:1px solid var(--line); border-radius:8px; background:rgba(255,255,255,.58); color:var(--ink); font-size:15px; }
 .dash-scan-form input:focus { outline:0; border-color:var(--forest); box-shadow:0 0 0 3px rgba(24,59,51,.1); }
+.dash-followup { margin-top:18px; padding:13px 15px; display:flex; align-items:center; gap:11px; border:1px solid rgba(244,238,223,.22); border-radius:9px; background:rgba(244,238,223,.08); color:inherit; text-decoration:none; transition:border-color .16s ease, background-color .16s ease; }
+.dash-followup:hover { border-color:rgba(244,238,223,.4); background:rgba(244,238,223,.14); }
+.dash-followup-icon { flex:0 0 auto; font-size:15px; }
+.dash-followup strong { display:block; font-size:12.5px; font-weight:700; }
+.dash-followup small { display:block; margin-top:2px; overflow:hidden; color:rgba(244,238,223,.68); font-size:10.5px; text-overflow:ellipsis; white-space:nowrap; }
+.dash-followup b { margin-left:auto; flex:0 0 auto; font-size:15px; }
+.dash-followup.is-clear { border-style:dashed; background:transparent; color:rgba(244,238,223,.62); }
 .dash-card-cta { margin-top:auto; padding-top:19px; display:inline-flex; align-items:center; gap:8px; color:var(--forest); font-size:13px; font-weight:700; }
 .dash-card-cta b { font-size:16px; }
 .dash-card.locked .dash-card-cta { color:var(--muted); }

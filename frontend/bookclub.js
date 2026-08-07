@@ -20,7 +20,15 @@ const state = {
   meetingQuery: "",
   bookQuery: "",
 };
-let pendingDashboardAction = new URLSearchParams(window.location.search).get("action");
+const dashboardActionParams = new URLSearchParams(window.location.search);
+let pendingDashboardAction = dashboardActionParams.get("action");
+const pendingDashboardClubId = dashboardActionParams.get("club")
+  ? Number(dashboardActionParams.get("club"))
+  : null;
+const pendingDashboardMemberId = dashboardActionParams.get("member")
+  ? Number(dashboardActionParams.get("member"))
+  : null;
+const pendingDashboardStage = dashboardActionParams.get("stage");
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -121,13 +129,15 @@ const showClubPicker = () => {
 const finishDashboardAction = () => {
   pendingDashboardAction = null;
   const url = new URL(window.location.href);
-  url.searchParams.delete("action");
+  ["action", "club", "member", "stage"].forEach((key) => url.searchParams.delete(key));
   window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
 };
 
 const runDashboardAction = async () => {
   if (!pendingDashboardAction || !state.club) return;
   const action = pendingDashboardAction;
+  const memberId = pendingDashboardMemberId;
+  const stage = pendingDashboardStage;
   finishDashboardAction();
   if (action === "add-member") {
     await setView("members");
@@ -135,6 +145,8 @@ const runDashboardAction = async () => {
   } else if (action === "add-book") {
     await setView("books");
     openBookDialog();
+  } else if (action === "followup" && memberId && stage) {
+    await jumpToPendingMeeting(memberId, stage);
   }
 };
 
@@ -150,6 +162,12 @@ const chooseClub = async (clubId) => {
 const loadClubs = async () => {
   state.clubs = await request("/bookclub/clubs");
   if (!state.clubs.length) return showClubPicker();
+  if (
+    pendingDashboardClubId &&
+    state.clubs.some((club) => club.id === pendingDashboardClubId)
+  ) {
+    return chooseClub(pendingDashboardClubId);
+  }
   let selected = null;
   try {
     selected = await request("/bookclub/clubs/selected");
@@ -475,10 +493,6 @@ const renderMeetingView = () => {
   const showArchive = Boolean(meeting?.archived_at) && !state.viewingEdit;
   $("#meeting-archive-view").hidden = !showArchive;
   $("#meeting-edit-view").hidden = showArchive;
-  const archiveToggle = $("#toggle-archive-view");
-  archiveToggle.disabled = !meeting;
-  archiveToggle.textContent = meeting?.archived_at ? "View archive" : "Archive";
-  $("#unarchive-meeting").hidden = !meeting?.archived_at;
   if (showArchive) renderArchiveView();
 };
 
@@ -502,13 +516,12 @@ const renderSessionControls = () => {
     ? `${index + 1} of ${ordered.length}`
     : "No meetings";
   const effectiveStatus = effectiveMeetingStatus(meeting);
-  const statusBadge = $("#meeting-status-badge");
-  statusBadge.textContent = MEETING_STATUS_LABELS[effectiveStatus];
-  statusBadge.className = `status-pill meeting-status-badge ${effectiveStatus}`;
   const toggleCompletedButton = $("#toggle-completed");
   toggleCompletedButton.disabled = !meeting;
-  toggleCompletedButton.textContent =
-    meeting?.status === "completed" ? "Reopen session" : "Mark completed";
+  toggleCompletedButton.textContent = MEETING_STATUS_LABELS[effectiveStatus];
+  toggleCompletedButton.className = `status-pill meeting-status-badge ${effectiveStatus}`;
+  toggleCompletedButton.title =
+    meeting?.status === "completed" ? "Reopen this session" : "Mark this session completed";
   $("#day-of-mode").disabled = !meeting;
   $("#day-of-mode").innerHTML = state.dayOfMode
     ? '<span aria-hidden="true">×</span> Exit day-of mode'
@@ -707,12 +720,22 @@ const isFirstAttendedSession = (entry) => {
 const renderRoster = () => {
   const body = $("#roster-table");
   if (!state.meetingId) {
-    body.innerHTML = '<p class="roster-empty-state">Add a meeting to start building its roster.</p>';
+    body.innerHTML = '<div class="roster-empty-state"><p>Add a meeting to start building its roster.</p></div>';
     return;
   }
   const entries = state.roster;
   if (!entries.length) {
-    body.innerHTML = '<p class="roster-empty-state">No one has been added yet — search above to build this meeting roster.</p>';
+    const meeting = currentMeeting();
+    const upcoming = Boolean(meeting) && meeting.meeting_date >= today();
+    const ordered = chronologicalMeetings();
+    const hasPrevious = ordered.findIndex((entry) => entry.id === meeting?.id) > 0;
+    const importPrompt = upcoming && hasPrevious
+      ? ', or <button class="text-button" type="button" id="import-previous-roster">import attendees from the previous session</button>'
+      : "";
+    body.innerHTML = `<div class="roster-empty-state"><p>No one has been added yet — search above to build this meeting roster${importPrompt}.</p></div>`;
+    if (upcoming && hasPrevious) {
+      $("#import-previous-roster").addEventListener("click", importPreviousRoster);
+    }
     return;
   }
   body.innerHTML = entries
@@ -764,6 +787,21 @@ const saveParticipation = async (memberId, changes) => {
     state.participation = await request("/bookclub/members/participation-summary");
   }
   renderMeetingView();
+};
+
+const importPreviousRoster = async () => {
+  const meeting = currentMeeting();
+  if (!meeting) return;
+  try {
+    state.roster = await request(
+      `/bookclub/meetings/${meeting.id}/roster/import-previous`,
+      { method: "POST" },
+    );
+    renderMeetingView();
+    showToast("Imported attendees from the previous session.");
+  } catch (error) {
+    showToast(error.message);
+  }
 };
 
 const renderGiveaway = () => {
@@ -844,10 +882,16 @@ const renderReminderPanel = () => {
     status.textContent = "Add a meeting first.";
     countEl.textContent = "";
     $("#reminder-inline-status").textContent = "Add a meeting first";
+    $("#reminder-trigger-label").textContent = "Send Reminder";
+    $("#open-reminder-dialog").classList.remove("is-sent");
     $("#open-reminder-dialog").disabled = true;
     return;
   }
   $("#open-reminder-dialog").disabled = false;
+  $("#open-reminder-dialog").classList.toggle("is-sent", Boolean(meeting.reminder_sent_at));
+  $("#reminder-trigger-label").textContent = meeting.reminder_sent_at
+    ? "Reminder Sent"
+    : "Send Reminder";
   status.textContent = meeting.reminder_sent_at
     ? `Reminder sent on ${formatDate(meeting.reminder_sent_at.slice(0, 10))}.`
     : "Not sent yet.";
@@ -1960,6 +2004,12 @@ const openMeetingById = async (meetingId) => {
   if (!meetingId) return;
   state.meetingId = Number(meetingId);
   await loadSelectedMeeting();
+  // Previous/Next always land on the session workspace, even for an
+  // archived meeting — the archive summary is reached deliberately, by
+  // clicking the program from the meetings page (see the
+  // data-open-meeting handler), not by paging through sessions.
+  state.viewingEdit = true;
+  renderMeetingView();
   await setView("meeting");
 };
 
@@ -1972,19 +2022,22 @@ $("#next-meeting").addEventListener("click", (event) =>
 $("#toggle-completed").addEventListener("click", async (event) => {
   const meeting = currentMeeting();
   if (!meeting) return;
-  const nextStatus = meeting.status === "completed" ? "planned" : "completed";
+  const completing = meeting.status !== "completed";
   event.target.disabled = true;
   try {
     const updated = await request(`/bookclub/meetings/${meeting.id}`, {
       method: "PATCH",
-      body: JSON.stringify({ status: nextStatus }),
+      body: JSON.stringify({
+        status: completing ? "completed" : "planned",
+        archived_at: completing ? new Date().toISOString() : null,
+      }),
     });
     const index = state.meetings.findIndex((entry) => entry.id === updated.id);
     state.meetings[index] = updated;
     renderMeetings();
     renderMeetingView();
     showToast(
-      nextStatus === "completed" ? "Meeting marked completed." : "Session reopened.",
+      completing ? "Meeting marked completed and archived." : "Session reopened.",
     );
   } catch (error) {
     showToast(error.message);
@@ -1998,44 +2051,6 @@ $("#day-of-mode").addEventListener("click", () => {
   state.dayOfMode = !state.dayOfMode;
   document.body.classList.toggle("day-of-mode", state.dayOfMode);
   renderMeetingView();
-});
-$("#toggle-archive-view").addEventListener("click", async () => {
-  const meeting = currentMeeting();
-  if (!meeting) return;
-  if (meeting.archived_at) {
-    state.viewingEdit = false;
-    return renderMeetingView();
-  }
-  try {
-    const updated = await request(`/bookclub/meetings/${meeting.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ archived_at: new Date().toISOString() }),
-    });
-    const index = state.meetings.findIndex((entry) => entry.id === updated.id);
-    state.meetings[index] = updated;
-    state.viewingEdit = false;
-    renderMeetingView();
-    showToast("Session archived.");
-  } catch (error) {
-    showToast(error.message);
-  }
-});
-$("#unarchive-meeting").addEventListener("click", async () => {
-  const meeting = currentMeeting();
-  if (!meeting) return;
-  try {
-    const updated = await request(`/bookclub/meetings/${meeting.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ archived_at: null }),
-    });
-    const index = state.meetings.findIndex((entry) => entry.id === updated.id);
-    state.meetings[index] = updated;
-    state.viewingEdit = true;
-    renderMeetingView();
-    showToast("Session unarchived.");
-  } catch (error) {
-    showToast(error.message);
-  }
 });
 $("#edit-session").addEventListener("click", () => {
   state.viewingEdit = true;
@@ -2127,6 +2142,24 @@ $("#send-reminder").addEventListener("click", async () => {
         ? `Reminder sent to ${result.recipient_count} people.`
         : "Email delivery isn't configured — copy the list instead.",
     );
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+$("#mark-reminder-sent").addEventListener("click", async () => {
+  const meeting = currentMeeting();
+  if (!meeting) return showToast("Add a meeting first.");
+  if (
+    meeting.reminder_sent_at &&
+    !window.confirm(`Reminder already marked sent on ${formatDate(meeting.reminder_sent_at.slice(0, 10))} — mark it sent again?`)
+  ) {
+    return;
+  }
+  try {
+    await request(`/bookclub/meetings/${meeting.id}/reminder/mark-sent`, { method: "POST" });
+    await refreshCurrentMeeting();
+    renderReminderPanel();
+    showToast("Reminder marked as sent.");
   } catch (error) {
     showToast(error.message);
   }

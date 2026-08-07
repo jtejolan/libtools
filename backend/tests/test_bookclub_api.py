@@ -557,6 +557,78 @@ class BookClubApiTests(unittest.TestCase):
         self.assertEqual(unarchived.status_code, 200, unarchived.text)
         self.assertIsNone(unarchived.json()["archived_at"])
 
+    def test_import_previous_attendees_copies_attended_members_only(self) -> None:
+        attended_member = self.create_member("Attended Reader", "attended@example.com")
+        absent_member = self.create_member("Absent Reader", "absent@example.com")
+        book = self.create_book()
+        previous_meeting = self.client.post(
+            "/bookclub/meetings",
+            json={"meeting_date": "2026-08-10", "book_id": book["id"]},
+        ).json()
+        current_meeting = self.client.post(
+            "/bookclub/meetings",
+            json={"meeting_date": "2026-09-10", "book_id": book["id"]},
+        ).json()
+        self.client.put(
+            f"/bookclub/meetings/{previous_meeting['id']}/members/{attended_member['id']}",
+            json={"attended": True},
+        )
+        self.client.put(
+            f"/bookclub/meetings/{previous_meeting['id']}/members/{absent_member['id']}",
+            json={"attended": False},
+        )
+
+        imported = self.client.post(
+            f"/bookclub/meetings/{current_meeting['id']}/roster/import-previous"
+        )
+        self.assertEqual(imported.status_code, 200, imported.text)
+        self.assertEqual(
+            {entry["member_id"] for entry in imported.json()}, {attended_member["id"]}
+        )
+        self.assertFalse(imported.json()[0]["attended"])
+
+    def test_import_previous_attendees_skips_members_already_on_roster(self) -> None:
+        attended_member = self.create_member("Attended Reader", "attended2@example.com")
+        book = self.create_book()
+        previous_meeting = self.client.post(
+            "/bookclub/meetings",
+            json={"meeting_date": "2026-08-10", "book_id": book["id"]},
+        ).json()
+        current_meeting = self.client.post(
+            "/bookclub/meetings",
+            json={"meeting_date": "2026-09-10", "book_id": book["id"]},
+        ).json()
+        self.client.put(
+            f"/bookclub/meetings/{previous_meeting['id']}/members/{attended_member['id']}",
+            json={"attended": True},
+        )
+        # Already checked in for the current meeting before importing.
+        self.client.put(
+            f"/bookclub/meetings/{current_meeting['id']}/members/{attended_member['id']}",
+            json={"attended": True},
+        )
+
+        imported = self.client.post(
+            f"/bookclub/meetings/{current_meeting['id']}/roster/import-previous"
+        )
+        self.assertEqual(imported.status_code, 200, imported.text)
+        self.assertEqual(len(imported.json()), 1)
+        self.assertTrue(imported.json()[0]["attended"])
+
+    def test_import_previous_attendees_404s_without_a_previous_meeting(self) -> None:
+        meeting = self.create_meeting()
+        response = self.client.post(
+            f"/bookclub/meetings/{meeting['id']}/roster/import-previous"
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("no previous meeting", response.json()["detail"].lower())
+
+    def test_import_previous_attendees_404s_for_unknown_meeting(self) -> None:
+        response = self.client.post(
+            "/bookclub/meetings/999999/roster/import-previous"
+        )
+        self.assertEqual(response.status_code, 404)
+
     def test_legacy_invalid_status_value_does_not_500_on_read(self) -> None:
         # A "cancelled"/"in_progress" row from before status was narrowed to
         # planned/completed (e.g. a dev DB snapshot committed pre-migration)
@@ -766,6 +838,35 @@ class BookClubApiTests(unittest.TestCase):
             json={"member_ids": [999999]},
         )
         self.assertEqual(invalid_send.status_code, 422)
+
+    def test_reminder_mark_sent_records_timestamp_without_calling_send(self) -> None:
+        alex = self.create_member("Alex Reader", "alex-marksent@example.com")
+        meeting = self.create_meeting()
+        self.client.put(f"/bookclub/meetings/{meeting['id']}/members/{alex['id']}", json={})
+        self.assertIsNone(meeting["reminder_sent_at"])
+
+        marked = self.client.post(
+            f"/bookclub/meetings/{meeting['id']}/reminder/mark-sent"
+        )
+        self.assertEqual(marked.status_code, 200, marked.text)
+        self.assertTrue(marked.json()["sent"])
+        self.assertEqual(marked.json()["recipient_count"], 1)
+        self.assertFalse(marked.json()["already_sent_before"])
+
+        updated_meeting = self.client.get(f"/bookclub/meetings/{meeting['id']}").json()
+        self.assertIsNotNone(updated_meeting["reminder_sent_at"])
+        updated_alex = self.client.get(f"/bookclub/members/{alex['id']}").json()
+        self.assertIsNotNone(updated_alex["last_reminder_sent_at"])
+
+        marked_again = self.client.post(
+            f"/bookclub/meetings/{meeting['id']}/reminder/mark-sent"
+        )
+        self.assertTrue(marked_again.json()["already_sent_before"])
+
+        missing_meeting = self.client.post(
+            "/bookclub/meetings/999999/reminder/mark-sent"
+        )
+        self.assertEqual(missing_meeting.status_code, 404)
 
     def test_participation_summary_aggregates_across_meetings(self) -> None:
         alex = self.create_member("Alex Reader", "alex-summary@example.com")

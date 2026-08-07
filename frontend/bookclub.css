@@ -232,9 +232,13 @@ tbody tr:hover { background: rgba(255,255,255,.35); }
 .session-navigation, .session-mode-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .session-navigation .quiet-button { min-width: 92px; }
 #meeting-position { min-width: 58px; color: var(--muted); font-size: 10px; font-weight: 700; text-align: center; text-transform: uppercase; }
-.meeting-status-badge { min-height: 42px; padding: 0 14px; display: inline-flex; align-items: center; font-size: 11px; }
-.meeting-status-badge.in_progress { color: var(--paper); background: var(--orange); }
-.meeting-status-badge.completed { color: var(--paper); background: var(--forest-soft); }
+.meeting-status-badge { min-height: 42px; padding: 0 14px; display: inline-flex; align-items: center; border: 1px solid rgba(24,59,51,.18); cursor: pointer; font-size: 11px; transition: border-color .16s ease, box-shadow .16s ease, transform .12s ease; }
+.meeting-status-badge:hover:not(:disabled) { border-color: rgba(24,59,51,.4); box-shadow: 0 4px 10px rgba(22,62,52,.12); }
+.meeting-status-badge:active:not(:disabled) { transform: scale(.97); }
+.meeting-status-badge:disabled { cursor: not-allowed; opacity: .6; }
+.meeting-status-badge.in_progress { color: var(--paper); background: var(--orange); border-color: rgba(255,255,255,.35); }
+.meeting-status-badge.completed { color: var(--paper); background: var(--forest-soft); border-color: rgba(255,255,255,.35); }
+.meeting-status-badge.in_progress:hover:not(:disabled), .meeting-status-badge.completed:hover:not(:disabled) { border-color: rgba(255,255,255,.6); }
 .reminder-trigger { min-height: 42px; padding: 5px 11px 5px 7px; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(227,170,66,.42); border-radius: 7px; color: var(--ink); background: rgba(227,170,66,.1); text-align: left; cursor: pointer; }
 .reminder-trigger:hover { border-color: var(--gold); background: rgba(227,170,66,.17); }
 .reminder-trigger:disabled { opacity: .55; cursor: not-allowed; }
@@ -242,6 +246,8 @@ tbody tr:hover { background: rgba(255,255,255,.35); }
 .reminder-trigger strong, .reminder-trigger small { display: block; white-space: nowrap; }
 .reminder-trigger strong { font-size: 10px; }
 .reminder-trigger small { margin-top: 1px; color: var(--muted); font-size: 8px; }
+#open-giveaway-dialog { display: none; }
+body.day-of-mode #open-giveaway-dialog { display: flex; }
 .discussion-notes-panel { margin-top: 20px; }
 .giveaway-content { min-height: 300px; padding: 28px; display: flex; align-items: center; flex-direction: column; justify-content: center; text-align: center; }
 .giveaway-content p { max-width: 320px; color: var(--muted); }
@@ -351,7 +357,7 @@ dialog::backdrop { background: rgba(12,35,30,.62); backdrop-filter: blur(3px); }
 .followup-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .followup-actions .primary-button { grid-column: 1 / -1; }
 .reminder-recipient-summary { margin: 0; padding: 15px; border: 1px dashed rgba(227,170,66,.55); border-radius: 8px; color: var(--muted); background: rgba(227,170,66,.07); font-size: 11px; }
-.reminder-actions { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.reminder-actions { margin-top: 18px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .reminder-actions .primary-button { grid-column: 1 / -1; }
 .auth-dialog { width: min(430px, calc(100% - 32px)); }
 .auth-dialog form { padding: 34px; }
@@ -447,7 +453,7 @@ footer { padding: 26px 38px; display: flex; justify-content: space-between; gap:
 .past-selection-badge { color: var(--paper); background: var(--forest-soft); }
 .book-genre-breakdown { margin: 8px 0 0; text-align: left; }
 
-.member-directory-panel { overflow: visible; }
+.member-directory-panel, .roster-panel { overflow: visible; }
 .member-directory-tools { display: flex; align-items: end; gap: 9px; }
 .member-sort-control { display: grid; gap: 4px; }
 .member-sort-control > span { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
@@ -492,11 +498,21 @@ footer { padding: 26px 38px; display: flex; justify-content: space-between; gap:
 .book-picker { position: relative; }
 .book-picker .search-box { width: 100%; min-width: 0; }
 .book-picker .search-box input { padding: 0; border: 0; background: transparent; }
-.roster-add-bar { width: min(380px, 46%); position: relative; }
+.roster-add-bar { width: min(560px, 62%); }
+.roster-add-search-wrap { position: relative; flex: 1 1 auto; min-width: 0; }
 .roster-add-search { width: 100%; min-width: 0; border-color: rgba(24,59,51,.24); box-shadow: 0 6px 18px rgba(22,62,52,.05); }
+.roster-reminder-trigger { flex: 0 0 auto; min-height: 44px; padding: 6px 16px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); text-align: left; cursor: pointer; white-space: nowrap; transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease; }
+.roster-reminder-trigger:hover { border-color: rgba(24,59,51,.3); background: rgba(24,59,51,.04); }
+.roster-reminder-trigger strong, .roster-reminder-trigger small { display: block; white-space: nowrap; }
+.roster-reminder-trigger strong { font-size: 13px; }
+.roster-reminder-trigger small { margin-top: 2px; color: var(--muted); font-size: 10px; font-weight: 600; }
+.roster-reminder-trigger.is-sent { border-color: rgba(36,83,72,.55); background: linear-gradient(145deg, rgba(36,83,72,.16), rgba(36,83,72,.07)); box-shadow: 0 10px 24px rgba(22,62,52,.13); }
+.roster-reminder-trigger.is-sent:hover { border-color: rgba(36,83,72,.7); }
+.roster-reminder-trigger.is-sent small { color: var(--forest-soft); }
 .roster-card-grid { padding: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
 .roster-member-card { width: 100%; min-width: 0; padding: 14px 16px; position: relative; display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.5); box-shadow: 0 8px 22px rgba(22,62,52,.035); font: inherit; text-align: left; cursor: pointer; transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease, transform .16s ease; }
 .roster-member-card:hover { border-color: rgba(24,59,51,.27); background: rgba(255,255,255,.72); box-shadow: 0 12px 26px rgba(22,62,52,.07); transform: translateY(-2px); }
+.roster-member-card:hover:has(.roster-card-menu[open]) { transform: none; }
 .roster-member-card:focus-visible { outline: 2px solid var(--forest-soft); outline-offset: 2px; }
 .roster-member-card.is-attended { border-color: rgba(36,83,72,.55); background: linear-gradient(145deg, rgba(36,83,72,.16), rgba(36,83,72,.07)); box-shadow: 0 10px 24px rgba(22,62,52,.13); }
 .roster-card-main { min-width: 0; display: flex; align-items: center; gap: 11px; padding-right: 26px; }
@@ -510,6 +526,7 @@ footer { padding: 26px 38px; display: flex; justify-content: space-between; gap:
 .roster-email-badge { max-width: 100%; overflow: hidden; border: 0; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .roster-email-badge:hover { filter: brightness(.95); }
 .roster-card-menu { position: absolute; top: 8px; right: 8px; z-index: 2; }
+.roster-card-menu[open] { z-index: 20; }
 .roster-card-menu summary { list-style: none; }
 .roster-card-menu summary::-webkit-details-marker { display: none; }
 .roster-card-menu-trigger { width: 26px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 50%; color: var(--muted); background: transparent; font-size: 16px; line-height: 1; cursor: pointer; }
@@ -519,7 +536,10 @@ footer { padding: 26px 38px; display: flex; justify-content: space-between; gap:
 .roster-card-menu-panel button { width: 100%; min-height: 36px; padding: 0 10px; border: 0; border-radius: 4px; color: var(--ink); background: transparent; font-size: 12px; font-weight: 600; text-align: left; cursor: pointer; }
 .roster-card-menu-panel button:hover { background: rgba(24,59,51,.07); }
 .roster-card-menu-panel .roster-menu-danger { color: var(--danger); }
-.roster-empty-state { min-height: 130px; margin: 18px; grid-column: 1 / -1; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: 9px; color: var(--muted); font-size: 13px; text-align: center; }
+.roster-empty-state { min-height: 130px; margin: 18px; grid-column: 1 / -1; display: grid; place-items: center; padding: 0 24px; border: 1px dashed var(--line); border-radius: 9px; color: var(--muted); font-size: 13px; text-align: center; }
+.roster-empty-state p { max-width: 440px; margin: 0; line-height: 1.6; }
+.roster-empty-state .text-button { padding: 0; font-size: 13px; }
+.roster-empty-state .text-button:hover { text-decoration: underline; }
 .member-search-results { max-height: 260px; overflow-y: auto; position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; right: 0; padding: 6px; display: grid; gap: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); box-shadow: 0 14px 32px rgba(24,59,51,.16); }
 .member-search-result { width: 100%; padding: 9px 10px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 5px; color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
 .member-search-result:hover { background: rgba(24,59,51,.06); }

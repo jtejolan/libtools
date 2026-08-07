@@ -168,7 +168,7 @@ def me(user: auth.CurrentUser, db: DatabaseSession):
 @router.get("/dashboard-summary", response_model=schemas.DashboardSummary)
 def dashboard_summary(user: auth.CurrentUser, db: DatabaseSession):
     from bookclub.access import accessible_club_statement
-    from bookclub.models import BookClub, BookClubAccess, BookClubMeeting
+    from bookclub.models import BookClub, BookClubAccess, BookClubMeeting, BookClubMember
     from lendery import crud as lendery_crud
     from lendery.models import Component, LenderyItem
 
@@ -217,10 +217,46 @@ def dashboard_summary(user: auth.CurrentUser, db: DatabaseSession):
     has_bookclub_access = not user.must_change_password
     club_count = 0
     next_meeting = None
+    followup_count = 0
+    next_followup = None
     if has_bookclub_access:
         club_count = db.scalar(
             select(func.count()).select_from(accessible_club_statement(user).subquery())
         ) or 0
+
+        accessible_clubs = accessible_club_statement(user).subquery()
+        members_statement = (
+            select(BookClubMember, accessible_clubs.c.id, accessible_clubs.c.name)
+            .join(accessible_clubs, accessible_clubs.c.id == BookClubMember.club_id)
+            .where(BookClubMember.active.is_(True))
+        )
+        # Arrival follow-ups are more time-sensitive (a book is already in
+        # transit) than welcome emails, so they're surfaced first; within a
+        # stage, the oldest pending case comes first.
+        arrival_pending = []
+        welcome_pending = []
+        for member, club_id, club_name in db.execute(members_statement):
+            if member.transit_label_printed_at and (
+                not member.arrival_email_sent_at
+                or member.transit_label_printed_at > member.arrival_email_sent_at
+            ):
+                arrival_pending.append((member, club_id, member.transit_label_printed_at))
+            if member.is_new_registrant and not member.onboarding_email_sent_at:
+                welcome_pending.append((member, club_id, member.joined_on))
+        arrival_pending.sort(key=lambda item: item[2])
+        welcome_pending.sort(key=lambda item: item[2])
+        followup_count = len(arrival_pending) + len(welcome_pending)
+        ordered = [(m, c, "arrival") for m, c, _ in arrival_pending] + [
+            (m, c, "welcome") for m, c, _ in welcome_pending
+        ]
+        if ordered:
+            member, club_id, stage = ordered[0]
+            next_followup = schemas.DashboardFollowupSummary(
+                club_id=club_id,
+                member_id=member.id,
+                member_name=member.name,
+                stage=stage,
+            )
         meeting_statement = (
             select(BookClubMeeting, BookClub.name)
             .join(BookClub, BookClub.id == BookClubMeeting.club_id)
@@ -260,6 +296,8 @@ def dashboard_summary(user: auth.CurrentUser, db: DatabaseSession):
             has_access=has_bookclub_access,
             club_count=club_count,
             next_meeting=next_meeting,
+            followup_count=followup_count,
+            next_followup=next_followup,
         ),
     )
 

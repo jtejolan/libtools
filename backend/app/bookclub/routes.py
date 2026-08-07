@@ -256,6 +256,20 @@ def list_roster(meeting_id: int, db: DatabaseSession):
     return crud.list_participation(db, meeting_id)
 
 
+@router.post(
+    "/meetings/{meeting_id}/roster/import-previous",
+    response_model=list[schemas.ParticipationResponse],
+)
+def import_previous_roster(meeting_id: int, db: DatabaseSession):
+    meeting = crud.get_meeting(db, meeting_id)
+    if meeting is None:
+        raise _not_found("Meeting not found")
+    try:
+        return crud.import_previous_attendees(db, meeting)
+    except LookupError as exc:
+        raise _not_found(str(exc)) from exc
+
+
 @router.put(
     "/meetings/{meeting_id}/members/{member_id}",
     response_model=schemas.ParticipationResponse,
@@ -432,6 +446,17 @@ def send_reminder(
         return crud.send_reminder_batch(db, meeting, members)
     except LookupError as exc:
         raise _not_found(str(exc)) from exc
+
+
+@router.post(
+    "/meetings/{meeting_id}/reminder/mark-sent",
+    response_model=schemas.ReminderSendResponse,
+)
+def mark_reminder_sent(meeting_id: int, db: DatabaseSession):
+    meeting = crud.get_meeting(db, meeting_id)
+    if meeting is None:
+        raise _not_found("Meeting not found")
+    return crud.mark_reminder_sent(db, meeting)
 
 
 @router.post(

@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from pydantic import BaseModel
-from sqlalchemy import case, delete, func, or_, select, update
+from sqlalchemy import and_, case, delete, func, or_, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
@@ -444,6 +444,58 @@ def list_participation(
     return list(db.scalars(statement))
 
 
+def get_previous_meeting(
+    db: Session, meeting: models.BookClubMeeting
+) -> models.BookClubMeeting | None:
+    return db.scalar(
+        select(models.BookClubMeeting)
+        .where(models.BookClubMeeting.club_id == _club_id(db))
+        .where(
+            or_(
+                models.BookClubMeeting.meeting_date < meeting.meeting_date,
+                and_(
+                    models.BookClubMeeting.meeting_date == meeting.meeting_date,
+                    models.BookClubMeeting.id < meeting.id,
+                ),
+            )
+        )
+        .order_by(
+            models.BookClubMeeting.meeting_date.desc(),
+            models.BookClubMeeting.id.desc(),
+        )
+        .limit(1)
+    )
+
+
+def import_previous_attendees(
+    db: Session, meeting: models.BookClubMeeting
+) -> list[models.BookClubParticipation]:
+    previous = get_previous_meeting(db, meeting)
+    if previous is None:
+        raise LookupError("There is no previous meeting to import attendees from")
+    attended_ids = {
+        participation.member_id
+        for participation in list_participation(db, previous.id)
+        if participation.attended
+    }
+    existing_ids = {
+        participation.member_id
+        for participation in list_participation(db, meeting.id)
+    }
+    for member_id in attended_ids - existing_ids:
+        db.add(
+            models.BookClubParticipation(
+                meeting_id=meeting.id, member_id=member_id
+            )
+        )
+    try:
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    return list_participation(db, meeting.id)
+
+
 def member_participation_summary(
     db: Session,
 ) -> list[schemas.MemberParticipationSummary]:
@@ -720,6 +772,30 @@ def send_reminder_batch(
     return schemas.ReminderSendResponse(
         sent=sent,
         recipient_count=len(members),
+        already_sent_before=already_sent_before,
+    )
+
+
+def mark_reminder_sent(
+    db: Session,
+    meeting: models.BookClubMeeting,
+) -> schemas.ReminderSendResponse:
+    """Record that the reminder was sent outside the website (e.g. the
+    staff member copied the composed text and sent it from their own inbox)."""
+    already_sent_before = meeting.reminder_sent_at is not None
+    now = datetime.now(timezone.utc)
+    meeting.reminder_sent_at = now
+    participants = list_participation(db, meeting.id)
+    for participation in participants:
+        participation.member.last_reminder_sent_at = now
+    try:
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    return schemas.ReminderSendResponse(
+        sent=True,
+        recipient_count=len(participants),
         already_sent_before=already_sent_before,
     )
 

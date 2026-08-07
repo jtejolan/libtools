@@ -120,12 +120,8 @@
               </div>
               <div class="session-mode-controls">
                 <button class="reminder-trigger giveaway-trigger" id="open-giveaway-dialog" type="button"><span class="reminder-trigger-icon" aria-hidden="true">★</span><span><strong>Draw a Name</strong><small id="giveaway-inline-status">No winner yet</small></span></button>
-                <button class="reminder-trigger" id="open-reminder-dialog" type="button"><span class="reminder-trigger-icon" aria-hidden="true">✉</span><span><strong>Send Reminder</strong><small id="reminder-inline-status">Not sent yet</small></span></button>
-                <span class="status-pill meeting-status-badge" id="meeting-status-badge">Planned</span>
-                <button class="secondary-button" id="toggle-completed" type="button">Mark completed</button>
+                <button class="status-pill meeting-status-badge" id="toggle-completed" type="button">Planned</button>
                 <button class="secondary-button" id="day-of-mode" type="button"><span aria-hidden="true">◉</span> Day-of mode</button>
-                <button class="secondary-button" id="toggle-archive-view" type="button">Archive</button>
-                <button class="text-button" id="unarchive-meeting" type="button" hidden>Unarchive</button>
               </div>
             </section>
 
@@ -139,8 +135,11 @@
               <div class="panel-heading">
                 <div><p class="eyebrow"><span></span> Monthly roster</p><h2>Members &amp; attendance</h2></div>
                 <div class="panel-actions roster-add-bar">
-                  <label class="search-box roster-add-search"><span>＋</span><span class="sr-only">Add a member to this meeting</span><input id="roster-add-search" type="search" placeholder="Search members to add…" autocomplete="off" /></label>
-                  <div id="roster-add-results" class="member-search-results" hidden></div>
+                  <button class="roster-reminder-trigger" id="open-reminder-dialog" type="button"><strong id="reminder-trigger-label">Send Reminder</strong><small id="reminder-inline-status">Not sent yet</small></button>
+                  <div class="roster-add-search-wrap">
+                    <label class="search-box roster-add-search"><span>＋</span><span class="sr-only">Add a member to this meeting</span><input id="roster-add-search" type="search" placeholder="Search members to add…" autocomplete="off" /></label>
+                    <div id="roster-add-results" class="member-search-results" hidden></div>
+                  </div>
                 </div>
               </div>
               <div class="roster-card-grid" id="roster-table">
@@ -372,6 +371,7 @@
         <div class="reminder-actions">
           <button class="secondary-button" id="copy-reminder-list" type="button">Copy address list</button>
           <button class="secondary-button" id="copy-reminder-text" type="button">Copy email text</button>
+          <button class="secondary-button" id="mark-reminder-sent" type="button">Mark as sent</button>
           <button class="primary-button" id="send-reminder" type="button">Send reminder</button>
         </div>
       </div>

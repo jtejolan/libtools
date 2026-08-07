@@ -106,6 +106,30 @@ const meetingCountdown = (meeting) => {
   return `<div class="live-metric meeting-countdown"><strong>${meeting.days_until}</strong><span>${meeting.days_until === 1 ? "day" : "days"}<small>until next meeting</small></span></div>`;
 };
 
+const FOLLOWUP_STAGE_LABELS = {
+  arrival: "Awaiting book arrival",
+  welcome: "Welcome email needed",
+};
+
+const followupBlock = (bookclub) => {
+  if (!bookclub?.has_access) return "";
+  const count = bookclub.followup_count ?? 0;
+  if (count === 0) {
+    return `<div class="dash-followup is-clear"><span class="dash-followup-icon" aria-hidden="true">✉</span><span><strong>All follow-up emails sent</strong></span></div>`;
+  }
+  const next = bookclub.next_followup;
+  const href = next
+    ? `/bookclub?action=followup&club=${next.club_id}&member=${next.member_id}&stage=${next.stage}`
+    : "/bookclub";
+  return `<a class="dash-followup" href="${href}">
+    <span class="dash-followup-icon" aria-hidden="true">✉</span>
+    <span><strong>${count} follow-up ${count === 1 ? "email" : "emails"} to send</strong>${
+      next ? `<small>${escapeHtml(next.member_name)} · ${escapeHtml(FOLLOWUP_STAGE_LABELS[next.stage] || next.stage)}</small>` : ""
+    }</span>
+    <b aria-hidden="true">→</b>
+  </a>`;
+};
+
 const bookclubCard = (tools, summary) => {
   const bookclub = summary?.bookclub;
   const meeting = bookclub?.next_meeting;
@@ -122,17 +146,20 @@ const bookclubCard = (tools, summary) => {
        </div>`
     : `<div class="live-empty"><strong>No meeting scheduled</strong><span>${bookclub ? `${bookclub.club_count} ${bookclub.club_count === 1 ? "club" : "clubs"} ready for planning.` : "Live update unavailable"}</span></div>`;
 
-  return `<a class="dash-card dash-card-feature dash-bookclub is-link" href="/bookclub" aria-label="Open Book Club Manager">
-    <div class="dash-card-top">
-      <div class="dash-card-identity">
-        <span class="dash-card-icon"><img src="/static/assets/book-club-manager-logo-v2.png?v=1" alt=""/></span>
-        <div><span class="dash-kicker">Up next</span><h2>Book Club Manager</h2></div>
+  return `<div class="dash-card dash-card-feature dash-bookclub is-link">
+    <a class="dash-card-linkarea" href="/bookclub" aria-label="Open Book Club Manager">
+      <div class="dash-card-top">
+        <div class="dash-card-identity">
+          <span class="dash-card-icon"><img src="/static/assets/book-club-manager-logo-v2.png?v=1" alt=""/></span>
+          <div><span class="dash-kicker">Up next</span><h2>Book Club Manager</h2></div>
+        </div>
+        <span class="status on-dark">${bookclub?.club_count ?? "—"} ${bookclub?.club_count === 1 ? "club" : "clubs"}</span>
       </div>
-      <span class="status on-dark">${bookclub?.club_count ?? "—"} ${bookclub?.club_count === 1 ? "club" : "clubs"}</span>
-    </div>
-    ${meetingDetails}
-    <span class="dash-card-cta">Open manager <b aria-hidden="true">→</b></span>
-  </a>`;
+      ${meetingDetails}
+    </a>
+    ${followupBlock(bookclub)}
+    <a class="dash-card-cta" href="/bookclub">Open manager <b aria-hidden="true">→</b></a>
+  </div>`;
 };
 
 const QUICK_ACTIONS = [
