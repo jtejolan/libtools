@@ -10,9 +10,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/bookclub.css?v=27" />
+    <link rel="stylesheet" href="/static/bookclub.css?v=28" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub.js?v=27" defer></script>
+    <script src="/static/bookclub.js?v=28" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -143,11 +143,8 @@
                   <div id="roster-add-results" class="member-search-results" hidden></div>
                 </div>
               </div>
-              <div class="table-wrap roster-grid-wrap">
-                <table class="roster-grid-table">
-                  <thead><tr><th>Member</th><th>Attended</th><th></th></tr></thead>
-                  <tbody id="roster-table"><tr class="roster-empty-row"><td colspan="3" class="loading-cell">Loading the meeting roster…</td></tr></tbody>
-                </table>
+              <div class="roster-card-grid" id="roster-table">
+                <p class="roster-empty-state">Loading the meeting roster…</p>
               </div>
             </section>
 

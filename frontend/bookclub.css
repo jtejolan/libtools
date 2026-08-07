@@ -131,7 +131,6 @@ h2 { margin: 0; font-size: 28px; font-weight: 500; line-height: 1.1; }
 .search-box { min-width: 225px; height: 39px; padding: 0 11px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
 .search-box span { color: var(--muted); }
 .search-box input { width: 100%; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 13px; }
-.table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
 th { padding: 11px 17px; color: var(--muted); background: rgba(24,59,51,.035); font-size: 10px; font-weight: 700; letter-spacing: .07em; text-align: left; text-transform: uppercase; }
 td { height: 64px; padding: 9px 17px; border-top: 1px solid rgba(24,59,51,.09); vertical-align: middle; }
@@ -148,7 +147,6 @@ tbody tr:hover { background: rgba(255,255,255,.35); }
 .loading-cell, .empty-cell { height: 130px; color: var(--muted); text-align: center; }
 .status-pill { padding: 5px 9px; border-radius: 999px; background: rgba(131,157,107,.19); font-size: 10px; font-weight: 700; text-transform: uppercase; }
 .status-pill.inactive { color: var(--muted); background: rgba(116,111,98,.12); }
-.row-action { padding: 6px 8px; border: 0; color: var(--forest); background: transparent; font-size: 12px; font-weight: 700; cursor: pointer; }
 
 .collection-toolbar { min-height: 78px; padding: 18px 0; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .collection-toolbar > p { margin: 0; color: var(--muted); font-size: 12px; }
@@ -438,12 +436,12 @@ footer { padding: 26px 38px; display: flex; justify-content: space-between; gap:
   .catalogue-import-row { flex-direction: column; }
   .field-wide { grid-column: auto; }
   footer { flex-direction: column; }
-  .roster-grid-table tbody { grid-template-columns: 1fr; }
+  .roster-card-grid { grid-template-columns: 1fr; }
   body.day-of-mode #view-meeting .content { width: calc(100% - 28px); }
 }
 
 .status-pill.new-badge { display: inline-block; margin-top: 3px; padding: 3px 8px; color: var(--forest); background: rgba(227,170,66,.35); font-size: 9px; }
-.status-pill.first-session-badge { width: fit-content; margin-top: 5px; padding: 3px 8px; display: block; color: var(--paper); background: var(--forest-soft); font-size: 9px; letter-spacing: .05em; box-shadow: 0 3px 8px rgba(22,62,52,.18); }
+.status-pill.first-session-badge { padding: 3px 8px; color: var(--paper); background: var(--forest-soft); font-size: 9px; letter-spacing: .05em; box-shadow: 0 3px 8px rgba(22,62,52,.18); }
 
 .unscheduled-badge, .past-selection-badge { position: absolute; top: 12px; left: 12px; z-index: 1; color: var(--forest); background: rgba(227,170,66,.35); }
 .past-selection-badge { color: var(--paper); background: var(--forest-soft); }
@@ -496,31 +494,36 @@ footer { padding: 26px 38px; display: flex; justify-content: space-between; gap:
 .book-picker .search-box input { padding: 0; border: 0; background: transparent; }
 .roster-add-bar { width: min(380px, 46%); position: relative; }
 .roster-add-search { width: 100%; min-width: 0; border-color: rgba(24,59,51,.24); box-shadow: 0 6px 18px rgba(22,62,52,.05); }
-.roster-grid-wrap { overflow: visible; }
-.roster-grid-table { display: block; }
-.roster-grid-table thead { display: none; }
-.roster-grid-table tbody { padding: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; }
-.roster-grid-table tr { min-width: 0; padding: 16px; position: relative; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255,255,255,.48); box-shadow: 0 8px 22px rgba(22,62,52,.035); transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease; }
-.roster-grid-table tr:hover { border-color: rgba(24,59,51,.27); background: rgba(255,255,255,.7); box-shadow: 0 12px 26px rgba(22,62,52,.07); transform: translateY(-2px); }
-.roster-grid-table td { height: auto; padding: 0; border: 0; }
-.roster-grid-table td:first-child { grid-column: 1 / -1; padding: 0 28px 13px 0; border-bottom: 1px solid rgba(24,59,51,.09); }
-.roster-grid-table td:last-child { justify-self: end; }
-.roster-grid-table .check-wrap { min-height: 32px; padding: 0 10px; border-radius: 999px; background: rgba(131,157,107,.13); }
-.roster-grid-table .attendance-toggle { transition: color .16s ease, background .16s ease, box-shadow .16s ease; }
-.roster-grid-table .attendance-toggle.is-attended { color: var(--paper); background: var(--forest-soft); box-shadow: 0 5px 14px rgba(22,62,52,.16); }
-.roster-grid-table .attendance-toggle.is-attended span { color: inherit; }
-.participant-note-preview { margin: 10px 0 0; padding: 8px 10px; overflow: hidden; border-left: 2px solid var(--gold); border-radius: 0 5px 5px 0; color: var(--muted); background: rgba(227,170,66,.08); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.participant-note-preview span { margin-right: 7px; color: var(--orange); font-size: 8px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
-.roster-card-actions { display: flex; align-items: center; gap: 2px; }
-.roster-remove-button { width: 28px; height: 28px; padding: 0; position: absolute; z-index: 2; top: 9px; right: 9px; display: grid; place-items: center; border: 0; border-radius: 50%; color: var(--muted); background: transparent; font-size: 18px; cursor: pointer; }
-.roster-remove-button:hover { color: var(--paper); background: var(--danger); }
-.send-book-button { min-height: 32px; padding: 0 10px; border: 0; border-radius: 6px; color: var(--paper); background: var(--forest); font-size: 10px; font-weight: 700; cursor: pointer; }
-.send-book-button:hover { background: var(--forest-soft); }
-.roster-email-badge { max-width: 100%; margin-top: 5px; overflow: hidden; display: block; border: 0; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.roster-card-grid { padding: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.roster-member-card { width: 100%; min-width: 0; padding: 14px 16px; position: relative; display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.5); box-shadow: 0 8px 22px rgba(22,62,52,.035); font: inherit; text-align: left; cursor: pointer; transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease, transform .16s ease; }
+.roster-member-card:hover { border-color: rgba(24,59,51,.27); background: rgba(255,255,255,.72); box-shadow: 0 12px 26px rgba(22,62,52,.07); transform: translateY(-2px); }
+.roster-member-card:focus-visible { outline: 2px solid var(--forest-soft); outline-offset: 2px; }
+.roster-member-card.is-attended { border-color: rgba(36,83,72,.55); background: linear-gradient(145deg, rgba(36,83,72,.16), rgba(36,83,72,.07)); box-shadow: 0 10px 24px rgba(22,62,52,.13); }
+.roster-card-main { min-width: 0; display: flex; align-items: center; gap: 11px; padding-right: 26px; }
+.roster-check-circle { width: 24px; height: 24px; flex: 0 0 auto; position: relative; border: 2px solid rgba(24,59,51,.2); border-radius: 50%; background: rgba(255,255,255,.6); transition: background-color .18s ease, border-color .18s ease, transform .18s ease; }
+.roster-check-circle::after { content: "✓"; position: absolute; inset: 0; display: grid; place-items: center; color: var(--paper); font-size: 13px; font-weight: 800; opacity: 0; transform: scale(.5); transition: opacity .16s ease, transform .16s ease; }
+.roster-member-card.is-attended .roster-check-circle { border-color: var(--forest-soft); background: var(--forest-soft); transform: scale(1.06); }
+.roster-member-card.is-attended .roster-check-circle::after { opacity: 1; transform: scale(1); }
+.roster-card-identity { min-width: 0; display: grid; gap: 1px; }
+.roster-card-identity strong { overflow: hidden; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
+.roster-card-status { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; transition: color .18s ease; }
+.roster-member-card.is-attended .roster-card-status { color: var(--forest-soft); }
+.roster-card-flags { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.roster-card-flags:empty { display: none; }
+.roster-note-indicator { padding: 4px 9px; border-radius: 999px; color: var(--orange); background: rgba(227,170,66,.16); font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.roster-email-badge { max-width: 100%; overflow: hidden; border: 0; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .roster-email-badge:hover { filter: brightness(.95); }
-.roster-grid-table .empty-cell, .roster-grid-table .loading-cell { min-height: 130px; grid-column: 1 / -1; display: grid; place-items: center; border-bottom: 0; }
-.roster-grid-table .roster-empty-row { grid-column: 1 / -1; padding: 0; border-style: dashed; box-shadow: none; }
-.roster-grid-table .roster-empty-row:hover { transform: none; }
+.roster-card-menu { position: absolute; top: 8px; right: 8px; z-index: 2; }
+.roster-card-menu summary { list-style: none; }
+.roster-card-menu summary::-webkit-details-marker { display: none; }
+.roster-card-menu-trigger { width: 26px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 50%; color: var(--muted); background: transparent; font-size: 16px; line-height: 1; cursor: pointer; }
+.roster-card-menu-trigger:hover { color: var(--ink); background: rgba(24,59,51,.09); }
+.roster-card-menu[open] .roster-card-menu-trigger { color: var(--ink); background: rgba(24,59,51,.12); }
+.roster-card-menu-panel { min-width: 152px; padding: 6px; position: absolute; z-index: 3; right: 0; top: calc(100% + 6px); display: grid; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); box-shadow: 0 14px 32px rgba(24,59,51,.18); }
+.roster-card-menu-panel button { width: 100%; min-height: 36px; padding: 0 10px; border: 0; border-radius: 4px; color: var(--ink); background: transparent; font-size: 12px; font-weight: 600; text-align: left; cursor: pointer; }
+.roster-card-menu-panel button:hover { background: rgba(24,59,51,.07); }
+.roster-card-menu-panel .roster-menu-danger { color: var(--danger); }
+.roster-empty-state { min-height: 130px; margin: 18px; grid-column: 1 / -1; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: 9px; color: var(--muted); font-size: 13px; text-align: center; }
 .member-search-results { max-height: 260px; overflow-y: auto; position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; right: 0; padding: 6px; display: grid; gap: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); box-shadow: 0 14px 32px rgba(24,59,51,.16); }
 .member-search-result { width: 100%; padding: 9px 10px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 5px; color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
 .member-search-result:hover { background: rgba(24,59,51,.06); }
@@ -543,7 +546,7 @@ footer { padding: 26px 38px; display: flex; justify-content: space-between; gap:
   .member-directory-tools { width: 100%; align-items: stretch; flex-direction: column; }
   .member-sort-control select { width: 100%; }
   .roster-add-bar { width: 100%; }
-  .roster-grid-table tbody { grid-template-columns: 1fr; }
+  .roster-card-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 520px) {
@@ -564,7 +567,7 @@ footer { padding: 26px 38px; display: flex; justify-content: space-between; gap:
   .history-summary-grid, .history-book-grid { grid-template-columns: 1fr; }
   .history-summary-grid article { min-height: 82px; }
   .roster-add-bar { width: 100%; }
-  .roster-grid-table tbody { padding: 12px; }
+  .roster-card-grid { padding: 12px; }
 }
 
 @media print {

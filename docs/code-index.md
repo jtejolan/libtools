@@ -96,7 +96,7 @@ from `backend/` — see root `CLAUDE.md` for full commands.
 | `frontend/account.html` / `account.js` | 162 / 284 | Login/register/password-reset/recovery/settings | `docs/frontend/accounts.md` |
 | `frontend/admin-accounts.html` / `admin-accounts.js` | 70 / 178 | Platform-admin account management (canonical) | `docs/frontend/accounts.md` |
 | `frontend/admin-users.html` / `admin-users.js` | 2 / 12 | Minified LEGACY duplicate of admin-accounts — don't edit | `docs/frontend/accounts.md` |
-| `frontend/bookclub.html` / `bookclub.js` | 436 / 2140 | Book Club Manager app | `docs/frontend/bookclub.md` |
+| `frontend/bookclub.html` / `bookclub.js` | 433 / 2181 | Book Club Manager app | `docs/frontend/bookclub.md` |
 | `frontend/public-club.html` / `public-club.js` | 1 / 15 | Public read-only club page (minified) | `docs/frontend/bookclub.md` |
 | `frontend/lendery.html` / `lendery.js` | 466 / 2458 | Lendery inventory app — largest JS file in repo | `docs/frontend/lendery.md` |
 | `frontend/lendery-export.html` / `lendery-export.js` | 89 / 256 | Configurable CSV export UI at `/lendery/export` | `docs/frontend/lendery.md` |
@@ -105,7 +105,7 @@ from `backend/` — see root `CLAUDE.md` for full commands.
 | `frontend/quotes.js` | 614 | Static book-quote content data (not logic), used by index/dashboard | `docs/frontend/overview.md` |
 | `frontend/styles.css` | 1015 | `index.html`-only stylesheet | `docs/frontend/accounts.md` |
 | `frontend/platform.css` | 258 | Shared chrome across 6 pages | `docs/frontend/overview.md` |
-| `frontend/bookclub.css` | 575 | Bookclub app styles | `docs/frontend/bookclub.md` |
+| `frontend/bookclub.css` | 578 | Bookclub app styles | `docs/frontend/bookclub.md` |
 | `frontend/lendery.css` | 3280 | Lendery app styles — largest CSS file in repo | `docs/frontend/lendery.md` |
 | `frontend/lendery-export.css` | 350 | Lendery export UI styles | `docs/frontend/lendery.md` |
 | `frontend/check.css` | 70 | Quick-check page styles | `docs/frontend/lendery.md` |

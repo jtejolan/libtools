@@ -1,6 +1,6 @@
 # frontend — Book Club Manager
 
-## `bookclub.html` / `bookclub.js` (436 / 2,140 lines)
+## `bookclub.html` / `bookclub.js` (433 / 2,181 lines)
 
 The app. Single `state` object (top of `bookclub.js`) holds: `user`,
 `clubs`/`club` (selected club), `view` (current tab — meetings/books/
@@ -32,6 +32,19 @@ grid. Don't confuse this with `.status-pill.new-badge`, which despite its
 name means "welcome email pending," not "new member." Day-of mode
 temporarily removes the broader application chrome and summary cards so
 attendance, notes, and the giveaway remain in focus.
+
+Roster entries render as `.roster-member-card` articles (`renderRoster()`,
+`#roster-table` — an `id` left over from when this was a `<table>`, now a
+plain grid `<div>`). The whole card is the attendance toggle: a delegated
+click/keydown listener on `#roster-table` calls `saveParticipation(id,
+{attended})` for any click that doesn't land on `[data-roster-menu]` (the
+per-card kebab `<details>`) or `[data-open-followup]` (the email badges,
+kept directly on the card). Toggling flips `.is-attended` optimistically
+before the request resolves so the transition plays immediately; the
+following `renderMeetingView()` re-render then settles it into the real
+state. **Add note**/**Send a book**/**Remove member** live in the kebab
+menu now — there's no more standalone "Send a book" button or attendance
+checkbox. Removing a member is immediate, no `window.confirm`.
 
 **Status is mostly computed, not chosen.** `effectiveMeetingStatus(meeting)`
 returns `"completed"` if that's the stored status, `"in_progress"` if `now`

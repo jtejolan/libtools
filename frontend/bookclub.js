@@ -707,17 +707,18 @@ const isFirstAttendedSession = (entry) => {
 const renderRoster = () => {
   const body = $("#roster-table");
   if (!state.meetingId) {
-    body.innerHTML = '<tr class="roster-empty-row"><td colspan="3" class="empty-cell">Add a meeting to start building its roster.</td></tr>';
+    body.innerHTML = '<p class="roster-empty-state">Add a meeting to start building its roster.</p>';
     return;
   }
   const entries = state.roster;
   if (!entries.length) {
-    body.innerHTML = '<tr class="roster-empty-row"><td colspan="3" class="empty-cell">No one has been added yet — search above to build this meeting roster.</td></tr>';
+    body.innerHTML = '<p class="roster-empty-state">No one has been added yet — search above to build this meeting roster.</p>';
     return;
   }
   body.innerHTML = entries
     .map((entry) => {
       const member = entry.member;
+      const attended = entry.attended;
       const newMemberBadgeHtml = isFirstAttendedSession(entry)
         ? '<span class="status-pill first-session-badge" title="First session attended">✦ First meeting</span>'
         : "";
@@ -726,11 +727,28 @@ const renderRoster = () => {
           (badge) => `<button class="status-pill ${badge.className} roster-email-badge" type="button" data-open-followup="${member.id}" data-stage="${badge.stage}">${escapeHtml(badge.label)}</button>`,
         )
         .join("");
-      return `<tr data-member-id="${member.id}">
-        <td><button class="roster-remove-button" type="button" data-remove-from-roster="${member.id}" aria-label="Remove ${escapeHtml(member.name)} from this meeting">×</button><div class="member-cell" title="${escapeHtml(member.notes || "")}"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small>${newMemberBadgeHtml}${pendingBadgeHtml}</div></div>${entry.notes ? `<p class="participant-note-preview"><span>Note</span>${escapeHtml(entry.notes)}</p>` : ""}</td>
-        <td><label class="check-wrap attendance-toggle ${entry.attended ? "is-attended" : ""}"><input type="checkbox" data-roster-field="attended" aria-label="Mark ${escapeHtml(member.name)} as attended" ${entry.attended ? "checked" : ""} /><span>${entry.attended ? "Attended" : "Unattended"}</span></label></td>
-        <td><div class="roster-card-actions"><button class="send-book-button" type="button" data-send-book="${member.id}">Send a book</button><button class="row-action" type="button" data-participant-note="${member.id}">${entry.notes ? "Edit" : "+ Note"}</button></div></td>
-      </tr>`;
+      const noteIndicatorHtml = entry.notes
+        ? `<span class="roster-note-indicator" title="${escapeHtml(entry.notes)}">✎ Note</span>`
+        : "";
+      return `<article class="roster-member-card ${attended ? "is-attended" : ""}" data-roster-toggle="${member.id}" role="button" tabindex="0" aria-pressed="${attended ? "true" : "false"}" aria-label="${escapeHtml(member.name)}, ${attended ? "attended. Tap to mark as not attended." : "tap to mark as attended."}">
+        <div class="roster-card-main">
+          <span class="roster-check-circle" aria-hidden="true"></span>
+          <span class="avatar">${escapeHtml(initials(member.name))}</span>
+          <div class="roster-card-identity">
+            <strong>${escapeHtml(member.name)}</strong>
+            <span class="roster-card-status">${attended ? "Attended" : "Tap to check in"}</span>
+          </div>
+        </div>
+        <div class="roster-card-flags">${newMemberBadgeHtml}${pendingBadgeHtml}${noteIndicatorHtml}</div>
+        <details class="roster-card-menu" data-roster-menu>
+          <summary class="roster-card-menu-trigger" aria-label="More actions for ${escapeHtml(member.name)}">⋮</summary>
+          <div class="roster-card-menu-panel">
+            <button type="button" data-participant-note="${member.id}">${entry.notes ? "Edit note" : "Add note"}</button>
+            <button type="button" data-send-book="${member.id}">Send a book</button>
+            <button type="button" class="roster-menu-danger" data-remove-from-roster="${member.id}">Remove member</button>
+          </div>
+        </details>
+      </article>`;
     })
     .join("");
 };
@@ -1246,18 +1264,36 @@ const setView = async (view) => {
   }
 };
 
-$("#roster-table").addEventListener("change", async (event) => {
-  const field = event.target.dataset.rosterField;
-  if (!field) return;
-  const row = event.target.closest("tr");
-  const memberId = Number(row.dataset.memberId);
+// The whole card is the attendance button — a tap toggles attendance with an
+// immediate optimistic class flip (for a snappy transition) before the save
+// resolves and a full re-render settles the roster into its final state.
+$("#roster-table").addEventListener("click", async (event) => {
+  if (event.target.closest("[data-roster-menu], [data-open-followup]")) return;
+  const card = event.target.closest("[data-roster-toggle]");
+  if (!card) return;
+  const memberId = Number(card.dataset.rosterToggle);
+  const entry = state.roster.find((item) => item.member_id === memberId);
+  if (!entry) return;
+  const nextAttended = !entry.attended;
+  card.classList.toggle("is-attended", nextAttended);
+  card.setAttribute("aria-pressed", String(nextAttended));
+  const statusEl = card.querySelector(".roster-card-status");
+  if (statusEl) statusEl.textContent = nextAttended ? "Attended" : "Tap to check in";
   try {
-    await saveParticipation(memberId, { [field]: event.target.checked });
-    showToast("Roster updated.");
+    await saveParticipation(memberId, { attended: nextAttended });
   } catch (error) {
     showToast(error.message);
     await loadSelectedMeeting();
   }
+});
+
+$("#roster-table").addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  if (event.target.closest("[data-roster-menu], [data-open-followup]")) return;
+  const card = event.target.closest("[data-roster-toggle]");
+  if (!card) return;
+  event.preventDefault();
+  card.click();
 });
 
 // Shared by the roster-add search and the transit-label composer's member
@@ -1708,6 +1744,7 @@ document.addEventListener("click", async (event) => {
 
   const sendBookButton = event.target.closest("[data-send-book]");
   if (sendBookButton) {
+    sendBookButton.closest("[data-roster-menu]")?.removeAttribute("open");
     const memberId = Number(sendBookButton.dataset.sendBook);
     const member = state.members.find((entry) => entry.id === memberId);
     if (!member) return;
@@ -1723,6 +1760,7 @@ document.addEventListener("click", async (event) => {
 
   const participantNoteButton = event.target.closest("[data-participant-note]");
   if (participantNoteButton) {
+    participantNoteButton.closest("[data-roster-menu]")?.removeAttribute("open");
     const memberId = Number(participantNoteButton.dataset.participantNote);
     const entry = state.roster.find((item) => item.member_id === memberId);
     if (!entry) return;
@@ -1751,8 +1789,6 @@ document.addEventListener("click", async (event) => {
   const removeFromRosterButton = event.target.closest("[data-remove-from-roster]");
   if (removeFromRosterButton) {
     const memberId = Number(removeFromRosterButton.dataset.removeFromRoster);
-    const entry = state.roster.find((item) => item.member_id === memberId);
-    if (!window.confirm(`Remove ${entry?.member?.name || "this member"} from this meeting's roster?`)) return;
     try {
       await request(`/bookclub/meetings/${state.meetingId}/members/${memberId}`, {
         method: "DELETE",
@@ -2112,10 +2148,15 @@ document.addEventListener("click", (event) => {
   if (accountMenu.open && !accountMenu.contains(event.target)) {
     accountMenu.open = false;
   }
+  $$(".roster-card-menu[open]").forEach((menu) => {
+    if (!menu.contains(event.target)) menu.open = false;
+  });
 });
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") accountMenu.open = false;
+  if (event.key !== "Escape") return;
+  accountMenu.open = false;
+  $$(".roster-card-menu[open]").forEach((menu) => { menu.open = false; });
 });
 
 $("#switch-club").addEventListener("click", showClubPicker);
