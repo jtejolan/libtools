@@ -118,6 +118,13 @@ arrival. The "Send Reminder" trigger (`#open-reminder-dialog`, in the
 session command bar) opens address-copy, email-copy, and send actions for
 the whole roster.
 
+The transit label's `@media print` rule (`bookclub.css`, in the print
+section near the end of the file) is sized for an 80mm thermal receipt
+printer (`@page { size: 80mm auto; margin: 0 }`, monospace font, no
+borders/columns) rather than a full letter/A4 sheet — it's only ever
+printed one at a time from "Send a book" via `window.print()`
+(`printTransitLabel()`), never as a batch of multiple labels per page.
+
 ## `public-club.html` / `public-club.js` (1 / 15 lines, minified)
 
 Public read-only club page rendered at `/clubs/{slug}`. No `state` object —

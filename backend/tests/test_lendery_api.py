@@ -309,8 +309,8 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
     def test_lendery_page_uses_current_autofill_assets(self) -> None:
         response = self.client.get("/lendery")
         self.assertEqual(response.status_code, 200)
-        self.assertIn('/static/lendery.js?v=36', response.text)
-        self.assertIn('/static/lendery.css?v=37', response.text)
+        self.assertIn('/static/lendery.js?v=37', response.text)
+        self.assertIn('/static/lendery.css?v=38', response.text)
         self.assertIn('<option value="alphabetical">Alphabetical</option>', response.text)
         self.assertIn('value="recently-active">Most recently used', response.text)
         self.assertIn('value="recently-added">Recently added', response.text)

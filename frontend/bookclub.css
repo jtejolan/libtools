@@ -586,9 +586,12 @@ footer { padding: 26px 38px; display: flex; justify-content: space-between; gap:
   .roster-card-grid { padding: 12px; }
 }
 
+/* Sized for an 80mm thermal receipt printer (e.g. Epson TM series) — the
+   transit label prints one at a time from "Send a book", never as a batch
+   sheet, so this targets the roll width directly rather than a page grid. */
 @media print {
   body > :not(.print-sheet) { display: none !important; }
-  .print-sheet { display: grid !important; grid-template-columns: 1fr 1fr; gap: .25in; color: #000; background: #fff; }
-  .print-label { min-height: 4in; padding: .45in; display: grid; place-items: center; border: 2px solid #000; font: 16pt/1.5 Arial, sans-serif; text-align: center; white-space: pre-wrap; break-inside: avoid; }
-  @page { margin: .35in; }
+  .print-sheet { display: block !important; width: 80mm; margin: 0; padding: 0; color: #000; background: #fff; }
+  .print-label { width: 100%; margin: 0; padding: 4mm 4mm 14mm; font: 11pt/1.5 "Courier New", Courier, monospace; text-align: left; white-space: pre-wrap; word-break: break-word; }
+  @page { size: 80mm auto; margin: 0; }
 }
