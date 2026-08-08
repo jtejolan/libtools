@@ -447,6 +447,120 @@ class LenderyAvailabilityApiTests(unittest.TestCase):
         self.assertEqual(body["total_copies_at_branch"], 2)
         self.assertIsNotNone(body["availability_checked_at"])
 
+    def test_batch_refresh_updates_multiple_items_in_one_call(self) -> None:
+        with patch(
+            "lendery.availability.check_availability",
+            return_value=AvailabilityResult("available", 1, 1),
+        ):
+            first = self.create_linked_item("BATCH-1")
+            second = self.create_linked_item("BATCH-2")
+
+        def side_effect(library_url, barcode=None):
+            return AvailabilityResult(
+                status="available" if barcode == "BATCH-1" else "checked_out",
+                available_copies=1 if barcode == "BATCH-1" else 0,
+                total_copies_at_branch=1,
+            )
+
+        with patch(
+            "lendery.availability.check_availability",
+            side_effect=side_effect,
+        ) as check:
+            response = self.client.post(
+                "/lendery/items/availability/refresh-batch",
+                json={"item_ids": [first["id"], second["id"]]},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        by_id = {entry["id"]: entry for entry in response.json()}
+        self.assertEqual(
+            by_id[first["id"]]["availability_status"], "available"
+        )
+        self.assertEqual(
+            by_id[second["id"]]["availability_status"], "checked_out"
+        )
+        self.assertEqual(check.call_count, 2)
+
+    def test_batch_refresh_skips_inactive_and_unlinked_items(self) -> None:
+        with patch(
+            "lendery.availability.check_availability",
+            return_value=AvailabilityResult("available", 1, 1),
+        ):
+            linked = self.create_linked_item("BATCH-SKIP-LINKED")
+
+        unlinked = self.client.post(
+            "/lendery/items",
+            json={"name": "Unlinked item", "barcode": "BATCH-SKIP-UNLINKED"},
+        ).json()
+
+        unavailable = self.client.post(
+            f"/lendery/items/{linked['id']}/unavailable",
+            json={"reason": "Under repair"},
+        ).json()
+
+        with patch(
+            "lendery.availability.check_availability",
+            return_value=AvailabilityResult("checked_out", 0, 1),
+        ) as check:
+            response = self.client.post(
+                "/lendery/items/availability/refresh-batch",
+                json={
+                    "item_ids": [
+                        unlinked["id"],
+                        unavailable["id"],
+                    ]
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        check.assert_not_called()
+        by_id = {entry["id"]: entry for entry in response.json()}
+        self.assertEqual(
+            by_id[unlinked["id"]]["availability_status"], "unknown"
+        )
+        self.assertEqual(
+            by_id[unavailable["id"]]["lifecycle_status"], "unavailable"
+        )
+
+    def test_batch_refresh_preserves_last_known_status_on_partial_failure(
+        self,
+    ) -> None:
+        with patch(
+            "lendery.availability.check_availability",
+            return_value=AvailabilityResult("available", 1, 1),
+        ):
+            ok_item = self.create_linked_item("BATCH-OK")
+            failing_item = self.create_linked_item("BATCH-FAIL")
+
+        def side_effect(library_url, barcode=None):
+            if barcode == "BATCH-FAIL":
+                raise AvailabilityCheckError("BiblioCommons is unreachable")
+            return AvailabilityResult("checked_out", 0, 1)
+
+        with patch(
+            "lendery.availability.check_availability",
+            side_effect=side_effect,
+        ):
+            response = self.client.post(
+                "/lendery/items/availability/refresh-batch",
+                json={"item_ids": [ok_item["id"], failing_item["id"]]},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        by_id = {entry["id"]: entry for entry in response.json()}
+        self.assertEqual(
+            by_id[ok_item["id"]]["availability_status"], "checked_out"
+        )
+        # last known status ("available", from create_linked_item) is
+        # preserved rather than flipped, and the error is recorded
+        self.assertEqual(
+            by_id[failing_item["id"]]["availability_status"], "available"
+        )
+        self.assertEqual(
+            by_id[failing_item["id"]]["availability_error"],
+            "BiblioCommons is unreachable",
+        )
+
     def test_in_and_out_filters_use_saved_status(self) -> None:
         created_in = self.create_linked_item("IN-1")
         created_out = self.create_linked_item("OUT-1")

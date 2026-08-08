@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated, Literal
 
 from fastapi import (
@@ -16,7 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from dependencies import DatabaseSession, get_db
 from accounts.auth import require_lendery_manage, require_lendery_view
 from bookclub.catalogue import CatalogueImportError
-from lendery import availability, catalogue, component_images, crud, schemas
+from lendery import availability, catalogue, component_images, crud, models, schemas
 
 
 router = APIRouter(
@@ -329,6 +330,44 @@ def refresh_item_availability(
             detail="Item not found",
         )
     return crud.refresh_item_availability(db, item)
+
+
+AVAILABILITY_BATCH_CONCURRENCY = 5
+
+
+@router.post(
+    "/items/availability/refresh-batch",
+    response_model=list[schemas.LenderyItemResponse],
+)
+async def refresh_items_availability_batch(
+    value: schemas.AvailabilityBatchRequest,
+    db: DatabaseSession,
+):
+    items = crud.get_items_by_ids(db, value.item_ids)
+    eligible = [
+        item
+        for item in items
+        if item.library_url and item.lifecycle_status == "active"
+    ]
+    ineligible = [item for item in items if item not in eligible]
+
+    semaphore = asyncio.Semaphore(AVAILABILITY_BATCH_CONCURRENCY)
+
+    async def fetch_one(item: models.LenderyItem):
+        async with semaphore:
+            try:
+                result = await asyncio.to_thread(
+                    availability.check_availability,
+                    item.library_url,
+                    item.barcode,
+                )
+                return (item, result, None)
+            except availability.AvailabilityCheckError as exc:
+                return (item, None, str(exc))
+
+    fetched = await asyncio.gather(*(fetch_one(item) for item in eligible))
+    updated = crud.apply_availability_results(db, list(fetched)) if fetched else []
+    return updated + ineligible
 
 
 @router.patch(

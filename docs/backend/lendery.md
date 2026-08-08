@@ -19,7 +19,7 @@ Lendable equipment inventory tool. Largest package in the repo
 
 | Router | Prefix | Endpoints | Purpose |
 |---|---|---|---|
-| `router` | `/lendery` | 38 | Suggestions CRUD, item CRUD/import/export(CSV)/barcode-lookup/availability-refresh/soft-delete-restore-permadelete, components CRUD + image upload + missing-report, maintenance queue/cases/events. Whole router requires `require_lendery_view`; individual write endpoints additionally require `require_lendery_manage`. |
+| `router` | `/lendery` | 39 | Suggestions CRUD, item CRUD/import/export(CSV)/barcode-lookup/availability-refresh (single + `POST /items/availability/refresh-batch`)/soft-delete-restore-permadelete, components CRUD + image upload + missing-report, maintenance queue/cases/events. Whole router requires `require_lendery_view`; individual write endpoints additionally require `require_lendery_manage`. |
 | `public_router` | `/api/public/lendery` | 1 | `GET /items/barcode/{barcode}` — public barcode lookup, narrow `PublicLenderyItemResponse` |
 
 ## Other modules
@@ -29,6 +29,14 @@ Lendable equipment inventory tool. Largest package in the repo
   counts copies at **Pierre Berton Resource Library** — copies elsewhere are
   ignored. A failed check preserves the last known `availability_status` and
   sets `availability_error` instead of flipping the item to unavailable.
+  `routes.refresh_items_availability_batch` (`POST
+  /items/availability/refresh-batch`) fans out `check_availability` calls
+  for multiple items concurrently via `asyncio.to_thread` + a bounded
+  semaphore (still the same sync `httpx.Client`, no `AsyncClient`), then
+  applies+commits all results in one pass via
+  `crud.apply_availability_results` — added so the frontend can refresh a
+  page's worth of items (~60) in a handful of round trips/one DB commit
+  instead of one request+commit per item.
 - `catalogue.py` (66 lines) — item metadata (name/description/manual link)
   autofill, reusing `bookclub/catalogue.py`'s scraping helpers but with its
   own item-field mapping — **not shared code**, keep parsing fixes synced

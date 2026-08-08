@@ -40,3 +40,15 @@ checklist. Calls only `GET /api/public/lendery/items/barcode/{barcode}`.
   `MaintenanceCase` via a follow-up POST from the frontend (not the backend
   PATCH itself) — that's how those flags surface in the "Needs attention"
   dashboard. See `docs/backend/lendery.md`.
+- `renderItems()` reconciles `#inventory-grid`'s existing `article.item-card`
+  DOM nodes by `data-item-id` (`reconcileGrid`) instead of replacing
+  `innerHTML` wholesale — it patches a card in place only when its
+  `cardSignature()` changed, and only brand-new cards get the `is-new` class
+  that triggers the CSS phase-in animation. This was added because a full
+  rebuild on every availability refresh (up to ~120 rebuilds across a ~60-item
+  page load) made the whole grid visibly flash. `scheduleRender()`
+  (microtask-coalesced `renderAll()`) is used instead of calling
+  `renderItems()`/`renderAll()` directly from availability-refresh code paths,
+  so several near-simultaneous refreshes settle into one render pass. Don't
+  reintroduce a raw `grid.innerHTML = ...` rebuild in the item-card path
+  without re-checking this.

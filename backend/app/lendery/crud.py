@@ -689,6 +689,27 @@ def update_item(
     return db_item
 
 
+def _apply_availability_check(
+    db_item: models.LenderyItem,
+    checked_at: datetime,
+    *,
+    result: availability.AvailabilityResult | None = None,
+    error: str | None = None,
+) -> None:
+    if error is not None:
+        db_item.availability_checked_at = checked_at
+        db_item.availability_error = error
+    else:
+        db_item.availability_status = result.status
+        db_item.availability_status_version = (
+            availability.AVAILABILITY_STATUS_VERSION
+        )
+        db_item.available_copies = result.available_copies
+        db_item.total_copies_at_branch = result.total_copies_at_branch
+        db_item.availability_checked_at = checked_at
+        db_item.availability_error = None
+
+
 def refresh_item_availability(
     db: Session,
     db_item: models.LenderyItem,
@@ -702,18 +723,43 @@ def refresh_item_availability(
             db_item.library_url, db_item.barcode
         )
     except availability.AvailabilityCheckError as exc:
-        db_item.availability_checked_at = checked_at
-        db_item.availability_error = str(exc)
+        _apply_availability_check(db_item, checked_at, error=str(exc))
     else:
-        db_item.availability_status = result.status
-        db_item.availability_status_version = (
-            availability.AVAILABILITY_STATUS_VERSION
-        )
-        db_item.available_copies = result.available_copies
-        db_item.total_copies_at_branch = result.total_copies_at_branch
-        db_item.availability_checked_at = checked_at
-        db_item.availability_error = None
+        _apply_availability_check(db_item, checked_at, result=result)
     return _commit(db, db_item)
+
+
+def get_items_by_ids(
+    db: Session,
+    item_ids: list[int],
+) -> list[models.LenderyItem]:
+    statement = select(models.LenderyItem).where(
+        models.LenderyItem.id.in_(item_ids)
+    )
+    return list(db.scalars(statement))
+
+
+def apply_availability_results(
+    db: Session,
+    results: list[
+        tuple[
+            models.LenderyItem,
+            availability.AvailabilityResult | None,
+            str | None,
+        ]
+    ],
+) -> list[models.LenderyItem]:
+    checked_at = datetime.now(timezone.utc)
+    for db_item, result, error in results:
+        _apply_availability_check(db_item, checked_at, result=result, error=error)
+    try:
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    for db_item, _, _ in results:
+        db.refresh(db_item)
+    return [db_item for db_item, _, _ in results]
 
 
 def delete_item(

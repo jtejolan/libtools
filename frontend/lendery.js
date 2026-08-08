@@ -20,7 +20,6 @@ const state = {
 };
 
 const AVAILABILITY_STALE_MS = 30 * 60 * 1000;
-const AUTO_REFRESH_CONCURRENCY = 3;
 const AVAILABILITY_STATUS_VERSION = 2;
 let pendingDashboardAction = new URLSearchParams(window.location.search).get("action");
 let pendingBarcodeLookup = new URLSearchParams(window.location.search).get("barcode");
@@ -709,6 +708,108 @@ const renderAvailabilityControls = () => {
   inventorySort.value = state.inventorySort;
 };
 
+const buildCardHtml = (item, attentionIds) => {
+  const imageUrl = safeUrl(item.image_url);
+  const availability = availabilityInfo(item);
+  const componentLabel =
+    item.components.length === 0
+      ? "Whole item"
+      : item.components.length === 1
+        ? "1 part"
+        : `${item.components.length} parts`;
+  return `
+    <div class="item-image">
+      ${
+        imageUrl
+          ? `<img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" />`
+          : `<span class="item-placeholder" aria-hidden="true">${escapeHtml(itemInitials(item.name))}</span>`
+      }
+      <span class="category-badge ${categoryTintClass(item.category)}">${escapeHtml(item.category || "Uncategorized")}</span>
+      ${
+        attentionIds.has(item.id)
+          ? `<span class="attention-flag" title="Needs attention"><i aria-hidden="true">⚑</i></span>`
+          : ""
+      }
+      ${
+        item.lifecycle_status === "unavailable"
+          ? '<span class="availability-badge unavailable"><i></i>Out of circulation</span>'
+          : item.library_url && item.lifecycle_status === "active"
+            ? `<span class="availability-badge ${availability.status}"><i></i>${escapeHtml(availability.shortLabel)}</span>`
+            : ""
+      }
+    </div>
+    <div class="item-card-body">
+      <h3>${escapeHtml(item.name)}</h3>
+      <p>${escapeHtml(item.description || "No description has been added yet.")}</p>
+      <div class="item-meta">
+        <span class="barcode">${escapeHtml(item.barcode)}</span>
+        <span class="parts-count">${componentLabel}</span>
+      </div>
+    </div>
+    <button class="card-open" type="button" data-item-id="${item.id}" aria-label="View ${escapeHtml(item.name)}"></button>`;
+};
+
+const cardSignature = (item, attentionIds) => {
+  const availability = availabilityInfo(item);
+  return JSON.stringify([
+    item.image_url,
+    item.category,
+    item.name,
+    item.description,
+    item.barcode,
+    item.components.length,
+    item.lifecycle_status,
+    item.library_url,
+    availability.status,
+    availability.shortLabel,
+    attentionIds.has(item.id),
+  ]);
+};
+
+const reconcileGrid = (items, attentionIds) => {
+  const existing = new Map();
+  grid.querySelectorAll(":scope > article.item-card[data-item-id]").forEach((node) => {
+    existing.set(Number(node.dataset.itemId), node);
+  });
+
+  let anchor = null;
+  const seen = new Set();
+
+  items.forEach((item) => {
+    seen.add(item.id);
+    let node = existing.get(item.id);
+    const signature = cardSignature(item, attentionIds);
+
+    if (node) {
+      if (node.dataset.sig !== signature) {
+        node.innerHTML = buildCardHtml(item, attentionIds);
+        node.dataset.sig = signature;
+      }
+    } else {
+      node = document.createElement("article");
+      node.className = "item-card is-new";
+      node.dataset.itemId = String(item.id);
+      node.innerHTML = buildCardHtml(item, attentionIds);
+      node.dataset.sig = signature;
+      node.addEventListener(
+        "animationend",
+        () => node.classList.remove("is-new"),
+        { once: true },
+      );
+    }
+
+    const previous = anchor ? anchor.nextSibling : grid.firstChild;
+    if (previous !== node) {
+      grid.insertBefore(node, previous);
+    }
+    anchor = node;
+  });
+
+  existing.forEach((node, id) => {
+    if (!seen.has(id)) node.remove();
+  });
+};
+
 const renderItems = () => {
   const items = visibleItems();
   if (!items.length) {
@@ -746,50 +847,11 @@ const renderItems = () => {
   }
 
   const attentionIds = canManage() ? itemsNeedingAttentionIds() : new Set();
-  grid.innerHTML = items
-    .map((item) => {
-      const imageUrl = safeUrl(item.image_url);
-      const availability = availabilityInfo(item);
-      const componentLabel =
-        item.components.length === 0
-          ? "Whole item"
-          : item.components.length === 1
-            ? "1 part"
-            : `${item.components.length} parts`;
-      return `
-        <article class="item-card">
-          <div class="item-image">
-            ${
-              imageUrl
-                ? `<img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" />`
-                : `<span class="item-placeholder" aria-hidden="true">${escapeHtml(itemInitials(item.name))}</span>`
-            }
-            <span class="category-badge ${categoryTintClass(item.category)}">${escapeHtml(item.category || "Uncategorized")}</span>
-            ${
-              attentionIds.has(item.id)
-                ? `<span class="attention-flag" title="Needs attention"><i aria-hidden="true">⚑</i></span>`
-                : ""
-            }
-            ${
-              item.lifecycle_status === "unavailable"
-                ? '<span class="availability-badge unavailable"><i></i>Out of circulation</span>'
-                : item.library_url && item.lifecycle_status === "active"
-                  ? `<span class="availability-badge ${availability.status}"><i></i>${escapeHtml(availability.shortLabel)}</span>`
-                  : ""
-            }
-          </div>
-          <div class="item-card-body">
-            <h3>${escapeHtml(item.name)}</h3>
-            <p>${escapeHtml(item.description || "No description has been added yet.")}</p>
-            <div class="item-meta">
-              <span class="barcode">${escapeHtml(item.barcode)}</span>
-              <span class="parts-count">${componentLabel}</span>
-            </div>
-          </div>
-          <button class="card-open" type="button" data-item-id="${item.id}" aria-label="View ${escapeHtml(item.name)}"></button>
-        </article>`;
-    })
-    .join("");
+  const onlyCards = Array.from(grid.children).every((child) =>
+    child.matches("article.item-card[data-item-id]"),
+  );
+  if (!onlyCards) grid.innerHTML = "";
+  reconcileGrid(items, attentionIds);
 };
 
 const renderAll = () => {
@@ -808,6 +870,16 @@ const renderAll = () => {
   renderNeedsAttentionButton();
 };
 
+let renderScheduled = false;
+const scheduleRender = () => {
+  if (renderScheduled) return;
+  renderScheduled = true;
+  queueMicrotask(() => {
+    renderScheduled = false;
+    renderAll();
+  });
+};
+
 const replaceItem = (item) => {
   const index = state.items.findIndex((candidate) => candidate.id === item.id);
   if (index >= 0) state.items[index] = item;
@@ -821,8 +893,7 @@ const refreshAvailabilityForItem = (item, { showErrors = false } = {}) => {
   if (existing) return existing;
 
   state.refreshingIds.add(item.id);
-  renderAvailabilityControls();
-  renderItems();
+  scheduleRender();
 
   const refreshPromise = request(
     `/lendery/items/${item.id}/availability/refresh`,
@@ -845,7 +916,7 @@ const refreshAvailabilityForItem = (item, { showErrors = false } = {}) => {
     .finally(() => {
       state.refreshingIds.delete(item.id);
       state.refreshPromises.delete(item.id);
-      renderAll();
+      scheduleRender();
     });
 
   state.refreshPromises.set(item.id, refreshPromise);
@@ -870,21 +941,40 @@ const availabilityIsStale = (item) => {
   );
 };
 
+const AVAILABILITY_BATCH_SIZE = 20;
+
 const refreshStaleAvailability = async () => {
   const queue = state.items.filter(availabilityIsStale);
   if (!queue.length) return;
 
-  const worker = async () => {
-    while (queue.length) {
-      const item = queue.shift();
-      await refreshAvailabilityForItem(item);
-    }
-  };
+  queue.forEach((item) => state.refreshingIds.add(item.id));
+  scheduleRender();
+
+  const chunks = [];
+  for (let i = 0; i < queue.length; i += AVAILABILITY_BATCH_SIZE) {
+    chunks.push(queue.slice(i, i + AVAILABILITY_BATCH_SIZE));
+  }
+
   await Promise.all(
-    Array.from(
-      { length: Math.min(AUTO_REFRESH_CONCURRENCY, queue.length) },
-      worker,
-    ),
+    chunks.map(async (chunk) => {
+      try {
+        const updated = await request(
+          "/lendery/items/availability/refresh-batch",
+          {
+            method: "POST",
+            body: JSON.stringify({ item_ids: chunk.map((item) => item.id) }),
+          },
+        );
+        updated.forEach(replaceItem);
+      } catch (error) {
+        // Preserve last-known status for this chunk; the background sweep
+        // fails silently, consistent with refreshAvailabilityForItem's
+        // default showErrors: false.
+      } finally {
+        chunk.forEach((item) => state.refreshingIds.delete(item.id));
+        scheduleRender();
+      }
+    }),
   );
 };
 
