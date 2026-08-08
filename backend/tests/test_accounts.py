@@ -563,6 +563,28 @@ class PlatformAccountTests(unittest.TestCase):
         finally:
             client.close()
 
+    def test_updating_a_user_with_unchanged_tools_does_not_error(self) -> None:
+        # The admin-accounts page always resends the current tool selection
+        # alongside name/role edits, even when it hasn't changed - saving
+        # must be idempotent rather than erroring on the second save.
+        me = self.admin.get("/auth/me")
+        user_id = me.json()["id"]
+
+        first = self.admin.patch(
+            f"/api/admin/users/{user_id}",
+            json={"name": "Renamed Admin", "role": "admin", "tools": ["lendery_manage"]},
+        )
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(first.json()["name"], "Renamed Admin")
+        self.assertIn("lendery_manage", first.json()["tools"])
+
+        second = self.admin.patch(
+            f"/api/admin/users/{user_id}",
+            json={"name": "Renamed Admin", "role": "admin", "tools": ["lendery_manage"]},
+        )
+        self.assertEqual(second.status_code, 200, second.text)
+        self.assertIn("lendery_manage", second.json()["tools"])
+
     def test_dashboard_summary_combines_live_workspace_data(self) -> None:
         meeting_date = date.today() + timedelta(days=5)
         with self.sessions() as db:

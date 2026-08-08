@@ -205,13 +205,22 @@ def verify_login(db: Session, username: str, password: str) -> LibtoolsUser | No
 
 
 def set_tools(db: Session, user: LibtoolsUser, tools: list[str]) -> None:
+    selected = set(tools) & {"lendery_manage"}
     existing = list(
         db.scalars(select(ToolAccess).where(ToolAccess.user_id == user.id))
     )
+    existing_keys = {entry.tool_key for entry in existing}
+    # Only touch rows that actually change: deleting and re-inserting a row
+    # with the same unique key in one flush isn't safe (SQLAlchemy doesn't
+    # guarantee the DELETE is emitted before the INSERT), so unchanged
+    # entries must be left alone rather than dropped and recreated.
     for entry in existing:
-        db.delete(entry)
-    selected = set(tools) & {"lendery_manage"}
-    db.add_all(ToolAccess(user=user, tool_key=key) for key in sorted(selected))
+        if entry.tool_key not in selected:
+            db.delete(entry)
+    db.add_all(
+        ToolAccess(user=user, tool_key=key)
+        for key in sorted(selected - existing_keys)
+    )
 
 
 def issue_recovery_code(user: LibtoolsUser) -> str:
