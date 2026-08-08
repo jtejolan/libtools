@@ -10,9 +10,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/bookclub.css?v=31" />
+    <link rel="stylesheet" href="/static/bookclub.css?v=35" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub.js?v=30" defer></script>
+    <script src="/static/bookclub.js?v=33" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -29,10 +29,10 @@
 
         <nav aria-label="Book Club Manager navigation">
           <p class="nav-label">Manage</p>
-          <button class="nav-item active" type="button" data-view="meetings"><span>◫</span><span>Meetings</span></button>
-          <button class="nav-item" type="button" data-view="books"><span>▥</span><span>Books</span></button>
-          <button class="nav-item" type="button" data-view="members"><span>◎</span><span>Members</span></button>
-          <button class="nav-item" type="button" data-view="club-settings"><span>⚙</span><span>Settings</span></button>
+          <button class="nav-item active" type="button" data-view="meetings"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v3" /><path d="M16 2v3" /><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18" /><path d="M8 13h.01" /><path d="M12 13h.01" /><path d="M16 13h.01" /><path d="M8 17h.01" /><path d="M12 17h.01" /><path d="M16 17h.01" /></svg></span><span>Meetings</span></button>
+          <button class="nav-item" type="button" data-view="books"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v16" /><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" /></svg></span><span>Books</span></button>
+          <button class="nav-item" type="button" data-view="members"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><path d="M16 3.128a4 4 0 0 1 0 7.744" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><circle cx="9" cy="7" r="4" /></svg></span><span>Members</span></button>
+          <button class="nav-item" type="button" data-view="club-settings"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg></span><span>Settings</span></button>
         </nav>
 
         <div class="sidebar-note">
@@ -58,7 +58,7 @@
                 <a href="/admin/accounts" data-platform-admin-only hidden>Manage users</a>
                 <a href="https://lendery.libtools.app/" target="_blank" rel="noopener" data-platform-admin-only hidden>Quick check</a>
                 <a href="/account">My account</a>
-                <button id="logout-button" type="button">Log out</button>
+                <button id="logout-button" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /></svg> Log out</button>
               </div>
             </details>
           </div>
@@ -68,7 +68,7 @@
           <div class="content">
             <header class="page-heading">
               <div><p class="eyebrow"><span></span> The club calendar</p><h1>All meetings</h1><p class="intro">Plan what is coming next, then revisit the books and gatherings that shaped the club.</p></div>
-              <button class="primary-button" data-add-meeting type="button"><span>＋</span> Add meeting</button>
+              <button class="primary-button" data-add-meeting type="button"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg></span> Add meeting</button>
             </header>
             <section class="collection-toolbar meeting-toolbar">
               <label class="search-box"><span>⌕</span><span class="sr-only">Search meetings</span><input id="meeting-search" type="search" placeholder="Search book, author, or date…" /></label>
@@ -114,14 +114,14 @@
 
             <section class="session-command-bar" aria-label="Session controls">
               <div class="session-navigation">
-                <button class="quiet-button" id="previous-meeting" type="button"><span aria-hidden="true">←</span> Previous</button>
+                <button class="quiet-button" id="previous-meeting" type="button"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg></span> Previous</button>
                 <span id="meeting-position">—</span>
-                <button class="quiet-button" id="next-meeting" type="button">Next <span aria-hidden="true">→</span></button>
+                <button class="quiet-button" id="next-meeting" type="button">Next <span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6" /></svg></span></button>
               </div>
               <div class="session-mode-controls">
-                <button class="reminder-trigger giveaway-trigger" id="open-giveaway-dialog" type="button"><span class="reminder-trigger-icon" aria-hidden="true">★</span><span><strong>Draw a Name</strong><small id="giveaway-inline-status">No winner yet</small></span></button>
+                <button class="reminder-trigger giveaway-trigger" id="open-giveaway-dialog" type="button"><span class="reminder-trigger-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" /><path d="M20 2v4" /><path d="M22 4h-4" /><circle cx="4" cy="20" r="2" /></svg></span><span><strong>Draw a Name</strong><small id="giveaway-inline-status">No winner yet</small></span></button>
                 <button class="status-pill meeting-status-badge" id="toggle-completed" type="button">Planned</button>
-                <button class="secondary-button" id="day-of-mode" type="button"><span aria-hidden="true">◉</span> Day-of mode</button>
+                <button class="secondary-button" id="day-of-mode" type="button"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /></svg></span> Day-of mode</button>
               </div>
             </section>
 
@@ -173,7 +173,7 @@
           <div class="content">
             <header class="page-heading">
               <div><p class="eyebrow"><span></span> Reading history</p><h1>Books</h1><p class="intro">Keep cover art, publication details, descriptions, and discussion notes together for every selection.</p></div>
-              <button class="primary-button" id="add-book" type="button"><span>＋</span> Add book</button>
+              <button class="primary-button" id="add-book" type="button"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg></span> Add book</button>
             </header>
             <section class="stats-grid" aria-label="Reading stats">
               <article><span class="stat-icon green">▥</span><div><strong id="book-stat-total">—</strong><span>Books in the catalog</span></div></article>
@@ -195,7 +195,7 @@
           <div class="content">
             <header class="page-heading">
               <div><p class="eyebrow"><span></span> People &amp; participation</p><h1>Club community</h1><p class="intro">Member records and engagement history, together in one view.</p></div>
-              <button class="primary-button" id="add-member" type="button"><span>＋</span> Add member</button>
+              <button class="primary-button" id="add-member" type="button"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg></span> Add member</button>
             </header>
             <section class="stats-grid member-stats" aria-label="Member overview">
               <article><span class="stat-icon green">◎</span><div><strong id="member-stat-active">—</strong><span>Active members</span></div></article>
@@ -260,7 +260,7 @@
 
     <dialog class="form-dialog" id="member-dialog">
       <form id="member-form">
-        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Member record</p><h2 id="member-dialog-title">Add member</h2></div><button class="icon-button" type="button" data-close="member-dialog">×</button></div>
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Member record</p><h2 id="member-dialog-title">Add member</h2></div><button class="icon-button" type="button" data-close="member-dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button></div>
         <input name="id" type="hidden" />
         <div class="form-grid">
           <label class="field"><span>Name <b>*</b></span><input name="name" required maxlength="200" /></label>
@@ -279,7 +279,7 @@
 
     <dialog class="form-dialog" id="meeting-dialog">
       <form id="meeting-form">
-        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Monthly meeting</p><h2 id="meeting-dialog-title">Add meeting</h2></div><button class="icon-button" type="button" data-close="meeting-dialog">×</button></div>
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Monthly meeting</p><h2 id="meeting-dialog-title">Add meeting</h2></div><button class="icon-button" type="button" data-close="meeting-dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button></div>
         <input name="id" type="hidden" />
         <div class="form-grid">
           <div class="field field-wide">
@@ -304,7 +304,7 @@
 
     <dialog class="form-dialog book-dialog" id="book-dialog">
       <form id="book-form">
-        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Book record</p><h2 id="book-dialog-title">Add book</h2></div><button class="icon-button" type="button" data-close="book-dialog">×</button></div>
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Book record</p><h2 id="book-dialog-title">Add book</h2></div><button class="icon-button" type="button" data-close="book-dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button></div>
         <input name="id" type="hidden" />
         <div class="form-grid">
           <div class="catalogue-import field-wide">
@@ -330,7 +330,7 @@
 
     <dialog class="form-dialog compact-dialog" id="participant-note-dialog">
       <form id="participant-note-form">
-        <div class="dialog-heading"><div><p class="eyebrow"><span></span> This session only</p><h2 id="participant-note-title">Participant note</h2></div><button class="icon-button" type="button" data-close="participant-note-dialog">×</button></div>
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> This session only</p><h2 id="participant-note-title">Participant note</h2></div><button class="icon-button" type="button" data-close="participant-note-dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button></div>
         <input name="member_id" type="hidden" />
         <label class="field"><span>Note</span><textarea name="notes" rows="5" placeholder="Joining by Zoom, needs a copy, follow up next month…"></textarea></label>
         <p class="form-error" id="participant-note-error"></p>
@@ -340,7 +340,7 @@
 
     <dialog class="form-dialog compact-dialog action-dialog" id="send-book-dialog">
       <form id="send-book-form">
-        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Send a book</p><h2 id="send-book-title">Prepare transit label</h2></div><button class="icon-button" type="button" data-close="send-book-dialog">×</button></div>
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Send a book</p><h2 id="send-book-title">Prepare transit label</h2></div><button class="icon-button" type="button" data-close="send-book-dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button></div>
         <input name="member_id" type="hidden" />
         <p class="action-dialog-intro" id="send-book-context"></p>
         <label class="field"><span>Destination branch</span><input name="destination_branch" required maxlength="200" placeholder="Branch name" list="branch-suggestions" /></label>
@@ -352,7 +352,7 @@
 
     <dialog class="form-dialog compact-dialog action-dialog" id="followup-dialog">
       <div class="action-dialog-content">
-        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Member follow-up</p><h2 id="followup-title">Email follow-up</h2></div><button class="icon-button" type="button" data-close="followup-dialog">×</button></div>
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Member follow-up</p><h2 id="followup-title">Email follow-up</h2></div><button class="icon-button" type="button" data-close="followup-dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button></div>
         <div class="followup-member" id="followup-member"></div>
         <p class="action-dialog-intro" id="followup-context"></p>
         <div class="dialog-actions followup-actions">
@@ -366,7 +366,7 @@
 
     <dialog class="form-dialog compact-dialog action-dialog" id="reminder-dialog">
       <div class="action-dialog-content">
-        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Everyone on this roster</p><h2>Monthly reminder</h2><p class="panel-description" id="reminder-status">Add a meeting first.</p></div><button class="icon-button" type="button" data-close="reminder-dialog">×</button></div>
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Everyone on this roster</p><h2>Monthly reminder</h2><p class="panel-description" id="reminder-status">Add a meeting first.</p></div><button class="icon-button" type="button" data-close="reminder-dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button></div>
         <p class="reminder-recipient-summary" id="reminder-recipient-count"></p>
         <div class="reminder-actions">
           <button class="secondary-button" id="copy-reminder-list" type="button">Copy address list</button>
@@ -379,17 +379,17 @@
 
     <dialog class="form-dialog compact-dialog action-dialog" id="giveaway-dialog">
       <div class="action-dialog-content">
-        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Monthly giveaway</p><h2>Pick a winner</h2></div><button class="icon-button" type="button" data-close="giveaway-dialog">×</button></div>
+        <div class="dialog-heading"><div><p class="eyebrow"><span></span> Monthly giveaway</p><h2>Pick a winner</h2></div><button class="icon-button" type="button" data-close="giveaway-dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button></div>
         <div id="giveaway-content" class="giveaway-content">
           <div class="giveaway-orbit" aria-hidden="true"><span>★</span></div>
           <p>Draw one name at random from everyone marked as attended.</p>
-          <button class="primary-button" id="draw-winner" type="button">Draw a name</button>
+          <button class="primary-button" id="draw-winner" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" /><path d="M20 2v4" /><path d="M22 4h-4" /><circle cx="4" cy="20" r="2" /></svg> Draw a name</button>
         </div>
       </div>
     </dialog>
 
     <dialog class="form-dialog history-dialog" id="history-dialog">
-      <div class="dialog-heading"><div><p class="eyebrow"><span></span> Member history</p><h2 id="history-title">Attendance history</h2></div><button class="icon-button" type="button" data-close="history-dialog">×</button></div>
+      <div class="dialog-heading"><div><p class="eyebrow"><span></span> Member history</p><h2 id="history-title">Attendance history</h2></div><button class="icon-button" type="button" data-close="history-dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button></div>
       <div id="history-content"></div>
     </dialog>
 

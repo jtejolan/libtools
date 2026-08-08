@@ -1,3 +1,10 @@
+svg.icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  vertical-align: -3px;
+}
+
 :root {
   --cream: #f4eedf;
   --paper: #fffaf1;
@@ -241,6 +248,12 @@ button.stat-cell:focus-visible {
   width: 20px;
   font-size: 17px;
   text-align: center;
+}
+
+.nav-item > span:first-child svg.icon {
+  width: 18px;
+  height: 18px;
+  vertical-align: -4px;
 }
 
 .nav-item:hover,
@@ -1237,6 +1250,12 @@ footer {
   cursor: pointer;
 }
 
+.icon-button svg.icon {
+  width: 18px;
+  height: 18px;
+  vertical-align: baseline;
+}
+
 .icon-button:hover {
   background: rgba(24, 59, 51, 0.06);
 }
@@ -1822,6 +1841,9 @@ footer {
 }
 
 .availability-panel button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   min-height: 38px;
   padding: 7px 12px;
   border: 1px solid var(--line);
@@ -1977,6 +1999,9 @@ footer {
 
 .maintenance-new,
 .maintenance-update-form > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   min-height: 38px;
   padding: 8px 13px;
   border: 1px solid var(--forest);
@@ -2590,10 +2615,17 @@ button.needs-attention-row:hover {
 }
 
 .remove-component {
+  display: inline-flex;
+  align-items: center;
   border: 0;
   color: var(--muted);
   background: transparent;
   cursor: pointer;
+}
+
+.remove-component svg.icon {
+  width: 14px;
+  height: 14px;
 }
 
 .remove-component:hover {
@@ -2601,6 +2633,9 @@ button.needs-attention-row:hover {
 }
 
 .report-missing-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   grid-column: 1 / -1;
   margin-top: 5px;
   padding: 0;
@@ -2611,6 +2646,11 @@ button.needs-attention-row:hover {
   font-weight: 700;
   text-align: left;
   cursor: pointer;
+}
+
+.report-missing-button svg.icon {
+  width: 12px;
+  height: 12px;
 }
 
 .report-missing-button:hover {
@@ -2837,6 +2877,8 @@ button.needs-attention-row:hover {
   width: 30px;
   height: 30px;
   padding: 0;
+  display: grid;
+  place-items: center;
   position: absolute;
   right: 8px;
   top: 8px;
@@ -2845,6 +2887,11 @@ button.needs-attention-row:hover {
   color: var(--paper);
   background: rgba(24, 59, 51, 0.78);
   cursor: pointer;
+}
+
+.component-photo-preview button svg.icon {
+  width: 16px;
+  height: 16px;
 }
 
 .component-photo-picker details {
@@ -2907,6 +2954,9 @@ button.needs-attention-row:hover {
 }
 
 .drawer-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   min-height: 42px;
   padding: 10px 14px;
   border: 0;

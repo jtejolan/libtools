@@ -402,7 +402,7 @@ const renderMaintenanceSection = (cases) => `
         <p class="drawer-category">Editor workspace</p>
         <h3>Maintenance &amp; repairs</h3>
       </div>
-      <button class="maintenance-new" id="new-maintenance-case" type="button">＋ Report issue</button>
+      <button class="maintenance-new" id="new-maintenance-case" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="M12 5v14" /></svg> Report issue</button>
     </div>
     <p class="maintenance-intro">Record problems, replacement orders, installations, and completed repairs.</p>
     <div class="maintenance-cases">
@@ -839,7 +839,7 @@ const renderItems = () => {
           hasFilters
             ? `<button class="secondary-button" id="clear-filters" type="button">Clear filters</button>`
             : canManage()
-              ? `<button class="primary-button" id="empty-add-item" type="button">＋ Add your first item</button>`
+              ? `<button class="primary-button" id="empty-add-item" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="M12 5v14" /></svg> Add your first item</button>`
               : ""
         }
       </div>`;
@@ -1279,7 +1279,7 @@ const renderDrawer = (item) => {
           ? `<img src="${escapeHtml(imageUrl)}" alt="" />`
           : `<span class="item-placeholder" aria-hidden="true">${escapeHtml(itemInitials(item.name))}</span>`
       }
-      <button class="icon-button drawer-close" id="drawer-close" type="button" aria-label="Close item details">×</button>
+      <button class="icon-button drawer-close" id="drawer-close" type="button" aria-label="Close item details"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
     </div>
     <div class="drawer-body">
       <p class="drawer-category">${escapeHtml(item.category || "Uncategorized")}</p>
@@ -1316,7 +1316,7 @@ const renderDrawer = (item) => {
           </div>
           ${
             libraryUrl && item.lifecycle_status === "active"
-              ? `<button id="refresh-availability" type="button">Refresh</button>`
+              ? `<button id="refresh-availability" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></svg> Refresh</button>`
               : ""
           }
         </div>
@@ -1451,7 +1451,7 @@ const renderDrawer = (item) => {
                           </div>
                           ${
                             canManage()
-                              ? `<button class="remove-component" type="button" data-component-id="${component.id}" aria-label="Remove ${escapeHtml(component.name)}">×</button>`
+                              ? `<button class="remove-component" type="button" data-component-id="${component.id}" aria-label="Remove ${escapeHtml(component.name)}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>`
                               : ""
                           }
                           ${component.check_in_notes ? `<p>${escapeHtml(component.check_in_notes)}</p>` : ""}
@@ -1483,7 +1483,7 @@ const renderDrawer = (item) => {
                                           }
                                         </div>`
                                       : ""
-                                  }<button class="report-missing-button" type="button" data-report-missing="${component.id}">Report missing</button>`
+                                  }<button class="report-missing-button" type="button" data-report-missing="${component.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><line x1="12" x2="12" y1="8" y2="12" /><line x1="12" x2="12.01" y1="16" y2="16" /></svg> Report missing</button>`
                           }
                           ${
                             canManage()
@@ -1515,7 +1515,7 @@ const renderDrawer = (item) => {
               <label for="component-photo-input">📷 Take or choose photo</label>
               <div class="component-photo-preview" id="component-photo-preview" hidden>
                 <img alt="Selected component photo preview" />
-                <button type="button" data-clear-component-photo aria-label="Remove selected photo">×</button>
+                <button type="button" data-clear-component-photo aria-label="Remove selected photo"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
               </div>
               <small>JPEG, PNG, WebP, or HEIC · up to 10 MB</small>
               <details>
@@ -1525,7 +1525,7 @@ const renderDrawer = (item) => {
             </div>
             <input class="component-note-input" name="check_in_notes" maxlength="500" placeholder="Return note, e.g. check for charger" aria-label="Check-in note" />
             <label class="optional-check"><input name="optional" type="checkbox" /> Optional part</label>
-            <button type="submit">＋ Add</button>
+            <button type="submit"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="M12 5v14" /></svg> Add</button>
           </div>
         </form>`
             : ""
@@ -1537,16 +1537,16 @@ const renderDrawer = (item) => {
           ? `<div class="drawer-actions">
         ${
           item.lifecycle_status === "removed"
-            ? `<button class="permanent-delete-item" id="permanent-delete-item" type="button">Delete permanently</button>
-               <button class="restore-item" id="restore-item" type="button">Restore to inventory</button>`
+            ? `<button class="permanent-delete-item" id="permanent-delete-item" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6" /><path d="M14 11v6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg> Delete permanently</button>
+               <button class="restore-item" id="restore-item" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg> Restore to inventory</button>`
             : `${
                 item.lifecycle_status === "unavailable"
-                  ? `<button class="restore-item" id="restore-item" type="button">Return to circulation</button>`
-                  : `<button class="mark-unavailable-item" id="mark-unavailable-item" type="button">Mark unavailable</button>`
+                  ? `<button class="restore-item" id="restore-item" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg> Return to circulation</button>`
+                  : `<button class="mark-unavailable-item" id="mark-unavailable-item" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M4.929 4.929 19.07 19.071" /></svg> Mark unavailable</button>`
               }
-               <button class="delete-item" id="delete-item" type="button">Move to removed</button>`
+               <button class="delete-item" id="delete-item" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="5" x="2" y="3" rx="1" /><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" /><path d="M10 12h4" /></svg> Move to removed</button>`
         }
-        <button class="edit-item" id="edit-item" type="button">Edit item</button>
+        <button class="edit-item" id="edit-item" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg> Edit item</button>
       </div>`
           : ""
       }

@@ -20,9 +20,9 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/lendery.css?v=38" />
+    <link rel="stylesheet" href="/static/lendery.css?v=39" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/lendery.js?v=37" defer></script>
+    <script src="/static/lendery.js?v=38" defer></script>
   </head>
   <body id="lendery-top">
     <div class="app-shell">
@@ -54,28 +54,28 @@
         <nav aria-label="Lendery navigation">
           <p class="nav-label">Workspace</p>
           <a class="nav-item active" id="inventory-nav" href="/lendery">
-            <span aria-hidden="true">▦</span>
+            <span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" /></svg></span>
             <span>Inventory</span>
           </a>
           <button class="nav-item" id="nav-suggest-item" type="button">
-            <span aria-hidden="true">✦</span>
+            <span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" /><path d="M9 18h6" /><path d="M10 22h4" /></svg></span>
             <span>Suggest an Item</span>
           </button>
           <button class="nav-item" id="nav-add-item" type="button" data-admin-only hidden>
-            <span aria-hidden="true">＋</span>
+            <span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg></span>
             <span>Add Item</span>
           </button>
           <button class="nav-item" id="needs-attention-button" type="button" data-admin-only hidden>
-            <span aria-hidden="true">⚑</span>
+            <span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg></span>
             <span>Needs Attention</span>
             <span class="needs-attention-count" id="needs-attention-count" hidden></span>
           </button>
           <button class="nav-item" id="removed-items-button" type="button" data-admin-only hidden>
-            <span aria-hidden="true">⌫</span>
+            <span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1" /><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" /><path d="M10 12h4" /></svg></span>
             <span>Removed Items</span>
           </button>
           <button class="nav-item" id="suggestions-button" type="button" data-admin-only hidden>
-            <span aria-hidden="true">☼</span>
+            <span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /></svg></span>
             <span>Item Suggestions</span>
             <span class="needs-attention-count" id="suggestions-count" hidden></span>
           </button>
@@ -103,7 +103,7 @@
             <a href="/admin/accounts" data-platform-admin-only hidden>Manage users</a>
             <a href="https://lendery.libtools.app/" target="_blank" rel="noopener" data-platform-admin-only hidden>Quick check</a>
             <a href="/account">My account</a>
-            <button id="logout-button" type="button">Log out</button>
+            <button id="logout-button" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /></svg> Log out</button>
           </div>
         </details>
       </div>
@@ -181,7 +181,7 @@
                   />
                 </label>
                 <button class="secondary-button" id="panel-add-item" type="button" data-admin-only hidden>
-                  <span aria-hidden="true">＋</span> Add item
+                  <span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg></span> Add item
                 </button>
               </div>
             </div>
@@ -232,7 +232,7 @@
             <p class="eyebrow"><span></span> Inventory record</p>
             <h2 id="dialog-title">Add a new item</h2>
           </div>
-          <button class="icon-button" type="button" data-close-dialog aria-label="Close">×</button>
+          <button class="icon-button" type="button" data-close-dialog aria-label="Close"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
         </div>
 
         <input id="item-id" name="id" type="hidden" />
@@ -302,7 +302,7 @@
             <p class="eyebrow"><span></span> Maintenance &amp; repairs</p>
             <h2>Report an issue</h2>
           </div>
-          <button class="icon-button" type="button" data-close-maintenance-dialog aria-label="Close">×</button>
+          <button class="icon-button" type="button" data-close-maintenance-dialog aria-label="Close"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
         </div>
         <div class="form-grid">
           <label class="field field-wide">
@@ -343,7 +343,7 @@
             <p class="eyebrow"><span></span> Shape the collection</p>
             <h2 id="suggestion-dialog-title">Suggest an item</h2>
           </div>
-          <button class="icon-button" type="button" data-close-suggestion aria-label="Close">×</button>
+          <button class="icon-button" type="button" data-close-suggestion aria-label="Close"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
         </div>
         <p class="suggestion-intro">Know something useful the community could borrow? Tell the Lendery team about it—no purchasing details required.</p>
         <div class="form-grid">
@@ -383,7 +383,7 @@
             <p class="eyebrow"><span></span> Collection ideas</p>
             <h2 id="suggestions-dialog-title">Item suggestions</h2>
           </div>
-          <button class="icon-button" type="button" data-close-suggestions aria-label="Close">×</button>
+          <button class="icon-button" type="button" data-close-suggestions aria-label="Close"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
         </div>
         <div class="suggestions-layout">
           <div class="suggestions-list" id="suggestions-list" aria-label="Submitted suggestions"></div>
@@ -404,7 +404,7 @@
             <p class="eyebrow"><span></span> Inventory-wide</p>
             <h2 id="needs-attention-title">Needs attention</h2>
           </div>
-          <button class="icon-button" type="button" data-close-needs-attention aria-label="Close">×</button>
+          <button class="icon-button" type="button" data-close-needs-attention aria-label="Close"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
         </div>
         <div class="needs-attention-content" id="needs-attention-content"></div>
       </div>

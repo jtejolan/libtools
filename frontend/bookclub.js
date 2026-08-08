@@ -317,7 +317,7 @@ const renderMeetings = () => {
     ? `${meetings.length} matching`
     : `${upcoming.length} upcoming · ${past.length} past`;
   if (!meetings.length) {
-    list.innerHTML = `<div class="empty-collection"><span>◫</span><h2>${query ? "No matching meetings" : "No meetings yet"}</h2><p>${query ? "Try a different search." : "Add the first meeting after creating a book for the club."}</p>${query ? "" : '<button class="primary-button" type="button" data-add-meeting>＋ Add meeting</button>'}</div>`;
+    list.innerHTML = `<div class="empty-collection"><span>◫</span><h2>${query ? "No matching meetings" : "No meetings yet"}</h2><p>${query ? "Try a different search." : "Add the first meeting after creating a book for the club."}</p>${query ? "" : '<button class="primary-button" type="button" data-add-meeting><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="M12 5v14" /></svg> Add meeting</button>'}</div>`;
     return;
   }
   const meetingDateParts = (meeting) => {
@@ -432,7 +432,7 @@ const renderBooks = () => {
   renderBookStats();
   const list = $("#book-list");
   if (!books.length) {
-    list.innerHTML = `<div class="empty-collection"><span>▥</span><h2>${query || state.bookUnscheduledOnly ? "No matching books" : "Your book list is empty"}</h2><p>${query || state.bookUnscheduledOnly ? "Try a different title, author, ISBN, or genre." : "Add the first title selected for the club."}</p>${query || state.bookUnscheduledOnly ? "" : '<button class="primary-button" id="empty-add-book" type="button">＋ Add book</button>'}</div>`;
+    list.innerHTML = `<div class="empty-collection"><span>▥</span><h2>${query || state.bookUnscheduledOnly ? "No matching books" : "Your book list is empty"}</h2><p>${query || state.bookUnscheduledOnly ? "Try a different title, author, ISBN, or genre." : "Add the first title selected for the club."}</p>${query || state.bookUnscheduledOnly ? "" : '<button class="primary-button" id="empty-add-book" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="M12 5v14" /></svg> Add book</button>'}</div>`;
     return;
   }
   list.innerHTML = books
@@ -445,7 +445,7 @@ const renderBooks = () => {
         : unscheduled
           ? '<span class="status-pill unscheduled-badge">Not yet scheduled</span>'
           : "";
-      return `<article class="book-card">${statusBadge}<div class="book-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="Cover of ${escapeHtml(book.title)}" loading="lazy" />` : escapeHtml(initials(book.title))}</div><div class="book-card-copy"><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author)}</p><p class="book-description">${escapeHtml(book.description || "No description has been added yet.")}</p><div class="book-meta">${publicationYear ? `<span>${escapeHtml(publicationYear)}</span>` : ""}${book.page_count ? `<span>${book.page_count} pages</span>` : ""}${book.genres ? `<span>${escapeHtml(book.genres)}</span>` : ""}</div></div><div class="book-card-actions"><button type="button" data-edit-book="${book.id}">Edit</button><button class="danger-text" type="button" data-delete-book="${book.id}">Delete</button></div></article>`;
+      return `<article class="book-card">${statusBadge}<div class="book-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="Cover of ${escapeHtml(book.title)}" loading="lazy" />` : escapeHtml(initials(book.title))}</div><div class="book-card-copy"><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author)}</p><p class="book-description">${escapeHtml(book.description || "No description has been added yet.")}</p><div class="book-meta">${publicationYear ? `<span>${escapeHtml(publicationYear)}</span>` : ""}${book.page_count ? `<span>${book.page_count} pages</span>` : ""}${book.genres ? `<span>${escapeHtml(book.genres)}</span>` : ""}</div></div><div class="book-card-actions"><button type="button" data-edit-book="${book.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg> Edit</button><button class="danger-text" type="button" data-delete-book="${book.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6" /><path d="M14 11v6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg> Delete</button></div></article>`;
     })
     .join("");
 };
@@ -524,8 +524,8 @@ const renderSessionControls = () => {
     meeting?.status === "completed" ? "Reopen this session" : "Mark this session completed";
   $("#day-of-mode").disabled = !meeting;
   $("#day-of-mode").innerHTML = state.dayOfMode
-    ? '<span aria-hidden="true">×</span> Exit day-of mode'
-    : '<span aria-hidden="true">◉</span> Day-of mode';
+    ? '<span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3" /><path d="M21 8h-3a2 2 0 0 1-2-2V3" /><path d="M3 16h3a2 2 0 0 1 2 2v3" /><path d="M16 21v-3a2 2 0 0 1 2-2h3" /></svg></span> Exit day-of mode'
+    : '<span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /></svg></span> Day-of mode';
 };
 
 const renderDiscussionNotes = () => {
@@ -765,9 +765,9 @@ const renderRoster = () => {
         <details class="roster-card-menu" data-roster-menu>
           <summary class="roster-card-menu-trigger" aria-label="More actions for ${escapeHtml(member.name)}">⋮</summary>
           <div class="roster-card-menu-panel">
-            <button type="button" data-participant-note="${member.id}">${entry.notes ? "Edit note" : "Add note"}</button>
-            <button type="button" data-send-book="${member.id}">Send a book</button>
-            <button type="button" class="roster-menu-danger" data-remove-from-roster="${member.id}">Remove member</button>
+            <button type="button" data-participant-note="${member.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg> ${entry.notes ? "Edit note" : "Add note"}</button>
+            <button type="button" data-send-book="${member.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" /><path d="m21.854 2.147-10.94 10.939" /></svg> Send a book</button>
+            <button type="button" class="roster-menu-danger" data-remove-from-roster="${member.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="17" x2="22" y1="8" y2="13" /><line x1="22" x2="17" y1="8" y2="13" /></svg> Remove member</button>
           </div>
         </details>
       </article>`;
@@ -813,9 +813,9 @@ const renderGiveaway = () => {
       )
     : null;
   if (winner) {
-    content.innerHTML = `<div class="giveaway-orbit"><span>★</span></div><p class="winner-name">${escapeHtml(winner.name)}</p><p>Monthly book giveaway winner</p><button class="secondary-button" id="draw-winner" type="button">Draw again</button>`;
+    content.innerHTML = `<div class="giveaway-orbit"><span>★</span></div><p class="winner-name">${escapeHtml(winner.name)}</p><p>Monthly book giveaway winner</p><button class="secondary-button" id="draw-winner" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" /><path d="M20 2v4" /><path d="M22 4h-4" /><circle cx="4" cy="20" r="2" /></svg> Draw again</button>`;
   } else {
-    content.innerHTML = '<div class="giveaway-orbit"><span>★</span></div><p>Draw one name at random from everyone marked as attended.</p><button class="primary-button" id="draw-winner" type="button">Draw a name</button>';
+    content.innerHTML = '<div class="giveaway-orbit"><span>★</span></div><p>Draw one name at random from everyone marked as attended.</p><button class="primary-button" id="draw-winner" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" /><path d="M20 2v4" /><path d="M22 4h-4" /><circle cx="4" cy="20" r="2" /></svg> Draw a name</button>';
   }
   $("#draw-winner").addEventListener("click", drawWinner);
   $("#giveaway-inline-status").textContent = winner ? `${winner.name} won` : "No winner yet";
@@ -988,7 +988,7 @@ const renderMembers = () => {
             .join("");
           return `<article class="member-profile-card ${lapsed ? "needs-attention" : ""}">
             <header class="member-profile-heading">
-              <div class="member-cell"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><span class="member-email-row"><small class="member-email">${escapeHtml(member.email)}</small><button class="copy-email-button" type="button" data-copy-email="${escapeHtml(member.email)}" aria-label="Copy ${escapeHtml(member.name)}'s email address" title="Copy email address">⧉</button></span></div></div>
+              <div class="member-cell"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><span class="member-email-row"><small class="member-email">${escapeHtml(member.email)}</small><button class="copy-email-button" type="button" data-copy-email="${escapeHtml(member.email)}" aria-label="Copy ${escapeHtml(member.name)}'s email address" title="Copy email address"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg></button></span></div></div>
               <span class="status-pill ${member.active ? "" : "inactive"}">${member.active ? "Active" : "Inactive"}</span>
             </header>
             <div class="member-badge-row">${lapsed ? '<span class="status-pill attention-badge">May need a hello</span>' : ""}${badgeHtml}</div>
@@ -1002,7 +1002,7 @@ const renderMembers = () => {
               <div><dt>Last contacted</dt><dd>${participation?.last_contacted_at ? escapeHtml(formatDate(participation.last_contacted_at.slice(0, 10))) : "Not yet"}</dd></div>
             </dl>
             ${member.notes ? `<p class="member-card-notes">${escapeHtml(member.notes)}</p>` : ""}
-            <footer class="member-profile-actions"><button class="quiet-button" type="button" data-member-history="${member.id}">View history</button><button class="secondary-button" type="button" data-edit-member="${member.id}">Edit member</button></footer>
+            <footer class="member-profile-actions"><button class="quiet-button" type="button" data-member-history="${member.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l4 2" /></svg> View history</button><button class="secondary-button" type="button" data-edit-member="${member.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg> Edit member</button></footer>
           </article>`;
         })
         .join("")
@@ -1362,7 +1362,7 @@ const renderMemberSearchResults = (container, query, { excludeIds = new Set(), s
     )
     .join("");
   const addNewHtml = showAddNew
-    ? `<button class="member-search-result member-search-add-new" type="button" data-add-new-member="${escapeHtml(trimmed)}">＋ Add "${escapeHtml(trimmed)}" as a new member</button>`
+    ? `<button class="member-search-result member-search-add-new" type="button" data-add-new-member="${escapeHtml(trimmed)}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="M12 5v14" /></svg> Add "${escapeHtml(trimmed)}" as a new member</button>`
     : matches.length
       ? ""
       : '<p class="field-help">No matching members.</p>';
