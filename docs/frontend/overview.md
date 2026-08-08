@@ -15,7 +15,7 @@ directory, a filesystem oddity; there is no npm project here, don't try to
 | File | Lines | Purpose |
 |---|---|---|
 | `dom-utils.js` | 8 | `escapeHtml()` — the only shared JS helper, included via `<script defer>` on 9 of the 10 app pages (all except `index.html`) |
-| `platform.css` | 258 | Shared chrome/layout across `account`, `admin-accounts`, `admin-users`, `dashboard`, `check`, `public-club` |
+| `platform.css` | 268 | Shared chrome/layout across `account`, `admin-accounts`, `admin-users`, `dashboard`, `check`, `public-club`, `bookclub-landing`, `bookclub-account`, `bookclub-participant` |
 | `quotes.js` | 614 | Static book-quote content data (not logic), used by `index.html` and `dashboard.html` only |
 
 There is **no shared `api.js`** — every page duplicates its own

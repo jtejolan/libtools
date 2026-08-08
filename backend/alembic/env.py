@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app"))
 from database import Base, engine  # noqa: E402
 from accounts import models as accounts_models  # noqa: E402,F401
 from bookclub import models as bookclub_models  # noqa: E402,F401
+from bookclub import participant_models as bookclub_participant_models  # noqa: E402,F401
 from lendery import models as lendery_models  # noqa: E402,F401
 
 # this is the Alembic Config object, which provides

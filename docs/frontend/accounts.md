@@ -12,12 +12,26 @@ already logged in) and `GET /api/public/stats` (item/club counts). Also
 drives a rotating book-quote widget from `quotes.js`. Uses its own
 `styles.css` (1015 lines), not `platform.css`.
 
-## `dashboard.html` / `dashboard.js` (6 / 402 lines)
+## `dashboard.html` / `dashboard.js` (6 / 429 lines)
 
 Post-login landing page — tool grid, quick actions, per-tool summary cards
 (e.g. Lendery needs-attention count, next Book Club meeting countdown).
 Calls `/auth/quick-actions`, `/auth/logout`, `/auth/me`,
 `/auth/dashboard-summary`.
+
+`isBookclubOnlyFacilitator(user, tools)` special-cases self-serve book club
+leads: a signed-in account with no `admin` role, no `lendery_manage` tool
+access, but at least one club in `user.clubs` gets a stripped-down
+dashboard — one enlarged `.dash-card-solo` Book Club Manager card plus the
+quote card, skipping the Lendery card and quick actions entirely (and their
+init functions, `initializeLenderyScan`/`initializeQuickActionsEditor`, are
+never called for that case). This is computed purely client-side from
+fields `/auth/me` already returns — no backend change. These accounts are
+still ordinary `LibtoolsUser` rows (see `docs/backend/bookclub.md`'s
+participant-accounts section for the accounts that *are* fully separate);
+this is a display simplification, not an access-control boundary — nothing
+server-side prevents such an account from hitting `/lendery` directly, it's
+just not surfaced on their dashboard.
 
 ## `account.html` / `account.js` (162 / 284 lines)
 

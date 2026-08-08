@@ -27,6 +27,9 @@ from accounts.routes import router as account_router
 from bookclub import models as bookclub_models
 from bookclub.club_routes import public_router as public_bookclub_router
 from bookclub.club_routes import router as bookclub_club_router
+from bookclub.participant_routes import club_router as bookclub_participant_club_router
+from bookclub.participant_routes import router as bookclub_participant_router
+from bookclub.participant_session import ParticipantSessionMiddleware
 from bookclub.routes import router as bookclub_router
 from lendery import models
 from lendery.routes import public_router as public_lendery_router
@@ -266,3 +269,108 @@ def lendery_quick_check_page() -> FileResponse:
 # Inserted at the front so this is matched before the generic (any-host)
 # routes above, which would otherwise shadow it for the same paths.
 app.router.routes.insert(0, Host("lendery.libtools.app", app=lendery_public_app))
+
+
+# bookclub.libtools.app is the public/participant-facing surface for book
+# clubs — landing page, per-club public pages, and participant accounts for
+# rating books and voting. Unlike lendery_public_app it does need session
+# state, but participant sessions must never be confused with staff
+# libtools_session cookies. It's still nested inside `app`'s own router
+# (via Host(), inserted below) rather than a truly separate ASGI mount, so
+# it runs *inside* the primary app's own SessionMiddleware too — using
+# Starlette's stock SessionMiddleware here (even with a different cookie
+# name) would alias onto the same `scope["session"]` key as the outer one
+# and leak participant session data into both cookies. ParticipantSession
+# Middleware (bookclub/participant_session.py) is a copy of Starlette's
+# implementation keyed on a private scope attribute instead, so the two
+# are fully independent.
+
+bookclub_public_app = FastAPI(docs_url=None, openapi_url=None)
+bookclub_public_app.add_middleware(
+    ParticipantSessionMiddleware,
+    secret_key=_session_secret(),
+    session_cookie="bookclub_participant_session",
+    max_age=60 * 60 * 24 * 30,
+    same_site="lax",
+    https_only=bool(os.getenv("RAILWAY_ENVIRONMENT")),
+)
+bookclub_public_app.include_router(public_bookclub_router)
+bookclub_public_app.include_router(bookclub_participant_router)
+bookclub_public_app.include_router(bookclub_participant_club_router)
+bookclub_public_app.mount(
+    "/static",
+    StaticFiles(directory=FRONTEND_DIR),
+    name="static",
+)
+
+
+@bookclub_public_app.get("/", include_in_schema=False)
+def bookclub_landing_page() -> FileResponse:
+    return FileResponse(
+        FRONTEND_DIR / "bookclub-landing.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@bookclub_public_app.get("/create", include_in_schema=False)
+def bookclub_create_club_page() -> FileResponse:
+    return FileResponse(
+        FRONTEND_DIR / "bookclub-account.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@bookclub_public_app.get("/clubs/{slug}", include_in_schema=False)
+def bookclub_public_club_page(slug: str) -> FileResponse:
+    return FileResponse(FRONTEND_DIR / "public-club.html")
+
+
+@bookclub_public_app.get("/clubs/{slug}/join", include_in_schema=False)
+def bookclub_participant_join_page(slug: str) -> FileResponse:
+    return FileResponse(
+        FRONTEND_DIR / "bookclub-account.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@bookclub_public_app.get("/clubs/{slug}/login", include_in_schema=False)
+def bookclub_participant_login_page(slug: str) -> FileResponse:
+    return FileResponse(
+        FRONTEND_DIR / "bookclub-account.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@bookclub_public_app.get("/clubs/{slug}/forgot-password", include_in_schema=False)
+def bookclub_participant_forgot_password_page(slug: str) -> FileResponse:
+    return FileResponse(
+        FRONTEND_DIR / "bookclub-account.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@bookclub_public_app.get("/verify-email", include_in_schema=False)
+def bookclub_participant_verify_email_page() -> FileResponse:
+    return FileResponse(
+        FRONTEND_DIR / "bookclub-account.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@bookclub_public_app.get("/reset-password", include_in_schema=False)
+def bookclub_participant_reset_password_page() -> FileResponse:
+    return FileResponse(
+        FRONTEND_DIR / "bookclub-account.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@bookclub_public_app.get("/dashboard", include_in_schema=False)
+def bookclub_participant_dashboard_page() -> FileResponse:
+    return FileResponse(
+        FRONTEND_DIR / "bookclub-participant.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+app.router.routes.insert(0, Host("bookclub.libtools.app", app=bookclub_public_app))

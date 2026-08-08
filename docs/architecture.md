@@ -15,20 +15,39 @@ A request carries a signed session cookie (`libtools_session`,
 (`/api/public/*`) skip auth entirely and return narrow `PublicXResponse`
 schemas. See `docs/backend/accounts.md`, `docs/coding-guidelines.md`.
 
-## The two ASGI apps
+## The three ASGI apps
 
-`main.py` builds two separate FastAPI apps. The primary `app` serves the
+`main.py` builds three separate FastAPI apps. The primary `app` serves the
 whole product — all routers, the full static frontend, session-gated
 `/docs`+`/openapi.json`. A second app, `lendery_public_app`, has **no auth
 and no session middleware** and serves only `public_lendery_router` plus a
 single landing page (`check.html`) — the Lendery "Quick Check" micro-site.
-It's mounted onto the primary app via
-`Host("lendery.libtools.app", app=lendery_public_app)`, and that mount is
-**inserted at `app.router.routes[0]`** (not appended) so Starlette matches
-it before the generic any-host routes below would otherwise shadow the same
-paths for the public subdomain. This is the single most surprising thing in
-`main.py` — everything else is fairly conventional FastAPI wiring. See
-`docs/backend/shared.md`, `docs/frontend/lendery.md`.
+A third app, `bookclub_public_app`, is the public/participant-facing surface
+for book clubs at `bookclub.libtools.app` — it *does* need its own session
+state, with a distinct cookie name (`bookclub_participant_session`) so
+participant sessions never collide with or get confused for the primary
+app's `libtools_session` cookie. It uses a custom
+`ParticipantSessionMiddleware` (`bookclub/participant_session.py`) instead
+of Starlette's stock `SessionMiddleware` for this: since none of these three
+apps are truly separate ASGI mounts (all three are reachable only because
+`Host()` routes are inserted into the *primary* `app`'s own router — see
+below), a sub-app with its own session middleware still runs *inside* the
+primary app's session middleware too, and two stock `SessionMiddleware`
+instances alias onto the same `scope["session"]` key regardless of cookie
+name, corrupting both cookies. Self-serve club facilitators are also
+`ParticipantAccount`s (`role="owner"`) rather than `LibtoolsUser`s — fully
+segmented from the primary app's account system, by design (see
+`docs/backend/bookclub.md`'s "Participant accounts" section). Library-run
+clubs are unaffected: staff still sign in and manage those from the primary
+app at `libtools.app/bookclub`, via `LibtoolsUser`/`BookClubAccess`, exactly
+as before. Each sub-app is mounted onto the primary app via
+`Host("<subdomain>.libtools.app", app=...)`, and each mount is **inserted at
+`app.router.routes[0]`** (not appended) so Starlette matches it before the
+generic any-host routes below would otherwise shadow the same paths (e.g.
+both `lendery_public_app` and the primary `app` define `/`). This is the
+single most surprising thing in `main.py` — everything else is fairly
+conventional FastAPI wiring. See `docs/backend/shared.md`,
+`docs/backend/bookclub.md`, `docs/frontend/lendery.md`.
 
 ## Auth & sessions
 

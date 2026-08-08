@@ -9,7 +9,7 @@ Multi-tenant book club manager. Every club-owned table is scoped by
 
 | Model | Table | Purpose |
 |---|---|---|
-| `BookClub` | `book_clubs` | A club: name, slug, `public` flag, organizer info |
+| `BookClub` | `book_clubs` | A club: name, slug, `public` flag, organizer info, `club_type` (`"library"` default / `"self_serve"` — descriptive/filtering only, see below, not itself an access-control check) |
 | `BookClubAccess` | `book_club_access` | User-to-club grant (`role`, e.g. owner) |
 | `BookClubMember` | `bookclub_members` | A club's member roster; unique per `(club_id, email)`; carries delivery details plus transit-label/email timestamps |
 | `BookClubBook` | `bookclub_books` | A book the club has read/will read; unique per `(club_id, isbn)`; can be flagged as an undated past selection |
@@ -17,6 +17,48 @@ Multi-tenant book club manager. Every club-owned table is scoped by
 | `BookClubParticipation` | `bookclub_participation` | Member roster for one meeting (`attended` flag plus session-only participant note); unique per `(meeting_id, member_id)` |
 | `BookClubTemplate` | `bookclub_templates` | Editable email template; unique per `(club_id, key)` |
 | `BookClubDiscussionQuestion` | `bookclub_discussion_questions` | Legacy ordered questions retained for API compatibility; migration `e93f1a6b2c47` copies existing text into meeting discussion notes |
+
+## Participant accounts (`bookclub.libtools.app`)
+
+A second, separate account system for club **participants** (readers) and
+**facilitators** (leads), not to be confused with staff
+`LibtoolsUser`/`BookClubAccess` accounts. Lives in `bookclub/participant_*.py`
+and is only reachable from the `bookclub_public_app` sub-app (see
+`docs/architecture.md`) — none of it is mounted on the primary `libtools.app`
+app.
+
+**Facilitators are `ParticipantAccount`s too, not a third account system.**
+Whoever creates a club via `POST /participant/clubs` gets a `ParticipantAccount`
+with `role="owner"` on it (single owner in v1) — same table, same session
+machinery, same login flow as an ordinary reader, just a `role` check away
+from facilitator permissions. This was a deliberate pivot: an earlier version
+of this feature made self-serve facilitators ordinary `LibtoolsUser`s who
+managed their club from the staff `/bookclub` tool; that was reversed so a
+self-serve facilitator never touches `libtools.app`, not even technically.
+Library-run clubs (staff-provisioned, `LibtoolsUser`/`BookClubAccess`,
+managed from the staff tool) are completely unaffected by any of this.
+
+| Model | Table | Purpose |
+|---|---|---|
+| `ParticipantAccount` | `bookclub_participant_accounts` | A reader's or facilitator's login for one club; unique per `(club_id, email)` — the same person joining two clubs gets two rows. Email is required and must be verified. `role` is `"member"` (default) or `"owner"` (the facilitator). |
+| `ParticipantAccountToken` | `bookclub_participant_account_tokens` | Hashed/expiring email-verification and password-reset tokens, parallel to `accounts.AccountToken` but never shared with it. |
+
+| Router | Prefix | File | Endpoints | Purpose |
+|---|---|---|---|---|
+| `router` | `/participant/auth` | `participant_routes.py` | 8 | register/login/logout/me, email verification, password reset — all scoped by `club_slug` in the request body (a participant's identity is club-specific, so most requests need to say which club) |
+| `club_router` | `/participant/clubs` | `participant_routes.py` | 1 | `POST ""` — creates a `BookClub` (`club_type="self_serve"`) and its owner `ParticipantAccount` together, in one transaction; mirrors `club_routes.py`'s slug-collision retry. Rate-limited like registration. |
+
+Other participant-only modules: `participant_auth.py` (session dependency
+`CurrentParticipant`, mirrors `accounts/auth.py`), `participant_tokens.py`
+(mirrors `accounts/account_tokens.py`), `participant_email_delivery.py`
+(plain-text sends, mirrors `bookclub/email_delivery.py`),
+`participant_session.py` (see gotcha below — this is **not** a copy for
+duplication's sake, it fixes a real cookie-collision bug),
+`facilitator_auth.py` (`require_facilitator`/`CurrentFacilitator` — checks
+`role == "owner"` then sets `db.info["bookclub_id"]`/`["bookclub"]` exactly
+like `access.py`'s `require_selected_club` does for staff, so facilitator
+routes can call the *same* `crud.py` functions `routes.py` uses, just via a
+different auth path).
 
 ## Routes
 
@@ -54,7 +96,11 @@ Multi-tenant book club manager. Every club-owned table is scoped by
   **not** just `BookClubUser` — a request without a club selected in the
   session gets a 409, not a 401/403.
 - Public read-only access lives in `club_routes.py`'s `public_router`, not
-  in `routes.py` — don't look for it there.
+  in `routes.py` — don't look for it there. That same `public_router` is
+  mounted on *both* the primary app (serving `/api/public/clubs/{slug}` at
+  `libtools.app/clubs/{slug}`) and the `bookclub_public_app` sub-app (serving
+  it at `bookclub.libtools.app/clubs/{slug}`) — one router, two hosts, see
+  `docs/architecture.md`.
 - Uniqueness is per-club everywhere: two different clubs can have members
   with the same email, books with the same ISBN, or templates with the same
   key. Only `BookClub.slug` is globally unique.
@@ -89,6 +135,28 @@ Multi-tenant book club manager. Every club-owned table is scoped by
   `PATCH /bookclub/meetings/{id}` — unlike the email-sent timestamps below,
   it's a display-mode toggle (which view a session opens to by default), not
   an audit trail, so it doesn't get a dedicated endpoint.
+- **`bookclub_public_app` cannot use Starlette's stock `SessionMiddleware`.**
+  It's nested inside the primary app's own router via `Host()`, not a truly
+  separate ASGI mount, so it runs *inside* the primary app's own
+  `SessionMiddleware` too. Starlette's `SessionMiddleware` unconditionally
+  writes to `scope["session"]`; two nested instances (even with different
+  cookie names) alias onto that same scope key, so the *last* one to run
+  wins and its data gets serialized into *both* Set-Cookie headers —
+  participant session data was observed leaking into the `libtools_session`
+  cookie during Phase 2 testing. `participant_session.py`'s
+  `ParticipantSessionMiddleware` is a near-copy of Starlette's
+  implementation keyed on a private scope attribute instead — use
+  `get_participant_session(request)` from that module, never
+  `request.session`, anywhere in the participant code path. Any *future*
+  subdomain sub-app that needs its own session state will need the same
+  treatment, not Starlette's `SessionMiddleware` directly.
+- **`POST /participant/clubs` deliberately does not call
+  `crud.ensure_default_templates`.** `DEFAULT_TEMPLATES` (`crud.py:16-...`)
+  is hardcoded library-specific content (physical pickup/transfer copy, a
+  named organizer) — meaningless, confusing content for a self-serve club.
+  Self-serve clubs start with zero templates; sensible self-serve defaults
+  are a later phase's concern (see the plan/task list), not silently reused
+  from the library-club defaults.
 - The onboarding/arrival-email `mark-sent` endpoints
   (`.../onboarding-email/mark-sent`, `.../arrival-email/mark-sent`) record
   the sent-timestamp **without** calling `email_delivery` — for staff who

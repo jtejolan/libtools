@@ -130,7 +130,7 @@ const followupBlock = (bookclub) => {
   </a>`;
 };
 
-const bookclubCard = (tools, summary) => {
+const bookclubCard = (tools, summary, solo = false) => {
   const bookclub = summary?.bookclub;
   const meeting = bookclub?.next_meeting;
   const meetingDetails = meeting
@@ -146,7 +146,7 @@ const bookclubCard = (tools, summary) => {
        </div>`
     : `<div class="live-empty"><strong>No meeting scheduled</strong><span>${bookclub ? `${bookclub.club_count} ${bookclub.club_count === 1 ? "club" : "clubs"} ready for planning.` : "Live update unavailable"}</span></div>`;
 
-  return `<div class="dash-card dash-card-feature dash-bookclub is-link">
+  return `<div class="dash-card dash-card-feature dash-bookclub is-link${solo ? " dash-card-solo" : ""}">
     <a class="dash-card-linkarea" href="/bookclub" aria-label="Open Book Club Manager">
       <div class="dash-card-top">
         <div class="dash-card-identity">
@@ -161,6 +161,15 @@ const bookclubCard = (tools, summary) => {
     <a class="dash-card-cta" href="/bookclub">Open manager <b aria-hidden="true">→</b></a>
   </div>`;
 };
+
+// A self-serve book club lead's LibtoolsUser account is deliberately the
+// same account system staff use (see docs/backend/bookclub.md) — but their
+// dashboard should still look purpose-built rather than showing Lendery/
+// quick-actions cards that mean nothing to them. Anyone without admin role
+// or lendery_manage access, who does have at least one club, gets the
+// single enlarged Book Club Manager card instead of the full tool grid.
+const isBookclubOnlyFacilitator = (user, tools) =>
+  user.role !== "admin" && !tools.has("lendery_manage") && (user.clubs?.length ?? 0) > 0;
 
 const QUICK_ACTIONS = [
   {
@@ -380,15 +389,20 @@ const renderDashboard = (user, summary) => {
   dashboardState.user = user;
   dashboardState.summary = summary;
   dashboardState.tools = tools;
-  $("#tool-grid").innerHTML = [
-    lenderyCard(tools, summary),
-    bookclubCard(tools, summary),
-    quickActionsCard(tools, user.quick_actions || []),
-    quoteCard(),
-  ].join("");
+  const facilitatorOnly = isBookclubOnlyFacilitator(user, tools);
+  $("#tool-grid").innerHTML = facilitatorOnly
+    ? [bookclubCard(tools, summary, true), quoteCard()].join("")
+    : [
+        lenderyCard(tools, summary),
+        bookclubCard(tools, summary),
+        quickActionsCard(tools, user.quick_actions || []),
+        quoteCard(),
+      ].join("");
   initializeDashboardQuotes();
-  initializeLenderyScan();
-  initializeQuickActionsEditor();
+  if (!facilitatorOnly) {
+    initializeLenderyScan();
+    initializeQuickActionsEditor();
+  }
 };
 
 const initializeLenderyScan = () => {

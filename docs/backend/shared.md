@@ -4,7 +4,7 @@ Reference doc for the files every package (`accounts/`, `bookclub/`,
 `lendery/`) can depend on. See `docs/architecture.md` for how they fit
 together narratively; this file is the module → symbol lookup.
 
-## `main.py` (268 lines)
+## `main.py` (366 lines)
 
 App wiring only — no business logic. `lifespan()` runs Alembic migrations to
 `head` (`_run_migrations()`) then seeds/repairs platform accounts
@@ -16,9 +16,12 @@ manually re-added at `/docs`/`/openapi.json`, gated behind
 comes from `LIBTOOLS_SESSION_SECRET` and the app refuses to start on Railway
 without it. Mounts all package routers, mounts `/static` to `frontend/`,
 serves fixed-HTML "SPA page" routes (`/dashboard`, `/lendery`, `/bookclub`,
-`/login`, `/account`, `/clubs/{slug}`, etc.), and mounts a **second, separate
-FastAPI app** (`lendery_public_app`) for the `lendery.libtools.app`
-subdomain. See `docs/architecture.md` for why.
+`/login`, `/account`, `/clubs/{slug}`, etc.), and mounts **two further,
+separate FastAPI apps**: `lendery_public_app` for the `lendery.libtools.app`
+subdomain (no auth at all), and `bookclub_public_app` for the
+`bookclub.libtools.app` subdomain (its own `SessionMiddleware`, cookie
+`bookclub_participant_session`, kept distinct from `libtools_session`). See
+`docs/architecture.md` for why.
 
 ## `database.py` (64 lines)
 
@@ -52,10 +55,10 @@ Low-level email transport. Each package wraps this with its own templates:
 
 - `backend/app/models.py` exists but is **empty (0 lines)** — vestigial,
   ignore it. Each package has its own `models.py`.
-- `lendery.libtools.app` is inserted at `app.router.routes[0]` (not
-  appended) so host-based routing matches it before the generic any-host
-  routes below would otherwise shadow it for the same paths — see
-  `docs/architecture.md`.
+- `lendery.libtools.app` and `bookclub.libtools.app` are each inserted at
+  `app.router.routes[0]` (not appended) so host-based routing matches them
+  before the generic any-host routes below would otherwise shadow them for
+  the same paths — see `docs/architecture.md`.
 - `backend/librarytools.db` is a **committed** dev/seed SQLite database. On
   Railway with SQLite, `backend/start.sh` copies it onto the attached volume
   on first boot only; Postgres deployments start empty (no import of local

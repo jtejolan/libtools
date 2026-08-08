@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#173f35" />
+    <title>Your dashboard — Book Club</title>
+    <link rel="icon" type="image/svg+xml" href="/static/assets/library-tools-logo-classic.svg?v=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/platform.css?v=7" />
+    <script src="/static/dom-utils.js?v=1" defer></script>
+    <script src="/static/bookclub-participant.js?v=1" defer></script>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="site-header">
+        <a class="brand" href="/"><img src="/static/assets/library-tools-logo-classic.svg?v=1" alt="" /><span>Book Club</span></a>
+        <div class="header-actions">
+          <button class="quiet-button" id="logout">Log out</button>
+        </div>
+      </header>
+
+      <main class="dashboard">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow" id="club-eyebrow">Your club</p>
+            <h1 id="welcome-heading">Welcome</h1>
+            <p class="dashboard-lede">Rate what you've read and vote on what's next, right here.</p>
+          </div>
+        </div>
+        <div class="account-grid">
+          <section class="panel" id="email-panel" hidden>
+            <h2>Verify your email</h2>
+            <p class="muted" id="email-copy"></p>
+            <button class="secondary-button" id="resend-verification">Resend verification</button>
+            <p class="delivery-note" id="verification-delivery-note" hidden></p>
+          </section>
+          <section class="panel">
+            <h2>Ratings</h2>
+            <p class="muted">Rating the books you've read is coming soon.</p>
+          </section>
+          <section class="panel">
+            <h2>Vote on the next book</h2>
+            <p class="muted">Voting is coming soon.</p>
+          </section>
+        </div>
+      </main>
+    </div>
+    <div class="toast" id="toast"></div>
+  </body>
+</html>

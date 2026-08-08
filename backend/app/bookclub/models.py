@@ -28,6 +28,14 @@ class BookClub(Base):
     organizer_name: Mapped[str | None] = mapped_column(String(200))
     organizer_branch: Mapped[str | None] = mapped_column(String(200))
     video_call_url: Mapped[str | None] = mapped_column(String(500))
+    # "library" clubs are staff-run (LibtoolsUser + BookClubAccess, managed
+    # from the /bookclub staff tool); "self_serve" clubs are facilitator-run
+    # (an owner-role ParticipantAccount, managed from bookclub.libtools.app).
+    # The two are already structurally disjoint — a self_serve club never
+    # gets a BookClubAccess row and a library club never gets an owner
+    # ParticipantAccount — this column exists for filtering (e.g. the admin
+    # visibility view), not as the actual access-control mechanism.
+    club_type: Mapped[str] = mapped_column(String(20), default="library", server_default="library")
 
     access: Mapped[list["BookClubAccess"]] = relationship(
         back_populates="club", cascade="all, delete-orphan"

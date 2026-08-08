@@ -132,6 +132,32 @@ a single IIFE fetches `GET /api/public/clubs/{slug}` and renders the club
 name/description, book shelf, and next meeting directly into the DOM. Uses
 `platform.css`, not `bookclub.css`.
 
+## `bookclub.libtools.app` pages
+
+Served by `bookclub_public_app` (see `docs/architecture.md`), not the
+primary app — separate pages from everything above, styled with
+`platform.css` for visual consistency but functionally independent.
+
+- **`bookclub-landing.html` / `.js`** — subdomain root. "Start a club" goes
+  to `/create` — entirely in-subdomain, since facilitators are
+  `ParticipantAccount`s now, not `LibtoolsUser`s (see
+  `docs/backend/bookclub.md`); "Find your club" is a slug search that
+  navigates to `/clubs/{slug}`.
+- **`bookclub-account.html` / `.js`** — one shared shell for both the
+  facilitator create-club flow and participant
+  join/login/forgot-password/verify-email/reset-password, keyed by URL path
+  the same way `account.html`/`account.js` handles the equivalent staff
+  flows. `/create` (create a club + its owner account together, no slug —
+  there's no club yet), `/clubs/{slug}/join`, `/clubs/{slug}/login`, and
+  `/clubs/{slug}/forgot-password` read the slug from the URL path (no club
+  picker); `/verify-email` and `/reset-password` don't need one since a
+  token alone identifies the participant.
+- **`bookclub-participant.html` / `.js`** — logged-in participant dashboard
+  at `/dashboard`, shared by both plain participants and facilitators
+  (`role="owner"`). Currently a shell (welcome message, email-verification
+  nudge, logout) — rating/voting UI and a facilitator-only "manage your
+  club" console entry point land in later phases.
+
 ## Gotchas
 
 - `bookclub.js`'s `state.view` drives which tab is rendered — most render
@@ -139,3 +165,7 @@ name/description, book shelf, and next meeting directly into the DOM. Uses
 - `public-club.js` is genuinely minified (not just short) — if it needs a
   real edit, consider whether to de-minify it first rather than hand-editing
   packed code.
+- `public-club.html`/`.js` is shared: it's served both at
+  `libtools.app/clubs/{slug}` (primary app) and
+  `bookclub.libtools.app/clubs/{slug}` (`bookclub_public_app`) — one file,
+  two hosts.
