@@ -53,6 +53,11 @@ No `crud.py` in this package — DB operations live inline in `routes.py` and
 - Passwords are hashed with **scrypt** (`backend/app/security.py`), not
   bcrypt/argon2 — don't swap libraries without a reason (see
   `docs/coding-guidelines.md`).
+- Email is required for new accounts (`RegistrationRequest`/`UserCreate` in
+  `schemas.py`), enforced at the Pydantic/frontend level only — the
+  `libtools_users.email` column itself stays nullable so pre-existing
+  accounts created before this requirement (e.g. the bootstrap admin) don't
+  break.
 
 ## Where to look for X
 

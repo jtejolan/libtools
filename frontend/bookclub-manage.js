@@ -1,7 +1,8 @@
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const API = "/bookclub/community";
-const state = { books: [], announcements: [], overview: null };
+const PARTICIPANT_PORTAL_ORIGIN = "https://bookclub.libtools.app";
+const state = { books: [], announcements: [], overview: null, club: null };
 
 const request = async (url, options = {}) => {
   const response = await fetch(url, { ...options, cache: "no-store", headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...options.headers } });
@@ -27,6 +28,7 @@ const formatTimestamp = (value) => new Intl.DateTimeFormat(undefined, { month: "
 const capitalizeFirst = (value = "") => value ? value[0].toLocaleUpperCase() + value.slice(1) : "";
 
 const applyManagerShell = (user, club) => {
+  state.club = club;
   $("#sidebar-club-name").textContent = club.name;
   $("#switch-club").textContent = club.name;
   $("#club-eyebrow").textContent = club.name;
@@ -36,7 +38,7 @@ const applyManagerShell = (user, club) => {
   $$('[data-platform-admin-only]').forEach((element) => { element.hidden = user.role !== "admin"; });
   const publicLink = $("#public-club-link");
   publicLink.hidden = !club.public;
-  publicLink.href = `/clubs/${encodeURIComponent(club.slug)}`;
+  publicLink.href = `${PARTICIPANT_PORTAL_ORIGIN}/clubs/${encodeURIComponent(club.slug)}`;
 };
 
 const selectView = (view) => {
@@ -46,6 +48,56 @@ const selectView = (view) => {
 
 $$(".manage-tab").forEach((tab) => tab.addEventListener("click", () => selectView(tab.dataset.view)));
 $$("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => $(`#${button.dataset.closeDialog}`).close()));
+
+const participantInviteUrl = (club) => `${PARTICIPANT_PORTAL_ORIGIN}/clubs/${encodeURIComponent(club.slug)}`;
+
+const copyText = async (value) => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const temporary = document.createElement("textarea");
+  temporary.value = value;
+  temporary.setAttribute("readonly", "");
+  temporary.style.position = "fixed";
+  temporary.style.opacity = "0";
+  document.body.append(temporary);
+  temporary.select();
+  const copied = document.execCommand("copy");
+  temporary.remove();
+  if (!copied) throw new Error("Copying is unavailable in this browser");
+};
+
+const openInviteDialog = () => {
+  const club = state.club;
+  if (!club) return;
+  const publicClub = Boolean(club.public);
+  $("#invite-private-state").hidden = publicClub;
+  $("#invite-share-content").hidden = !publicClub;
+  if (publicClub) {
+    const url = participantInviteUrl(club);
+    $("#invite-link-value").value = url;
+    $("#invite-code-value").textContent = club.slug;
+    $("#invite-preview-link").href = url;
+    $("#invite-qr-image").src = `${API}/invite-qr.svg`;
+    $("#invite-qr-image").alt = `QR code for the ${club.name} invitation`;
+    $("#invite-qr-download").href = `${API}/invite-qr.svg`;
+    $("#invite-qr-download").download = `${club.slug}-invite-qr.svg`;
+    $("#invite-qr-club-name").textContent = club.name;
+  }
+  $("#invite-readers-dialog").showModal();
+};
+
+$("#invite-readers").addEventListener("click", openInviteDialog);
+$$("[data-copy-invite]").forEach((button) => button.addEventListener("click", async () => {
+  const value = button.dataset.copyInvite === "code" ? state.club?.slug : participantInviteUrl(state.club);
+  try {
+    await copyText(value);
+    toast(button.dataset.copyInvite === "code" ? "Club code copied." : "Invitation link copied.");
+  } catch (error) {
+    toast(error.message);
+  }
+}));
 
 const activationLabel = (status) => ({ active: "Activated", pending_verification: "Verify email", not_registered: "Not registered" })[status] || status;
 const activationClass = (status) => status === "active" ? "" : status === "pending_verification" ? "pending" : "unlinked";

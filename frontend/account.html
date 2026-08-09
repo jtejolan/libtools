@@ -52,11 +52,11 @@
             <div id="signup-form-view">
               <p class="eyebrow">New Libtools account</p>
               <h2>Create your account</h2>
-              <p class="muted">Email is optional. If supplied, it can be verified and used for password recovery.</p>
+              <p class="muted">Email is required. It can be verified and used for password recovery.</p>
               <form id="signup-form">
                 <label class="field"><span>Name</span><input name="name" maxlength="200" required autocomplete="name" autofocus /></label>
                 <label class="field"><span>Username</span><input name="username" minlength="2" maxlength="80" required autocomplete="username" /></label>
-                <label class="field"><span>Email <small>optional</small></span><input name="email" type="email" maxlength="320" autocomplete="email" /></label>
+                <label class="field"><span>Email</span><input name="email" type="email" maxlength="320" required autocomplete="email" /></label>
                 <label class="field"><span>Password</span><input name="password" type="password" minlength="10" maxlength="200" required autocomplete="new-password" /></label>
                 <label class="field"><span>Confirm password</span><input name="confirm_password" type="password" minlength="10" maxlength="200" required autocomplete="new-password" /></label>
                 <p class="form-error" id="signup-error"></p>

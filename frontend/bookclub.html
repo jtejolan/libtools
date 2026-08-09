@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/static/bookclub.css?v=37" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub.js?v=36" defer></script>
+    <script src="/static/bookclub.js?v=37" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -46,7 +46,7 @@
         <header class="topbar">
           <div class="breadcrumb"><span>Book Club Manager</span><i>/</i><strong id="breadcrumb-page">Next meeting</strong></div>
           <div class="topbar-actions">
-            <a class="account-button" id="public-club-link" href="#" target="_blank" hidden>Public page ↗</a>
+            <a class="account-button" id="public-club-link" href="#" target="_blank" rel="noopener" hidden>Public page ↗</a>
             <button class="club-switcher" id="switch-club" type="button">Choose club</button>
             <span class="role-badge" id="user-badge">Member</span>
             <details class="account-menu" id="account-menu">

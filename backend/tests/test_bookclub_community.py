@@ -112,6 +112,22 @@ class BookClubCommunityTests(unittest.TestCase):
         self.assertEqual(activated["verified_account_count"], 1)
         self.assertEqual(activated["pending_verification_count"], 0)
 
+    def test_facilitator_can_generate_an_invitation_qr_code(self) -> None:
+        response = self.facilitator.get("/bookclub/community/invite-qr.svg")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.headers["content-type"].startswith("image/svg+xml"))
+        self.assertEqual(response.headers["cache-control"], "private, no-store")
+        self.assertIn("<svg", response.text)
+        self.assertGreater(len(response.content), 500)
+
+        club = self.facilitator.get("/bookclub/clubs/selected").json()
+        updated = self.facilitator.patch(
+            f"/bookclub/clubs/{club['id']}", json={"public": False}
+        )
+        self.assertEqual(updated.status_code, 200, updated.text)
+        unavailable = self.facilitator.get("/bookclub/community/invite-qr.svg")
+        self.assertEqual(unavailable.status_code, 409, unavailable.text)
+
     def test_announcements_are_managed_by_facilitator_and_read_by_participant(self) -> None:
         created = self.facilitator.post("/bookclub/community/announcements", json={
             "title": "Bring your copy", "body": "We will compare editions.", "pinned": True,

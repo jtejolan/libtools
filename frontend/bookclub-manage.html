@@ -10,9 +10,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/static/bookclub.css?v=37" />
-    <link rel="stylesheet" href="/static/bookclub-manage.css?v=1" />
+    <link rel="stylesheet" href="/static/bookclub-manage.css?v=2" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub-manage.js?v=6" defer></script>
+    <script src="/static/bookclub-manage.js?v=7" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -34,7 +34,7 @@
         <header class="topbar">
           <div class="breadcrumb"><span>Book Club Manager</span><i>/</i><strong>Community</strong></div>
           <div class="topbar-actions">
-            <a class="account-button" id="public-club-link" href="#" target="_blank" hidden>Public page ↗</a>
+            <a class="account-button" id="public-club-link" href="#" target="_blank" rel="noopener" hidden>Public page ↗</a>
             <a class="club-switcher" id="switch-club" href="/bookclub">Your club</a>
             <span class="role-badge" id="user-badge">Member</span>
             <details class="account-menu" id="account-menu"><summary class="account-menu-trigger"><span id="account-menu-name">Account</span><span aria-hidden="true">⌄</span></summary><div class="account-menu-panel"><p class="account-menu-username" id="account-menu-username"></p><a href="/admin/accounts" data-platform-admin-only hidden>Manage users</a><a href="https://lendery.libtools.app/" target="_blank" rel="noopener" data-platform-admin-only hidden>Quick check</a><a href="/account">My account</a><button id="logout" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /></svg> Log out</button></div></details>
@@ -42,7 +42,7 @@
         </header>
 
         <div class="content community-content">
-          <header class="page-heading"><div><p class="eyebrow"><span></span><b id="club-eyebrow">Participant engagement</b></p><h1>Community</h1><p class="intro">Keep participant conversations and decisions moving between meetings.</p></div><button class="primary-button" id="new-announcement">New announcement</button></header>
+          <header class="page-heading"><div><p class="eyebrow"><span></span><b id="club-eyebrow">Participant engagement</b></p><h1>Community</h1><p class="intro">Keep participant conversations and decisions moving between meetings.</p></div><div class="page-heading-actions"><button class="secondary-button" id="new-announcement">New announcement</button><button class="primary-button invite-readers-button" id="invite-readers"><span aria-hidden="true">＋</span> Invite readers</button></div></header>
 
           <nav class="manage-tabs" aria-label="Community sections"><button class="manage-tab active" type="button" data-view="overview">Overview</button><button class="manage-tab" type="button" data-view="voting">Next book</button><button class="manage-tab" type="button" data-view="date-poll">Meeting date</button><button class="manage-tab" type="button" data-view="announcements">Announcements</button></nav>
 
@@ -59,6 +59,19 @@
       </main>
     </div>
 
+    <dialog class="manage-dialog invite-dialog" id="invite-readers-dialog">
+      <div class="invite-dialog-heading"><div><p class="eyebrow"><span></span>Grow your community</p><h2>Invite readers</h2><p class="muted">Share one link. Readers can learn about the club, join, or sign in.</p></div><button class="invite-dialog-close" type="button" data-close-dialog="invite-readers-dialog" aria-label="Close invitation dialog">×</button></div>
+      <section class="invite-private-state" id="invite-private-state" hidden><span aria-hidden="true">◇</span><div><h3>Make this club public first</h3><p>Reader invitations are unavailable while the public page is private. Change the Public page setting, then return here to share it.</p><a class="primary-button button-link" href="/bookclub?action=view-settings">Open club settings</a></div></section>
+      <div class="invite-share-layout" id="invite-share-content">
+        <section class="invite-details">
+          <div class="invite-value-group"><label for="invite-link-value">Invitation link</label><div class="invite-value-row"><input id="invite-link-value" type="text" readonly /><button class="secondary-button" type="button" data-copy-invite="link">Copy link</button></div><small>Best for email, text messages, and social posts.</small></div>
+          <div class="invite-value-group"><span class="invite-value-label">Club code</span><div class="invite-code-row"><code id="invite-code-value"></code><button class="quiet-button" type="button" data-copy-invite="code">Copy code</button></div><small>Readers can enter this code on the Book Club home page.</small></div>
+          <div class="invite-dialog-actions"><a class="secondary-button button-link" id="invite-preview-link" href="#" target="_blank" rel="noopener">Preview public page ↗</a><a class="secondary-button button-link" id="invite-qr-download" href="#" download>Download QR code</a></div>
+          <p class="invite-tip"><span aria-hidden="true">✦</span><strong>Sharing tip</strong> Add this link to meeting reminders and registration emails so readers can always find their way back.</p>
+        </section>
+        <figure class="invite-qr-card"><div class="invite-qr-frame"><img id="invite-qr-image" alt="" /></div><figcaption><strong>Scan to join</strong><span id="invite-qr-club-name">Your book club</span></figcaption></figure>
+      </div>
+    </dialog>
     <dialog class="manage-dialog" id="start-voting-dialog"><form id="start-voting-form"><h2>Start a book poll</h2><p class="muted">Choose the first books participants can vote on.</p><div id="start-voting-choices" class="check-row"></div><p class="form-error" id="start-voting-error"></p><div class="dialog-buttons"><button class="quiet-button" type="button" data-close-dialog="start-voting-dialog">Cancel</button><button class="primary-button" type="submit">Open voting</button></div></form></dialog>
     <dialog class="manage-dialog" id="start-date-poll-dialog"><form id="start-date-poll-form"><h2>Start a date poll</h2><p class="muted">Propose a few dates. You can add more later.</p><label class="field"><span>Date option 1</span><input type="date" name="option_dates" required autofocus /></label><label class="field"><span>Date option 2 <small>optional</small></span><input type="date" name="option_dates" /></label><label class="field"><span>Date option 3 <small>optional</small></span><input type="date" name="option_dates" /></label><p class="form-error" id="start-date-poll-error"></p><div class="dialog-buttons"><button class="quiet-button" type="button" data-close-dialog="start-date-poll-dialog">Cancel</button><button class="primary-button" type="submit">Open poll</button></div></form></dialog>
     <dialog class="manage-dialog" id="announcement-dialog"><form id="announcement-form"><h2 id="announcement-dialog-title">New announcement</h2><input type="hidden" name="id" /><label class="field"><span>Title</span><input name="title" maxlength="200" required autofocus /></label><label class="field"><span>Message</span><textarea name="body" rows="7" maxlength="10000" required></textarea></label><label class="pin-option"><input name="pinned" type="checkbox" /> Pin this announcement</label><p class="form-error" id="announcement-error"></p><div class="dialog-buttons"><button class="secondary-button" type="button" id="delete-announcement" hidden>Delete</button><button class="quiet-button" type="button" data-close-dialog="announcement-dialog">Cancel</button><button class="primary-button" type="submit">Publish</button></div></form></dialog>

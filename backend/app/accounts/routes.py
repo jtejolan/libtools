@@ -79,7 +79,7 @@ def register(
 ):
     if auth.get_user(db, value.username) is not None:
         raise HTTPException(status_code=409, detail="That account name is already in use")
-    if value.email and auth.get_user_by_email(db, value.email) is not None:
+    if auth.get_user_by_email(db, value.email) is not None:
         raise HTTPException(status_code=409, detail="That email address is already in use")
 
     user = models.LibtoolsUser(
@@ -91,16 +91,14 @@ def register(
     )
     db.add(user)
     recovery_code = auth.issue_recovery_code(user)
-    verification_token = None
     try:
         db.flush()
-        if user.email:
-            verification_token = account_tokens.issue_token(
-                db,
-                user,
-                account_tokens.EMAIL_VERIFICATION,
-                account_tokens.EMAIL_VERIFICATION_LIFETIME,
-            )
+        verification_token = account_tokens.issue_token(
+            db,
+            user,
+            account_tokens.EMAIL_VERIFICATION,
+            account_tokens.EMAIL_VERIFICATION_LIFETIME,
+        )
         db.commit()
         db.refresh(user)
     except IntegrityError as exc:
@@ -112,15 +110,11 @@ def register(
 
     request.session["libtools_user_id"] = user.id
     request.session["libtools_session_version"] = user.session_version
-    delivered = (
-        _deliver_verification(request, user, verification_token)
-        if verification_token
-        else False
-    )
+    delivered = _deliver_verification(request, user, verification_token)
     return schemas.RegistrationResponse(
         **auth.user_response(db, user).model_dump(),
         recovery_code=recovery_code,
-        email_verification_required=user.email is not None,
+        email_verification_required=True,
         email_delivery_configured=delivered,
     )
 
@@ -491,7 +485,7 @@ def create_user(
 ):
     if auth.get_user(db, value.username) is not None:
         raise HTTPException(status_code=409, detail="That account name is already in use")
-    if value.email and auth.get_user_by_email(db, value.email) is not None:
+    if auth.get_user_by_email(db, value.email) is not None:
         raise HTTPException(status_code=409, detail="That email address is already in use")
     user = models.LibtoolsUser(
         name=value.name,
@@ -503,16 +497,14 @@ def create_user(
     db.add(user)
     code = auth.issue_recovery_code(user)
     auth.set_tools(db, user, value.tools)
-    verification_token = None
     try:
         db.flush()
-        if user.email:
-            verification_token = account_tokens.issue_token(
-                db,
-                user,
-                account_tokens.EMAIL_VERIFICATION,
-                account_tokens.EMAIL_VERIFICATION_LIFETIME,
-            )
+        verification_token = account_tokens.issue_token(
+            db,
+            user,
+            account_tokens.EMAIL_VERIFICATION,
+            account_tokens.EMAIL_VERIFICATION_LIFETIME,
+        )
         db.commit()
         db.refresh(user)
     except IntegrityError as exc:
@@ -521,15 +513,11 @@ def create_user(
             status_code=409,
             detail="That account name or email address is already in use",
         ) from exc
-    delivered = (
-        _deliver_verification(request, user, verification_token)
-        if verification_token
-        else False
-    )
+    delivered = _deliver_verification(request, user, verification_token)
     return schemas.UserCreatedResponse(
         **auth.user_response(db, user).model_dump(),
         recovery_code=code,
-        email_verification_required=user.email is not None,
+        email_verification_required=True,
         email_delivery_configured=delivered,
     )
 

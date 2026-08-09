@@ -58,7 +58,7 @@ class PasswordPair(BaseModel):
 class UserCreate(PasswordPair):
     name: str = Field(min_length=1, max_length=200)
     username: str = Field(min_length=2, max_length=80)
-    email: str | None = Field(default=None, max_length=320)
+    email: str = Field(min_length=3, max_length=320)
     role: PlatformRole = "user"
     tools: list[ToolKey] = Field(default_factory=list)
 
@@ -74,14 +74,17 @@ class UserCreate(PasswordPair):
 
     @field_validator("email")
     @classmethod
-    def validate_email(cls, value: str | None) -> str | None:
-        return clean_email(value)
+    def validate_email(cls, value: str) -> str:
+        cleaned = clean_email(value)
+        if cleaned is None:
+            raise ValueError("Email is required")
+        return cleaned
 
 
 class RegistrationRequest(PasswordPair):
     name: str = Field(min_length=1, max_length=200)
     username: str = Field(min_length=2, max_length=80)
-    email: str | None = Field(default=None, max_length=320)
+    email: str = Field(min_length=3, max_length=320)
 
     @field_validator("name")
     @classmethod
@@ -95,8 +98,11 @@ class RegistrationRequest(PasswordPair):
 
     @field_validator("email")
     @classmethod
-    def validate_email(cls, value: str | None) -> str | None:
-        return clean_email(value)
+    def validate_email(cls, value: str) -> str:
+        cleaned = clean_email(value)
+        if cleaned is None:
+            raise ValueError("Email is required")
+        return cleaned
 
 
 class UserUpdate(BaseModel):

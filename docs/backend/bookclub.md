@@ -109,6 +109,10 @@ Migration `b4d7f1a3c920` adds optional reading progress and notification prefere
   same kind of scraping for item metadata but is a **separate, unshared**
   implementation — a markup/parsing fix here does not automatically apply
   there. See `docs/backend/lendery.md`.
+- `facilitator_routes.py` also serves an authenticated, no-store SVG invitation
+  QR code for the selected public club at `/bookclub/community/invite-qr.svg`.
+  The encoded destination always uses the participant portal origin; private
+  clubs receive `409` until their public page is enabled.
 - `scheduling.py` (34 lines) — `parse_meeting_time()` (free-text, 5 known
   formats) and `meeting_datetime_range()`. Lives outside both `models.py`
   and `crud.py` so each can import it without a circular dependency;

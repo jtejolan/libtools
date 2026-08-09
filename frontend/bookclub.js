@@ -1,3 +1,5 @@
+const BOOKCLUB_PARTICIPANT_ORIGIN = "https://bookclub.libtools.app";
+
 const state = {
   user: null,
   clubs: [],
@@ -101,7 +103,7 @@ const applyClub = (club) => {
   $("#switch-club").textContent = club.name;
   const publicLink = $("#public-club-link");
   publicLink.hidden = !club.public;
-  publicLink.href = `/clubs/${encodeURIComponent(club.slug)}`;
+  publicLink.href = `${BOOKCLUB_PARTICIPANT_ORIGIN}/clubs/${encodeURIComponent(club.slug)}`;
 };
 
 const populateClubSettingsForm = () => {

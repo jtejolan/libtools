@@ -185,7 +185,11 @@ name/description, book shelf, and next meeting directly into the DOM. Uses
   session and selected club. It shares the Book Club Manager's green sidebar,
   account menu, responsive shell, and direct navigation to the Meetings, Books,
   Members, and Settings views. Its content focuses on community health/account
-  activation, next-meeting RSVP counts, book/date polls, and announcements.
+  activation, next-meeting RSVP counts, book/date polls, and announcements. A
+  prominent **Invite readers** dialog supplies the canonical
+  `bookclub.libtools.app/clubs/{slug}` link, copyable club code, downloadable
+  QR code, and public-page preview. Private clubs see a settings prompt instead
+  of unusable share controls.
   Books, meetings, roster details, and email templates stay on their dedicated
   manager pages.
 

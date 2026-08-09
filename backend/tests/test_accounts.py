@@ -77,6 +77,7 @@ class PlatformAccountTests(unittest.TestCase):
             json={
                 "name": username,
                 "username": username,
+                "email": f"{username.lower().replace(' ', '.')}@example.com",
                 "password": "starting-password",
                 "confirm_password": "starting-password",
                 "tools": [],
@@ -144,7 +145,7 @@ class PlatformAccountTests(unittest.TestCase):
                 json={
                     "name": "New Reader",
                     "username": "  New   Reader  ",
-                    "email": "",
+                    "email": "new.reader@example.com",
                     "password": "reader-password",
                     "confirm_password": "reader-password",
                 },
@@ -153,7 +154,7 @@ class PlatformAccountTests(unittest.TestCase):
             created = response.json()
             self.assertEqual(created["name"], "New Reader")
             self.assertEqual(created["username"], "New Reader")
-            self.assertIsNone(created["email"])
+            self.assertEqual(created["email"], "new.reader@example.com")
             self.assertFalse(created["email_verified"])
             self.assertTrue(created["recovery_code"])
             self.assertEqual(client.get("/auth/me").status_code, 200)
@@ -164,6 +165,7 @@ class PlatformAccountTests(unittest.TestCase):
                     json={
                         "name": "New Reader Duplicate",
                         "username": "new reader",
+                        "email": "another.reader@example.com",
                         "password": "another-password",
                         "confirm_password": "another-password",
                     },
@@ -179,6 +181,23 @@ class PlatformAccountTests(unittest.TestCase):
                 )
                 self.assertIsNotNone(user.recovery_code_hash)
                 self.assertNotIn(created["recovery_code"], user.recovery_code_hash)
+        finally:
+            client.close()
+
+    def test_public_registration_without_an_email_is_rejected(self) -> None:
+        client = TestClient(app)
+        try:
+            response = client.post(
+                "/auth/register",
+                json={
+                    "name": "No Email Reader",
+                    "username": "No Email Reader",
+                    "email": "",
+                    "password": "reader-password",
+                    "confirm_password": "reader-password",
+                },
+            )
+            self.assertEqual(response.status_code, 422, response.text)
         finally:
             client.close()
 
@@ -353,6 +372,7 @@ class PlatformAccountTests(unittest.TestCase):
                 json={
                     "name": "Assisted Reader",
                     "username": "Assisted Reader",
+                    "email": "assisted.reader@example.com",
                     "password": "original-password",
                     "confirm_password": "original-password",
                 },
@@ -501,6 +521,7 @@ class PlatformAccountTests(unittest.TestCase):
             json={
                 "name": "Inventory Viewer",
                 "username": "Inventory Viewer",
+                "email": "inventory.viewer@example.com",
                 "password": "viewer-password",
                 "confirm_password": "viewer-password",
                 "tools": [],
@@ -672,6 +693,7 @@ class PlatformAccountTests(unittest.TestCase):
             json={
                 "name": "Dashboard Viewer",
                 "username": "Dashboard Viewer",
+                "email": "dashboard.viewer@example.com",
                 "password": "viewer-password",
                 "confirm_password": "viewer-password",
                 "tools": [],

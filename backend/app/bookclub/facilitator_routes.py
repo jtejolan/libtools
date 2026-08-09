@@ -1,6 +1,8 @@
 from datetime import date
 from typing import Annotated
 
+import qrcode
+import qrcode.image.svg
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -43,10 +45,32 @@ router = APIRouter(
 
 Offset = Annotated[int, Query(ge=0)]
 Limit = Annotated[int, Query(ge=1, le=500)]
+PARTICIPANT_PORTAL_ORIGIN = "https://bookclub.libtools.app"
 
 
 def _not_found(detail: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+
+
+@router.get("/invite-qr.svg")
+def invite_qr_code(club: SelectedClub) -> Response:
+    if not club.public:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Make this club public before sharing an invitation",
+        )
+    invite_url = f"{PARTICIPANT_PORTAL_ORIGIN}/clubs/{club.slug}"
+    image = qrcode.make(
+        invite_url,
+        image_factory=qrcode.image.svg.SvgPathFillImage,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        border=4,
+    )
+    return Response(
+        content=image.to_string(),
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "private, no-store"},
+    )
 
 
 @router.get("/overview", response_model=CommunityOverviewResponse)
