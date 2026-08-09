@@ -11,7 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/static/platform.css?v=7" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub-account.js?v=1" defer></script>
+    <script src="/static/bookclub-account.js?v=2" defer></script>
   </head>
   <body>
     <div class="shell">
@@ -30,7 +30,7 @@
           <div class="auth-card" id="join-card" hidden>
             <p class="eyebrow">Join this club</p>
             <h2>Create your account</h2>
-            <p class="muted">Rate what you've read and vote on what's next.</p>
+            <p class="muted" id="join-description">Rate what you've read, RSVP, and vote on what comes next.</p>
             <form id="join-form">
               <label class="field"><span>Name</span><input name="name" maxlength="200" required autocomplete="name" autofocus /></label>
               <label class="field"><span>Email</span><input name="email" type="email" maxlength="320" required autocomplete="email" /></label>

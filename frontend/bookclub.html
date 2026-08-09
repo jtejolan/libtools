@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/static/bookclub.css?v=37" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub.js?v=37" defer></script>
+    <script src="/static/bookclub.js?v=38" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -251,6 +251,7 @@
                   <label class="field"><span>Home branch</span><input name="organizer_branch" maxlength="200" /></label>
                   <label class="field field-wide"><span>Video call link</span><input name="video_call_url" type="url" placeholder="https://zoom.us/j/…" /><small class="field-help">Used in calendar invites for hybrid meetings. Rarely changes.</small></label>
                   <label class="field"><span>Public page</span><select name="public"><option value="true">Public</option><option value="false">Private</option></select></label>
+                  <label class="field"><span>Who can join</span><select name="enrollment_policy"><option value="open">Anyone with the link</option><option value="invite_only">Invitation only</option><option value="closed">Closed to new accounts</option></select><small class="field-help">Invitation only requires the reader's email to already be on the Members roster.</small></label>
                 </div>
                 <p class="form-error" id="club-settings-error"></p>
                 <div class="dialog-actions"><button class="primary-button" type="submit">Save club settings</button></div>

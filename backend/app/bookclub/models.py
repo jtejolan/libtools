@@ -26,6 +26,11 @@ class BookClub(Base):
     slug: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     description: Mapped[str | None] = mapped_column(Text())
     public: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
+    # Page visibility and enrollment are intentionally separate: a club can
+    # advertise its reading program without accepting unrestricted signups.
+    enrollment_policy: Mapped[str] = mapped_column(
+        String(20), default="open", server_default="open"
+    )
     organizer_name: Mapped[str | None] = mapped_column(String(200))
     organizer_branch: Mapped[str | None] = mapped_column(String(200))
     video_call_url: Mapped[str | None] = mapped_column(String(500))

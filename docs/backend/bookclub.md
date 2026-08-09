@@ -9,7 +9,7 @@ Multi-tenant book club manager. Every club-owned table is scoped by
 
 | Model | Table | Purpose |
 |---|---|---|
-| `BookClub` | `book_clubs` | A club: name, slug, `public` flag, organizer info, and `club_type` (`library`/`private`, presentation/defaults only) |
+| `BookClub` | `book_clubs` | A club: name, slug, `public` page flag, independent `enrollment_policy` (`open`/`invite_only`/`closed`), organizer info, and `club_type` (`library`/`private`, presentation/defaults only) |
 | `BookClubAccess` | `book_club_access` | User-to-club grant (`role`, e.g. owner) |
 | `BookClubMember` | `bookclub_members` | A club's member roster; unique per `(club_id, email)`; carries delivery details plus transit-label/email timestamps |
 | `BookClubBook` | `bookclub_books` | A book the club has read/will read; unique per `(club_id, isbn)`; can be flagged as an undated past selection |
@@ -38,9 +38,11 @@ paths redirect to the corresponding `libtools.app` account/manager flows.
 `BookClubMember` is the canonical roster record. It may have a nullable
 `participant_account_id`; unlinked members still support attendance, email,
 delivery, notes, and giveaways, while linked members can also use announcements,
-RSVP, ratings, book voting, and date polling. Registration claims an existing same-email
-roster row or creates a new one. A successful login can claim an unlinked
-same-email row in another club.
+RSVP, ratings, book voting, and date polling. For an `open` club, registration
+or an existing participant account can create a new linked roster row. An
+`invite_only` club requires the facilitator to preload the same email on the
+roster; `closed` permits only already-linked accounts to sign in. Public-page
+visibility is deliberately independent from all three enrollment modes.
 
 `ParticipantAccount` is a global email/password identity, unique by email,
 and can link to roster entries in multiple clubs. The participant session
@@ -76,7 +78,9 @@ login verifies the participant once, claims any still-unlinked active roster
 rows with the same email, and returns the account's public clubs. Authenticated
 readers can list those clubs and switch the active `bookclub_member_id` stored
 in the participant session without signing in again. Existing club-scoped
-login URLs remain supported for invitations and password recovery.
+login URLs remain supported for invitations and password recovery. A reader
+who signs into or explicitly joins a second `open` club receives another linked
+roster membership without creating another global account.
 
 Migration `7e4c2a1f9d30` removes obsolete test-only `self_serve` clubs and
 participant identities, makes participant email global, and adds the roster
@@ -84,14 +88,16 @@ link and per-membership unsubscribe fields. No compatibility merge is
 attempted because the removed data was explicitly non-production test data.
 Migration `9b2f4d6a8c10` adds club announcements and nullable RSVP status.
 Migration `b4d7f1a3c920` adds optional reading progress and notification preferences.
+Migration `e8a1c4d72f60` adds the separate enrollment policy, defaulting existing
+clubs to `open` for backward compatibility.
 
 ## Routes
 
 | Router | Prefix | File | Endpoints | Purpose |
 |---|---|---|---|---|
 | `router` | `/bookclub/clubs` | `club_routes.py` | 5 | Club CRUD, select-into-session, list accessible clubs |
-| `public_router` | `/api/public/clubs` | `club_routes.py` | 1 | `GET /{slug}` — public read-only club page |
-| `router` | `/participant/auth` | `participant_routes.py` | 11 | Global and club-scoped participant registration/login, club listing/selection, session, verification, and password reset |
+| `public_router` | `/api/public/clubs` | `club_routes.py` | 2 | `GET /{slug}` public club data plus public upcoming-meeting `.ics` download |
+| `router` | `/participant/auth` | `participant_routes.py` | 12 | Global and club-scoped participant registration/login, enrollment-aware joining, club listing/selection, session, verification, and password reset |
 | `router` | `/bookclub` | `routes.py` | 45 | Members, books (incl. catalogue import and read-only `/{book_id}/insights` aggregation), meetings, roster/participation, onboarding/arrival email preview/send/**mark-sent** and reminder preview/send, giveaway draw, templates, transit labels, discussion questions — whole router requires `require_selected_club` |
 | `router` | `/bookclub/community` | `facilitator_routes.py` | — | Community overview, announcements, book/date polls, plus supporting scoped endpoints |
 | `router` | `/participant` | `participant_community_routes.py` | — | Announcements, next meeting/RSVP/calendar, optional reading progress, notification preferences, and personal activity |

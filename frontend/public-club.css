@@ -1,0 +1,74 @@
+:root { --public-shadow: 0 24px 70px rgba(12,48,40,.11); }
+* { box-sizing: border-box; }
+.public-club-page { margin: 0; color: #183b33; background: radial-gradient(circle at 88% 6%, rgba(227,170,66,.15), transparent 24rem), radial-gradient(circle at 8% 65%, rgba(110,157,154,.11), transparent 30rem), #f4eedf; font-family: "DM Sans", sans-serif; }
+.public-club-page a { color: inherit; text-decoration: none; }
+.public-shell { width: min(1180px, calc(100% - 48px)); margin: 0 auto; }
+.public-header { min-height: 88px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid rgba(24,59,51,.13); }
+.public-brand { display: inline-flex; align-items: center; gap: 10px; font-family: "Newsreader", serif; font-size: 21px; font-weight: 600; }
+.public-brand img { width: 30px; height: 32px; object-fit: contain; }
+.another-invite-link { color: #5f695f; font-size: 12px; font-weight: 700; }
+.another-invite-link:hover { color: #163e34; }
+.club-hero { min-height: 570px; padding: 76px 0 70px; display: grid; grid-template-columns: minmax(0,1.05fr) minmax(360px,.95fr); align-items: center; gap: 76px; }
+.public-eyebrow { margin: 0 0 13px; display: flex; align-items: center; gap: 8px; color: #6f756a; font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.public-eyebrow span { width: 25px; height: 2px; display: block; background: #e85e16; }
+.public-eyebrow b { font: inherit; }
+.club-introduction h1 { max-width: 720px; margin: 0; font-family: "Newsreader", serif; font-size: clamp(55px,7vw,92px); font-weight: 500; letter-spacing: -.045em; line-height: .92; }
+.club-description { max-width: 650px; margin: 25px 0 0; color: #5f695f; font-family: "Newsreader", serif; font-size: 24px; line-height: 1.42; }
+.organizer-line { margin: 18px 0 0; color: #163e34; font-size: 12px; font-weight: 700; }
+.membership-panel { margin-top: 34px; padding: 19px 20px; border: 1px solid rgba(24,59,51,.15); border-radius: 12px; background: rgba(255,250,241,.72); box-shadow: 0 12px 32px rgba(22,62,52,.055); }
+.membership-copy { display: flex; align-items: center; gap: 11px; }
+.membership-copy p { margin: 0; color: #6f756a; font-size: 11px; }
+.enrollment-badge { flex: 0 0 auto; padding: 5px 9px; border-radius: 999px; color: #163e34; background: rgba(131,157,107,.22); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.membership-actions, .calendar-actions { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+.public-primary, .public-secondary { min-height: 42px; padding: 0 16px; display: inline-flex; align-items: center; justify-content: center; gap: 15px; border-radius: 7px; font-size: 11px; font-weight: 800; transition: transform .15s, background .15s; }
+.public-primary { color: #fffaf1 !important; background: #163e34; }
+.public-primary:hover { transform: translateY(-1px); background: #245348; }
+.public-primary.is-busy { opacity: .65; pointer-events: none; }
+.public-secondary { border: 1px solid rgba(24,59,51,.18); background: rgba(255,250,241,.8); }
+.public-secondary:hover { background: #fffaf1; }
+.membership-error { margin: 10px 0 0; color: #a84432; font-size: 11px; }
+.current-book-card { min-height: 430px; padding: 28px; position: relative; display: grid; grid-template-columns: minmax(150px,.72fr) minmax(170px,1fr); align-items: center; gap: 25px; overflow: hidden; border: 1px solid rgba(24,59,51,.14); border-radius: 18px; background: linear-gradient(145deg, rgba(255,250,241,.94), rgba(237,229,211,.9)); box-shadow: var(--public-shadow); }
+.current-book-card::after { width: 240px; height: 240px; position: absolute; right: -110px; bottom: -125px; content: "✦"; display: grid; place-items: start center; padding-top: 28px; border: 1px solid rgba(232,94,22,.16); border-radius: 50%; color: rgba(232,94,22,.28); font-family: "Newsreader",serif; }
+.current-cover { aspect-ratio: 2/3; position: relative; z-index: 1; display: grid; place-items: center; overflow: hidden; border-radius: 7px; color: rgba(255,250,241,.85); background: linear-gradient(145deg,#245348,#163e34); font-family: "Newsreader",serif; font-size: 44px; box-shadow: 0 18px 34px rgba(19,50,43,.22); transform: rotate(-2deg); }
+.current-cover img { width: 100%; height: 100%; object-fit: cover; }
+.current-book-copy { position: relative; z-index: 1; }
+.current-book-copy > p:first-child { margin: 0 0 8px; color: #e85e16; font-size: 9px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.current-book-copy h2 { margin: 0; font-family: "Newsreader",serif; font-size: clamp(28px,3vw,43px); font-weight: 600; line-height: 1; }
+.current-book-copy > span { margin-top: 8px; display: block; color: #6f756a; font-size: 12px; }
+.current-book-description { margin: 19px 0 0; display: -webkit-box; overflow: hidden; color: #5f695f; font-size: 11px; line-height: 1.65; -webkit-box-orient: vertical; -webkit-line-clamp: 6; }
+.meeting-section { padding: 70px 0; border-top: 1px solid rgba(24,59,51,.13); }
+.section-heading h2, .benefits-intro h2 { margin: 0; font-family: "Newsreader",serif; font-size: clamp(38px,5vw,62px); font-weight: 500; letter-spacing: -.03em; line-height: 1; }
+.meeting-card { margin-top: 30px; padding: 28px 30px; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 28px; border: 1px solid rgba(24,59,51,.14); border-radius: 13px; background: rgba(255,250,241,.78); box-shadow: 0 15px 45px rgba(22,62,52,.06); }
+.meeting-facts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0; }
+.meeting-facts > div { padding: 4px 22px; border-left: 1px solid rgba(24,59,51,.13); }
+.meeting-facts > div:first-child { padding-left: 0; border-left: 0; }
+.meeting-facts span { display: block; color: #7a786f; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.meeting-facts strong { margin-top: 5px; display: block; font-family: "Newsreader",serif; font-size: 20px; font-weight: 600; line-height: 1.2; }
+.meeting-card .calendar-actions { margin-top: 0; justify-content: flex-end; }
+.meeting-empty { display: grid; gap: 4px; }
+.meeting-empty strong { font-family: "Newsreader",serif; font-size: 24px; }
+.meeting-empty span { color: #6f756a; font-size: 12px; }
+.account-benefits { padding: 78px 0; display: grid; grid-template-columns: minmax(280px,.8fr) minmax(0,1.2fr); gap: 75px; border-top: 1px solid rgba(24,59,51,.13); }
+.benefits-intro > p:last-child { max-width: 510px; margin: 20px 0 0; color: #6f756a; font-size: 13px; line-height: 1.7; }
+.benefit-grid { margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; list-style: none; }
+.benefit-grid li { min-height: 132px; padding: 21px; display: flex; gap: 14px; border: 1px solid rgba(24,59,51,.13); border-radius: 11px; background: rgba(255,250,241,.62); }
+.benefit-grid li > span { width: 29px; height: 29px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; color: #163e34; background: rgba(227,170,66,.3); font-size: 12px; font-weight: 800; }
+.benefit-grid strong, .benefit-grid small { display: block; }
+.benefit-grid strong { font-family: "Newsreader",serif; font-size: 21px; }
+.benefit-grid small { margin-top: 5px; color: #6f756a; font-size: 10px; line-height: 1.55; }
+.shelf-section { padding: 78px 0 90px; border-top: 1px solid rgba(24,59,51,.13); }
+.shelf-heading { display: flex; align-items: end; justify-content: space-between; gap: 30px; }
+.shelf-heading > p { max-width: 330px; margin: 0; color: #6f756a; font-size: 12px; }
+.shelf-grid { margin-top: 35px; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 24px; }
+.shelf-cover { aspect-ratio: 2/3; display: grid; place-items: center; overflow: hidden; border-radius: 6px; color: rgba(255,250,241,.85); background: linear-gradient(145deg,#6e9d9a,#245348); font-family: "Newsreader",serif; font-size: 28px; box-shadow: 0 13px 28px rgba(22,62,52,.14); transition: transform .18s; }
+.shelf-item:hover .shelf-cover { transform: translateY(-4px); }
+.shelf-cover img { width: 100%; height: 100%; object-fit: cover; }
+.shelf-item strong, .shelf-item small, .shelf-item time { display: block; }
+.shelf-item strong { margin-top: 13px; font-family: "Newsreader",serif; font-size: 19px; line-height: 1.05; }
+.shelf-item small { margin-top: 4px; color: #6f756a; font-size: 10px; }
+.shelf-item time { margin-top: 8px; color: #8a8578; font-size: 8px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.public-footer { min-height: 90px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-top: 1px solid rgba(24,59,51,.13); color: #76766d; font-size: 10px; }
+.public-footer a { color: #163e34; font-weight: 800; }
+@media (max-width: 960px) { .club-hero { grid-template-columns: 1fr; gap: 46px; } .current-book-card { max-width: 650px; } .meeting-card, .account-benefits { grid-template-columns: 1fr; } .meeting-card .calendar-actions { justify-content: flex-start; } .account-benefits { gap: 35px; } .shelf-grid { grid-template-columns: repeat(4,minmax(0,1fr)); } }
+@media (max-width: 680px) { .public-shell { width: min(100% - 28px,1180px); } .public-header { min-height: 72px; } .another-invite-link { font-size: 10px; } .club-hero { min-height: 0; padding: 48px 0 54px; } .club-introduction h1 { font-size: 54px; } .club-description { font-size: 20px; } .membership-copy { align-items: flex-start; flex-direction: column; } .membership-actions > * { width: 100%; } .current-book-card { min-height: 0; padding: 22px; grid-template-columns: 115px minmax(0,1fr); } .current-book-description { -webkit-line-clamp: 4; } .meeting-section, .account-benefits, .shelf-section { padding: 54px 0; } .meeting-card { padding: 22px; } .meeting-facts { grid-template-columns: 1fr; gap: 16px; } .meeting-facts > div { padding: 0; border-left: 0; } .calendar-actions > * { width: 100%; } .benefit-grid { grid-template-columns: 1fr; } .shelf-heading { align-items: start; flex-direction: column; } .shelf-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 17px; } .public-footer { padding: 24px 0; align-items: flex-start; flex-direction: column; } }
+@media (max-width: 430px) { .current-book-card { grid-template-columns: 1fr; } .current-cover { width: 150px; } .shelf-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }

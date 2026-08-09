@@ -962,7 +962,10 @@ def render_template(
 
 
 def build_calendar_link(
-    meeting: models.BookClubMeeting, video_call_url: str | None
+    meeting: models.BookClubMeeting,
+    video_call_url: str | None,
+    *,
+    include_notes: bool = True,
 ) -> str:
     """A Google Calendar "add event" link for a meeting.
 
@@ -989,7 +992,7 @@ def build_calendar_link(
         )
     if meeting.location:
         params["location"] = meeting.location
-    details_parts = [meeting.notes] if meeting.notes else []
+    details_parts = [meeting.notes] if include_notes and meeting.notes else []
     if video_call_url:
         details_parts.append(f"Join via Zoom: {video_call_url}")
     if details_parts:

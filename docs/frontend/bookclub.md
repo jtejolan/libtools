@@ -153,12 +153,15 @@ borders/columns) rather than a full letter/A4 sheet — it's only ever
 printed one at a time from "Send a book" via `window.print()`
 (`printTransitLabel()`), never as a batch of multiple labels per page.
 
-## `public-club.html` / `public-club.js` (1 / 15 lines, minified)
+## `public-club.html` / `public-club.js` / `public-club.css`
 
-Public read-only club page rendered at `/clubs/{slug}`. No `state` object —
-a single IIFE fetches `GET /api/public/clubs/{slug}` and renders the club
-name/description, book shelf, and next meeting directly into the DOM. Uses
-`platform.css`, not `bookclub.css`.
+Responsive invitation destination rendered at `/clubs/{slug}`. It fetches
+`GET /api/public/clubs/{slug}` and presents the club identity, organizer,
+current book, upcoming meeting, public `.ics`/Google Calendar actions, account
+benefits, and previous-book shelf. Its membership panel reflects the club's
+open/invitation-only/closed enrollment policy. When a participant session is
+present, it changes from generic signup links to an account-aware open/join
+action and supports joining a second open club without another account.
 
 ## `bookclub.libtools.app` participant portal
 
@@ -170,8 +173,9 @@ name/description, book shelf, and next meeting directly into the DOM. Uses
   active roster membership before opening `/dashboard`. Returning signed-in
   readers see the same chooser automatically. “Start a club” remains a
   facilitator path to the regular Libtools signup/Book Club Manager flow.
-- `public-club.html` exposes Join and Participant sign-in actions on the
-  subdomain.
+- `public-club.html` is the club-specific step between an invitation and the
+  account/dashboard experience; it exposes enrollment-aware Join, sign-in, and
+  calendar actions on the subdomain.
 - `bookclub-account.html` handles participant registration, login, recovery,
   and verification only; the old facilitator creation card is removed.
 - `bookclub-participant.html` is a participant-first dashboard organized around
@@ -197,10 +201,7 @@ name/description, book shelf, and next meeting directly into the DOM. Uses
 
 - `bookclub.js`'s `state.view` drives which tab is rendered — most render
   functions branch on it rather than the page having separate routes.
-- `public-club.js` is genuinely minified (not just short) — if it needs a
-  real edit, consider whether to de-minify it first rather than hand-editing
-  packed code.
-- `public-club.html`/`.js` is shared: it's served both at
+- `public-club.html`/`.js`/`.css` is shared: it's served both at
   `libtools.app/clubs/{slug}` (primary app) and
   `bookclub.libtools.app/clubs/{slug}` (`bookclub_public_app`) — one file,
   two hosts.

@@ -110,6 +110,58 @@ class BookClubParticipantApiTests(unittest.TestCase):
         with self.sessions() as db:
             self.assertEqual(len(list(db.scalars(select(ParticipantAccount)))), 1)
 
+    def test_existing_account_can_join_another_open_club(self) -> None:
+        first = self.register()
+        self.assertEqual(first.status_code, 201, first.text)
+        with self.sessions() as db:
+            db.add(BookClub(name="Open Mystery Club", slug="open-mystery", public=True))
+            db.commit()
+        joined = self.client.post("/participant/auth/clubs/open-mystery/join")
+        self.assertEqual(joined.status_code, 200, joined.text)
+        self.assertEqual(joined.json()["club_slug"], "open-mystery")
+        with self.sessions() as db:
+            memberships = list(db.scalars(select(BookClubMember)))
+            self.assertEqual(len(memberships), 2)
+            self.assertEqual(len({member.participant_account_id for member in memberships}), 1)
+
+    def test_invitation_only_requires_a_preloaded_roster_email(self) -> None:
+        with self.sessions() as db:
+            club = db.scalar(select(BookClub).where(BookClub.slug == "sci-fi-book-club"))
+            club.enrollment_policy = "invite_only"
+            db.commit()
+        rejected = self.register()
+        self.assertEqual(rejected.status_code, 403, rejected.text)
+        self.assertIn("invitation only", rejected.json()["detail"].lower())
+
+        with self.sessions() as db:
+            club = db.scalar(select(BookClub).where(BookClub.slug == "sci-fi-book-club"))
+            db.add(BookClubMember(
+                club_id=club.id, name="Invited Reader", email="reader@example.com",
+                joined_on=date.today(), delivery_method="none",
+            ))
+            db.commit()
+        accepted = self.register()
+        self.assertEqual(accepted.status_code, 201, accepted.text)
+
+    def test_closed_club_keeps_public_page_but_rejects_new_accounts(self) -> None:
+        with self.sessions() as db:
+            club = db.scalar(select(BookClub).where(BookClub.slug == "sci-fi-book-club"))
+            club.enrollment_policy = "closed"
+            db.commit()
+        public = self.client.get("/api/public/clubs/sci-fi-book-club")
+        self.assertEqual(public.status_code, 200, public.text)
+        self.assertEqual(public.json()["enrollment_policy"], "closed")
+        rejected = self.register()
+        self.assertEqual(rejected.status_code, 403, rejected.text)
+
+    def test_public_page_includes_invitation_design_and_calendar_ui(self) -> None:
+        page = self.client.get("/clubs/sci-fi-book-club")
+        self.assertEqual(page.status_code, 200, page.text)
+        self.assertIn('/static/public-club.css?v=1', page.text)
+        self.assertIn('/static/public-club.js?v=5', page.text)
+        self.assertIn('id="account-benefits"', page.text)
+        self.assertIn('id="meeting-details"', page.text)
+
     def test_global_login_lists_and_selects_all_clubs(self) -> None:
         first = self.register()
         self.assertEqual(first.status_code, 201, first.text)

@@ -16,6 +16,7 @@ class ClubCreate(BaseModel):
     slug: str | None = Field(default=None, max_length=120)
     description: str | None = None
     public: bool = True
+    enrollment_policy: Literal["open", "invite_only", "closed"] = "open"
     organizer_name: str | None = Field(default=None, max_length=200)
     organizer_branch: str | None = Field(default=None, max_length=200)
     video_call_url: str | None = Field(default=None, max_length=500)
@@ -27,6 +28,7 @@ class ClubUpdate(BaseModel):
     slug: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = None
     public: bool | None = None
+    enrollment_policy: Literal["open", "invite_only", "closed"] | None = None
     organizer_name: str | None = Field(default=None, max_length=200)
     organizer_branch: str | None = Field(default=None, max_length=200)
     video_call_url: str | None = Field(default=None, max_length=500)
@@ -39,6 +41,7 @@ class ClubResponse(BaseModel):
     slug: str
     description: str | None
     public: bool
+    enrollment_policy: Literal["open", "invite_only", "closed"]
     organizer_name: str | None
     organizer_branch: str | None
     video_call_url: str | None = None
@@ -52,6 +55,8 @@ class PublicMeetingResponse(BaseModel):
     meeting_time: str | None
     location: str | None
     book: "BookResponse"
+    google_calendar_url: str
+    ics_calendar_url: str
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -69,6 +74,7 @@ class PublicClubResponse(BaseModel):
     description: str | None
     organizer_name: str | None
     organizer_branch: str | None
+    enrollment_policy: Literal["open", "invite_only", "closed"]
     upcoming_meeting: PublicMeetingResponse | None
     shelf: list[PublicShelfBookResponse] = Field(default_factory=list)
 

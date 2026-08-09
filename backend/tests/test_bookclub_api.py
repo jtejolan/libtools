@@ -138,7 +138,7 @@ class BookClubApiTests(unittest.TestCase):
         entrypoint = self.client.get("/bookclub")
         self.assertEqual(entrypoint.status_code, 200)
         self.assertIn("Book Club Manager", entrypoint.text)
-        self.assertIn('/static/bookclub.js?v=37', entrypoint.text)
+        self.assertIn('/static/bookclub.js?v=38', entrypoint.text)
         self.assertIn('/static/bookclub.css?v=37', entrypoint.text)
         self.assertNotIn('data-view="messages"', entrypoint.text)
         self.assertIn('id="open-reminder-dialog"', entrypoint.text)
@@ -156,7 +156,7 @@ class BookClubApiTests(unittest.TestCase):
         self.assertIn('aria-current="page">', community.text)
         self.assertIn('/static/bookclub.css?v=37', community.text)
         self.assertIn('/static/bookclub-manage.css?v=2', community.text)
-        self.assertIn('/static/bookclub-manage.js?v=7', community.text)
+        self.assertIn('/static/bookclub-manage.js?v=8', community.text)
         self.assertIn('id="invite-readers"', community.text)
         self.assertEqual(community.headers["cache-control"], "no-store")
 
@@ -1048,6 +1048,13 @@ class BookClubApiTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200, page.text)
         body = page.json()
         self.assertEqual(body["upcoming_meeting"]["book"]["title"], "Upcoming Book")
+        self.assertEqual(body["enrollment_policy"], "open")
+        self.assertIn("calendar.google.com", body["upcoming_meeting"]["google_calendar_url"])
+        calendar = self.client.get(body["upcoming_meeting"]["ics_calendar_url"])
+        self.assertEqual(calendar.status_code, 200, calendar.text)
+        self.assertTrue(calendar.headers["content-type"].startswith("text/calendar"))
+        self.assertIn("SUMMARY:Book club: Upcoming Book", calendar.text)
+        self.assertIn('filename="science-fiction-book-club-book-club.ics"', calendar.headers["content-disposition"])
         self.assertEqual(len(body["shelf"]), 2)
         self.assertEqual(
             {book["title"] for book in body["shelf"]},
@@ -1061,6 +1068,18 @@ class BookClubApiTests(unittest.TestCase):
         self.client.patch("/bookclub/clubs/1", json={"public": False})
         hidden = self.client.get("/api/public/clubs/science-fiction-book-club")
         self.assertEqual(hidden.status_code, 404)
+
+    def test_enrollment_policy_is_separate_from_public_page_visibility(self) -> None:
+        updated = self.client.patch(
+            "/bookclub/clubs/1",
+            json={"public": True, "enrollment_policy": "invite_only"},
+        )
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertTrue(updated.json()["public"])
+        self.assertEqual(updated.json()["enrollment_policy"], "invite_only")
+        public = self.client.get("/api/public/clubs/science-fiction-book-club")
+        self.assertEqual(public.status_code, 200, public.text)
+        self.assertEqual(public.json()["enrollment_policy"], "invite_only")
 
 
 class BuildCalendarLinkTests(unittest.TestCase):

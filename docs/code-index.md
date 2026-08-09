@@ -41,7 +41,7 @@ guaranteed exact) · **Purpose** (one clause) · **Detail in**.
 | `backend/app/bookclub/schemas.py` | 461 | Pydantic schemas incl. `PublicXResponse` subset types, book-detail insights, `SelfServeClubSummary` (admin view) | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/crud.py` | — | DB ops for all bookclub entities including roster-linked participant broadcasts, ratings, voting, and date polling | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/routes.py` | 693 | Members/books (incl. detail insights)/meetings/roster/emails (incl. mark-sent)/giveaway/templates/questions (45 endpoints) | `docs/backend/bookclub.md` |
-| `backend/app/bookclub/club_routes.py` | 199 | Club CRUD/switching + public `/api/public/clubs/{slug}` | `docs/backend/bookclub.md` |
+| `backend/app/bookclub/club_routes.py` | — | Club CRUD/switching + public club profile and calendar APIs | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/access.py` | 57 | `require_selected_club`, club-scoping dependencies | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/catalogue.py` | 200 | Scrapes Vaughan PL (BiblioCommons) for book metadata | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/scheduling.py` | 34 | Free-text meeting-time parsing + start/end datetime computation, shared by `models.py` and `crud.py` | `docs/backend/bookclub.md` |
@@ -55,7 +55,7 @@ guaranteed exact) · **Purpose** (one clause) · **Detail in**.
 | `backend/app/bookclub/participant_unsubscribe.py` | 46 | Signs/verifies unsubscribe tokens via `itsdangerous` — no DB table, reused `LIBTOOLS_SESSION_SECRET` with a distinct salt | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/unsubscribe_routes.py` | 32 | `POST /participant/unsubscribe` — deliberately public, no session dependency at all | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/rating_routes.py` | 73 | `/participant/books/*` — any participant lists books and rates them; ratings visible to all, not just an aggregate | `docs/backend/bookclub.md` |
-| `backend/app/bookclub/participant_routes.py` | — | Global participant auth plus roster creation/claiming, mounted only on `bookclub_public_app` | `docs/backend/bookclub.md` |
+| `backend/app/bookclub/participant_routes.py` | — | Global participant auth plus enrollment-aware roster creation/claiming, mounted only on `bookclub_public_app` | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/participant_auth.py` | — | Global participant session plus current linked roster-member and club resolution | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/participant_tokens.py` | 98 | Hashed expiring tokens for participant verify-email/password-reset | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/participant_email_delivery.py` | 64 | Plain-text participant email sends incl. `send_broadcast_email` (individual, not BCC, so each gets its own unsubscribe link) | `docs/backend/bookclub.md` |
@@ -111,7 +111,7 @@ from `backend/` — see root `CLAUDE.md` for full commands.
 | `frontend/admin-accounts.html` / `admin-accounts.js` | 70 / 178 | Platform-admin account management (canonical) | `docs/frontend/accounts.md` |
 | `frontend/admin-users.html` / `admin-users.js` | 2 / 12 | Minified LEGACY duplicate of admin-accounts — don't edit | `docs/frontend/accounts.md` |
 | `frontend/bookclub.html` / `bookclub.js` | 463 / 2446 | Book Club Manager app | `docs/frontend/bookclub.md` |
-| `frontend/public-club.html` / `public-club.js` | 1 / 15 | Public read-only club page (minified), served on both `libtools.app` and `bookclub.libtools.app` | `docs/frontend/bookclub.md` |
+| `frontend/public-club.html` / `.js` / `.css` | — | Responsive public invitation page with current book, meeting calendar, account-aware joining, feature summary, and reading history | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-landing.html` / `.js` / `.css` | 117 / 158 / 181 | Responsive participant landing page — invitation link/code lookup, global reader sign-in, and multi-club chooser | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-account.html` / `bookclub-account.js` | 114 / 214 | Participant join/login/forgot-password/verify-email/reset-password — one shared shell keyed by URL path, mirrors `account.html`/`account.js` | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-participant.html` / `bookclub-participant.js` | — | Participant dashboard — next meeting/calendar/RSVP, current reading/progress, announcements, decisions, personal activity, preferences, ratings and reviews | `docs/frontend/bookclub.md` |

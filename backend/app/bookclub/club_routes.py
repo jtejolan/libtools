@@ -1,7 +1,7 @@
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
@@ -23,6 +23,7 @@ def club_response(club: BookClub, role: str | None = None) -> schemas.ClubRespon
         slug=club.slug,
         description=club.description,
         public=club.public,
+        enrollment_policy=club.enrollment_policy,
         organizer_name=club.organizer_name,
         organizer_branch=club.organizer_branch,
         video_call_url=club.video_call_url,
@@ -187,12 +188,78 @@ def public_club(slug: str, db: DatabaseSession):
             )
             for book in flagged_books
         )
+    public_meeting = None
+    if meeting is not None:
+        public_meeting = schemas.PublicMeetingResponse(
+            meeting_date=meeting.meeting_date,
+            meeting_time=meeting.meeting_time,
+            location=meeting.location,
+            book=meeting.book,
+            google_calendar_url=crud.build_calendar_link(
+                meeting, None, include_notes=False
+            ),
+            ics_calendar_url=f"/api/public/clubs/{club.slug}/calendar.ics",
+        )
     return schemas.PublicClubResponse(
         name=club.name,
         slug=club.slug,
         description=club.description,
         organizer_name=club.organizer_name,
         organizer_branch=club.organizer_branch,
-        upcoming_meeting=meeting,
+        enrollment_policy=club.enrollment_policy,
+        upcoming_meeting=public_meeting,
         shelf=shelf,
+    )
+
+
+def _ics_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("\n", "\\n").replace(",", "\\,").replace(";", "\\;")
+
+
+@public_router.get("/{slug}/calendar.ics")
+def public_calendar(slug: str, db: DatabaseSession) -> Response:
+    club = db.scalar(select(BookClub).where(BookClub.slug == slug, BookClub.public.is_(True)))
+    if club is None:
+        raise HTTPException(status_code=404, detail="Book club not found")
+    meeting = db.scalar(
+        select(BookClubMeeting)
+        .options(selectinload(BookClubMeeting.book))
+        .where(
+            BookClubMeeting.club_id == club.id,
+            BookClubMeeting.meeting_date >= date.today(),
+        )
+        .order_by(BookClubMeeting.meeting_date, BookClubMeeting.id)
+    )
+    if meeting is None:
+        raise HTTPException(status_code=404, detail="No upcoming meeting")
+    if meeting.starts_at is not None and meeting.ends_at is not None:
+        date_lines = [
+            f"DTSTART:{meeting.starts_at.strftime('%Y%m%dT%H%M%S')}",
+            f"DTEND:{meeting.ends_at.strftime('%Y%m%dT%H%M%S')}",
+        ]
+    else:
+        date_lines = [
+            f"DTSTART;VALUE=DATE:{meeting.meeting_date.strftime('%Y%m%d')}",
+            f"DTEND;VALUE=DATE:{(meeting.meeting_date + timedelta(days=1)).strftime('%Y%m%d')}",
+        ]
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Libtools//Book Club//EN",
+        "CALSCALE:GREGORIAN",
+        "BEGIN:VEVENT",
+        f"UID:public-bookclub-{club.id}-{meeting.id}@libtools.app",
+        f"DTSTAMP:{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
+        *date_lines,
+        f"SUMMARY:{_ics_escape(f'Book club: {meeting.book.title}')}",
+        f"LOCATION:{_ics_escape(meeting.location or '')}",
+        f"DESCRIPTION:{_ics_escape(f'{club.name} is discussing {meeting.book.title} by {meeting.book.author}.')}",
+        "END:VEVENT",
+        "END:VCALENDAR",
+        "",
+    ]
+    return Response(
+        content="\r\n".join(lines),
+        media_type="text/calendar",
+        headers={"Content-Disposition": f'attachment; filename="{club.slug}-book-club.ics"'},
     )

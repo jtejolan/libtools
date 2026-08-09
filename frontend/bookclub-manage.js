@@ -39,6 +39,9 @@ const applyManagerShell = (user, club) => {
   const publicLink = $("#public-club-link");
   publicLink.hidden = !club.public;
   publicLink.href = `${PARTICIPANT_PORTAL_ORIGIN}/clubs/${encodeURIComponent(club.slug)}`;
+  $("#invite-readers").innerHTML = club.enrollment_policy === "closed"
+    ? '<span aria-hidden="true">↗</span> Share public page'
+    : '<span aria-hidden="true">＋</span> Invite readers';
 };
 
 const selectView = (view) => {
@@ -75,6 +78,20 @@ const openInviteDialog = () => {
   $("#invite-private-state").hidden = publicClub;
   $("#invite-share-content").hidden = !publicClub;
   if (publicClub) {
+    const inviteOnly = club.enrollment_policy === "invite_only";
+    const closed = club.enrollment_policy === "closed";
+    $("#invite-dialog-title").textContent = closed ? "Share the public page" : "Invite readers";
+    $("#invite-dialog-intro").textContent = closed
+      ? "Readers can view the book and meeting, but new account activation is closed."
+      : inviteOnly
+        ? "Share the club page with readers whose email is already on your Members roster."
+        : "Share one link. Readers can learn about the club, join, or sign in.";
+    $("#invite-sharing-tip").innerHTML = inviteOnly
+      ? '<span aria-hidden="true">✦</span><strong>Invitation-only club</strong> Add each reader’s email in Members before sending this link.'
+      : closed
+        ? '<span aria-hidden="true">✦</span><strong>Enrollment closed</strong> Existing linked participants can still sign in from this page.'
+        : '<span aria-hidden="true">✦</span><strong>Sharing tip</strong> Add this link to meeting reminders and registration emails so readers can always find their way back.';
+    $("#invite-qr-label").textContent = closed ? "Scan to view" : "Scan to join";
     const url = participantInviteUrl(club);
     $("#invite-link-value").value = url;
     $("#invite-code-value").textContent = club.slug;

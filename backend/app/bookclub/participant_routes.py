@@ -62,11 +62,31 @@ def _membership_for_account(
     # global portal login. A successful password login proves ownership of
     # the account email, so it is safe to claim the matching roster entry.
     member = _member_by_email(db, club, participant.email)
-    if member is None:
-        raise HTTPException(status_code=403, detail="You are not on this club's roster")
-    if member.participant_account_id not in (None, participant.id):
-        raise HTTPException(status_code=409, detail="That roster entry is linked to another account")
-    member.participant_account_id = participant.id
+    if member is not None:
+        if not member.active:
+            raise HTTPException(status_code=403, detail="Your membership in this club is inactive")
+        if club.enrollment_policy == "closed":
+            raise HTTPException(status_code=403, detail="This club is not activating new participant accounts")
+        if member.participant_account_id not in (None, participant.id):
+            raise HTTPException(status_code=409, detail="That roster entry is linked to another account")
+        member.participant_account_id = participant.id
+    elif club.enrollment_policy == "open":
+        member = BookClubMember(
+            club_id=club.id,
+            name=participant.name,
+            email=participant.email,
+            joined_on=date.today(),
+            delivery_method="none",
+            participant_account_id=participant.id,
+        )
+        db.add(member)
+    elif club.enrollment_policy == "invite_only":
+        raise HTTPException(
+            status_code=403,
+            detail="This club is invitation only. Ask the facilitator to add your email to the roster.",
+        )
+    else:
+        raise HTTPException(status_code=403, detail="This club is not accepting new participants")
     db.commit()
     db.refresh(member)
     return member
@@ -93,6 +113,7 @@ def _memberships_for_account(
                     (
                         BookClubMember.participant_account_id.is_(None)
                         & (func.lower(BookClubMember.email) == participant.email.casefold())
+                        & (BookClub.enrollment_policy != "closed")
                     ),
                 ),
             )
@@ -169,6 +190,13 @@ def register(value: ParticipantRegistrationRequest, request: Request, db: Databa
         )
 
     member = _member_by_email(db, club, value.email)
+    if club.enrollment_policy == "closed":
+        raise HTTPException(status_code=403, detail="This club is not accepting new participant accounts")
+    if club.enrollment_policy == "invite_only" and member is None:
+        raise HTTPException(
+            status_code=403,
+            detail="This club is invitation only. Use the email address your facilitator added to the roster.",
+        )
     if member is not None and member.participant_account_id is not None:
         raise HTTPException(status_code=409, detail="That roster entry already has an account")
     participant = ParticipantAccount(
@@ -273,6 +301,19 @@ def select_participant_club(
     if selected is None:
         raise HTTPException(status_code=404, detail="Book club membership not found")
     member, club = selected
+    participant_auth.start_participant_session(request, participant, member)
+    return participant_auth.participant_response(participant, club, member)
+
+
+@router.post("/clubs/{slug}/join", response_model=ParticipantResponse)
+def join_participant_club(
+    slug: str,
+    request: Request,
+    participant: participant_auth.CurrentParticipant,
+    db: DatabaseSession,
+):
+    club = _get_public_club(db, slug)
+    member = _membership_for_account(db, club, participant)
     participant_auth.start_participant_session(request, participant, member)
     return participant_auth.participant_response(participant, club, member)
 

@@ -168,6 +168,15 @@ const initialize = async () => {
   const club = await loadClubHeader();
   if (!club) return;
 
+  if (club.enrollment_policy === "invite_only") {
+    $("#join-card").querySelector(".eyebrow").textContent = "Accept your invitation";
+    $("#join-description").textContent = "Use the email address your facilitator added to the club roster.";
+  } else if (club.enrollment_policy === "closed") {
+    $("#join-card").querySelector("h2").textContent = "Membership is currently closed";
+    $("#join-description").textContent = "New participant accounts are not being activated for this club right now.";
+    $("#join-form").hidden = true;
+  }
+
   $("#join-login-link").innerHTML = `Already have an account? <a href="/clubs/${encodeURIComponent(slug)}/login">Sign in</a>`;
   $("#login-join-link").innerHTML = `New to ${escapeHtml(club.name)}? <a href="/clubs/${encodeURIComponent(slug)}/join">Create an account</a>`;
   $("#forgot-login-link").innerHTML = `<a href="/clubs/${encodeURIComponent(slug)}/login">Back to sign in</a>`;

@@ -117,6 +117,7 @@ const populateClubSettingsForm = () => {
   form.elements.organizer_branch.value = club.organizer_branch || "";
   form.elements.video_call_url.value = club.video_call_url || "";
   form.elements.public.value = String(club.public ?? true);
+  form.elements.enrollment_policy.value = club.enrollment_policy || "open";
   $("#club-settings-error").textContent = "";
 };
 
@@ -1757,6 +1758,7 @@ $("#club-settings-form").addEventListener("submit", async (event) => {
         organizer_branch: form.elements.organizer_branch.value.trim() || null,
         video_call_url: form.elements.video_call_url.value.trim() || null,
         public: form.elements.public.value === "true",
+        enrollment_policy: form.elements.enrollment_policy.value,
       }),
     });
     applyClub(updated);
