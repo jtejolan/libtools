@@ -162,8 +162,14 @@ name/description, book shelf, and next meeting directly into the DOM. Uses
 
 ## `bookclub.libtools.app` participant portal
 
-- `bookclub-landing.html` finds an existing club. “Start a club” sends the
-  user to the regular Libtools signup/Book Club Manager flow.
+- `bookclub-landing.html` is the participant-first entry point. Its invitation
+  tab accepts either a full `/clubs/{slug}` link or the slug as a short club
+  code and verifies that the public club exists before navigating. Its sign-in
+  tab authenticates the global participant identity and displays every linked
+  public club through `GET /participant/auth/clubs`; choosing one updates the
+  active roster membership before opening `/dashboard`. Returning signed-in
+  readers see the same chooser automatically. “Start a club” remains a
+  facilitator path to the regular Libtools signup/Book Club Manager flow.
 - `public-club.html` exposes Join and Participant sign-in actions on the
   subdomain.
 - `bookclub-account.html` handles participant registration, login, recovery,

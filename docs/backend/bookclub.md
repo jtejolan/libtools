@@ -71,6 +71,13 @@ link, and an authenticated `.ics` meeting download. Activity is derived from
 existing ratings, votes, proposals, attendance, and reading-progress records;
 it is not a second append-only audit log.
 
+The participant landing page also supports account-first navigation. A global
+login verifies the participant once, claims any still-unlinked active roster
+rows with the same email, and returns the account's public clubs. Authenticated
+readers can list those clubs and switch the active `bookclub_member_id` stored
+in the participant session without signing in again. Existing club-scoped
+login URLs remain supported for invitations and password recovery.
+
 Migration `7e4c2a1f9d30` removes obsolete test-only `self_serve` clubs and
 participant identities, makes participant email global, and adds the roster
 link and per-membership unsubscribe fields. No compatibility merge is
@@ -84,6 +91,7 @@ Migration `b4d7f1a3c920` adds optional reading progress and notification prefere
 |---|---|---|---|---|
 | `router` | `/bookclub/clubs` | `club_routes.py` | 5 | Club CRUD, select-into-session, list accessible clubs |
 | `public_router` | `/api/public/clubs` | `club_routes.py` | 1 | `GET /{slug}` — public read-only club page |
+| `router` | `/participant/auth` | `participant_routes.py` | 11 | Global and club-scoped participant registration/login, club listing/selection, session, verification, and password reset |
 | `router` | `/bookclub` | `routes.py` | 45 | Members, books (incl. catalogue import and read-only `/{book_id}/insights` aggregation), meetings, roster/participation, onboarding/arrival email preview/send/**mark-sent** and reminder preview/send, giveaway draw, templates, transit labels, discussion questions — whole router requires `require_selected_club` |
 | `router` | `/bookclub/community` | `facilitator_routes.py` | — | Community overview, announcements, book/date polls, plus supporting scoped endpoints |
 | `router` | `/participant` | `participant_community_routes.py` | — | Announcements, next meeting/RSVP/calendar, optional reading progress, notification preferences, and personal activity |

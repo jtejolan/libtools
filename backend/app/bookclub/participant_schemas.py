@@ -60,6 +60,25 @@ class ParticipantLoginRequest(BaseModel):
         return _clean_email(value)
 
 
+class ParticipantGlobalLoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=1, max_length=200)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return _clean_email(value)
+
+
+class ParticipantClubResponse(BaseModel):
+    id: int
+    name: str
+    slug: str
+    description: str | None
+    organizer_name: str | None
+    organizer_branch: str | None
+
+
 class ParticipantResponse(BaseModel):
     id: int
     club_id: int

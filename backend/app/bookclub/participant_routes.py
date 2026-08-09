@@ -3,7 +3,7 @@ from datetime import date
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from accounts import login_throttle
@@ -12,6 +12,8 @@ from bookclub.models import BookClub, BookClubMember
 from bookclub.participant_models import ParticipantAccount
 from bookclub.participant_schemas import (
     ParticipantEmailActionResponse,
+    ParticipantClubResponse,
+    ParticipantGlobalLoginRequest,
     ParticipantLoginRequest,
     ParticipantPasswordResetConfirmRequest,
     ParticipantPasswordResetEmailRequest,
@@ -68,6 +70,54 @@ def _membership_for_account(
     db.commit()
     db.refresh(member)
     return member
+
+
+def _memberships_for_account(
+    db: DatabaseSession, participant: ParticipantAccount
+) -> list[tuple[BookClubMember, BookClub]]:
+    """Return every active portal membership and claim matching roster rows.
+
+    Password authentication proves control of the participant account email,
+    so this mirrors the existing club-specific login behavior across all
+    public clubs in one step.
+    """
+    rows = list(
+        db.execute(
+            select(BookClubMember, BookClub)
+            .join(BookClub, BookClub.id == BookClubMember.club_id)
+            .where(
+                BookClubMember.active.is_(True),
+                BookClub.public.is_(True),
+                or_(
+                    BookClubMember.participant_account_id == participant.id,
+                    (
+                        BookClubMember.participant_account_id.is_(None)
+                        & (func.lower(BookClubMember.email) == participant.email.casefold())
+                    ),
+                ),
+            )
+            .order_by(BookClub.name, BookClub.id)
+        )
+    )
+    claimed = False
+    for member, _club in rows:
+        if member.participant_account_id is None:
+            member.participant_account_id = participant.id
+            claimed = True
+    if claimed:
+        db.commit()
+    return rows
+
+
+def _club_summary(club: BookClub) -> ParticipantClubResponse:
+    return ParticipantClubResponse(
+        id=club.id,
+        name=club.name,
+        slug=club.slug,
+        description=club.description,
+        organizer_name=club.organizer_name,
+        organizer_branch=club.organizer_branch,
+    )
 
 
 def _account_action_url(request: Request, path: str, token: str) -> str:
@@ -176,6 +226,53 @@ def login(value: ParticipantLoginRequest, request: Request, db: DatabaseSession)
         raise HTTPException(status_code=401, detail="Incorrect email or password")
     member = _membership_for_account(db, club, participant)
     login_throttle.record_success(throttle_key)
+    participant_auth.start_participant_session(request, participant, member)
+    return participant_auth.participant_response(participant, club, member)
+
+
+@router.post("/login/global", response_model=list[ParticipantClubResponse])
+def global_login(
+    value: ParticipantGlobalLoginRequest, request: Request, db: DatabaseSession
+):
+    throttle_key = f"bookclub-participant-login:{value.email}"
+    retry_after = login_throttle.seconds_until_unlocked(throttle_key)
+    if retry_after > 0:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many failed sign-in attempts. Try again in a few minutes.",
+            headers={"Retry-After": str(int(retry_after) + 1)},
+        )
+    participant = participant_auth.verify_participant_login(db, value.email, value.password)
+    if participant is None:
+        login_throttle.record_failure(throttle_key)
+        raise HTTPException(status_code=401, detail="Incorrect email or password")
+    login_throttle.record_success(throttle_key)
+    memberships = _memberships_for_account(db, participant)
+    if not memberships:
+        raise HTTPException(status_code=403, detail="This account has no active book club memberships")
+    participant_auth.start_participant_session(request, participant, memberships[0][0])
+    return [_club_summary(club) for _member, club in memberships]
+
+
+@router.get("/clubs", response_model=list[ParticipantClubResponse])
+def participant_clubs(
+    participant: participant_auth.CurrentParticipant, db: DatabaseSession
+):
+    return [_club_summary(club) for _member, club in _memberships_for_account(db, participant)]
+
+
+@router.post("/clubs/{slug}/select", response_model=ParticipantResponse)
+def select_participant_club(
+    slug: str,
+    request: Request,
+    participant: participant_auth.CurrentParticipant,
+    db: DatabaseSession,
+):
+    memberships = _memberships_for_account(db, participant)
+    selected = next(((member, club) for member, club in memberships if club.slug == slug), None)
+    if selected is None:
+        raise HTTPException(status_code=404, detail="Book club membership not found")
+    member, club = selected
     participant_auth.start_participant_session(request, participant, member)
     return participant_auth.participant_response(participant, club, member)
 

@@ -12,6 +12,7 @@ from bookclub.participant_models import ParticipantAccount
 from database import Base
 from dependencies import get_db
 from main import app, bookclub_public_app
+from security import hash_password
 
 
 class BookClubParticipantApiTests(unittest.TestCase):
@@ -108,6 +109,62 @@ class BookClubParticipantApiTests(unittest.TestCase):
         self.assertEqual(response.json()["id"], participant_id)
         with self.sessions() as db:
             self.assertEqual(len(list(db.scalars(select(ParticipantAccount)))), 1)
+
+    def test_global_login_lists_and_selects_all_clubs(self) -> None:
+        first = self.register()
+        self.assertEqual(first.status_code, 201, first.text)
+        with self.sessions() as db:
+            other = BookClub(
+                name="Mystery Club", slug="mystery-club", public=True,
+                organizer_branch="Central Library",
+            )
+            db.add(other)
+            db.flush()
+            db.add(BookClubMember(
+                club_id=other.id, name="Reader One", email="reader@example.com",
+                joined_on=date.today(), delivery_method="none",
+            ))
+            db.commit()
+        self.client.post("/participant/auth/logout")
+
+        response = self.client.post("/participant/auth/login/global", json={
+            "email": "reader@example.com", "password": "a-long-password-1",
+        })
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(
+            [club["slug"] for club in response.json()],
+            ["mystery-club", "sci-fi-book-club"],
+        )
+        self.assertEqual(self.client.get("/participant/auth/me").json()["club_slug"], "mystery-club")
+
+        selected = self.client.post("/participant/auth/clubs/sci-fi-book-club/select")
+        self.assertEqual(selected.status_code, 200, selected.text)
+        self.assertEqual(selected.json()["club_slug"], "sci-fi-book-club")
+        self.assertEqual(
+            len(self.client.get("/participant/auth/clubs").json()),
+            2,
+        )
+
+    def test_global_login_rejects_an_account_without_a_public_membership(self) -> None:
+        with self.sessions() as db:
+            private = db.scalar(select(BookClub).where(BookClub.slug == "private-club"))
+            account = ParticipantAccount(
+                name="Private Reader",
+                email="private@example.com",
+                password_hash=hash_password("a-long-password-1"),
+            )
+            db.add(account)
+            db.flush()
+            db.add(BookClubMember(
+                club_id=private.id, name=account.name, email=account.email,
+                joined_on=date.today(), delivery_method="none",
+                participant_account_id=account.id,
+            ))
+            db.commit()
+        response = self.client.post("/participant/auth/login/global", json={
+            "email": "private@example.com", "password": "a-long-password-1",
+        })
+        self.assertEqual(response.status_code, 403, response.text)
 
     def test_existing_global_email_is_directed_to_sign_in(self) -> None:
         self.assertEqual(self.register().status_code, 201)
