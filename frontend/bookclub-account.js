@@ -35,7 +35,7 @@ const toast = (message) => {
   toast.timer = setTimeout(() => element.classList.remove("show"), 2600);
 };
 
-const authCards = ["create-club", "join", "participant-login", "forgot", "reset", "verify"];
+const authCards = ["join", "participant-login", "forgot", "reset", "verify"];
 const showAuthCard = (name) => {
   authCards.forEach((card) => {
     $(`#${card}-card`).hidden = card !== name;
@@ -57,21 +57,6 @@ const loadClubHeader = async () => {
     return null;
   }
 };
-
-$("#create-club-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  $("#create-club-error").textContent = "";
-  try {
-    await request("/participant/clubs", {
-      method: "POST",
-      body: JSON.stringify(Object.fromEntries(new FormData(form))),
-    });
-    location.href = "/dashboard";
-  } catch (error) {
-    $("#create-club-error").textContent = error.message;
-  }
-});
 
 $("#join-form").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -166,14 +151,6 @@ const initialize = async () => {
   const path = location.pathname;
   const params = new URLSearchParams(location.search);
 
-  if (path === "/create") {
-    document.title = "Start a club — Book Club";
-    $("#club-eyebrow").textContent = "New club";
-    $("#club-heading").textContent = "Bring your people together.";
-    $("#club-description").textContent = "Pick a name, invite readers, and start choosing books.";
-    showAuthCard("create-club");
-    return;
-  }
   if (path === "/verify-email") {
     await verifyEmail(params.get("token"));
     return;

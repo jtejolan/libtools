@@ -1,44 +1,22 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
 
 
 class ParticipantAccount(Base):
-    """A club member's own login, separate from staff LibtoolsUser accounts.
-
-    Scoped to a single club (uniqueness is club_id+email, not global) —
-    the same person joining two different clubs gets two separate rows,
-    mirroring how BookClubMember/BookClubAccess are already club-scoped.
-    """
+    """A reader's global portal login, optionally linked to many club rosters."""
 
     __tablename__ = "bookclub_participant_accounts"
-    __table_args__ = (
-        UniqueConstraint("club_id", "email", name="uq_bookclub_participant_club_email"),
-    )
-
     id: Mapped[int] = mapped_column(primary_key=True)
-    club_id: Mapped[int] = mapped_column(
-        ForeignKey("book_clubs.id", ondelete="CASCADE"), index=True
-    )
     name: Mapped[str] = mapped_column(String(200))
-    email: Mapped[str] = mapped_column(String(320), index=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(500))
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # "owner" is the club's facilitator/lead (set at club-creation time,
-    # single owner in v1 — see docs/backend/bookclub.md); "member" is an
-    # ordinary participant. Both are the same account type/session, just a
-    # permission check away from each other, not a separate table.
-    role: Mapped[str] = mapped_column(String(20), default="member", server_default="member")
     session_version: Mapped[int] = mapped_column(Integer(), default=1, server_default="1")
     active: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
-    # Set via a signed, no-login-required unsubscribe link (see
-    # participant_unsubscribe.py) — excludes this participant from future
-    # facilitator broadcast emails. Doesn't affect transactional email
-    # (verify/reset), only crud.list_broadcastable_participants.
-    unsubscribed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

@@ -19,6 +19,7 @@ class ClubCreate(BaseModel):
     organizer_name: str | None = Field(default=None, max_length=200)
     organizer_branch: str | None = Field(default=None, max_length=200)
     video_call_url: str | None = Field(default=None, max_length=500)
+    club_type: Literal["library", "private"] = "library"
 
 
 class ClubUpdate(BaseModel):
@@ -29,6 +30,7 @@ class ClubUpdate(BaseModel):
     organizer_name: str | None = Field(default=None, max_length=200)
     organizer_branch: str | None = Field(default=None, max_length=200)
     video_call_url: str | None = Field(default=None, max_length=500)
+    club_type: Literal["library", "private"] | None = None
 
 
 class ClubResponse(BaseModel):
@@ -40,6 +42,7 @@ class ClubResponse(BaseModel):
     organizer_name: str | None
     organizer_branch: str | None
     video_call_url: str | None = None
+    club_type: str
     role: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
@@ -147,6 +150,8 @@ class MemberUpdate(BaseModel):
 
 class MemberResponse(MemberBase):
     id: int
+    participant_account_id: int | None = None
+    participant_account_linked: bool = False
     onboarding_email_sent_at: datetime | None = None
     arrival_email_sent_at: datetime | None = None
     transit_label_printed_at: datetime | None = None
@@ -449,13 +454,3 @@ class DiscussionQuestionResponse(BaseModel):
     position: int
     text: str
     model_config = ConfigDict(from_attributes=True)
-
-
-class SelfServeClubSummary(BaseModel):
-    id: int
-    name: str
-    slug: str
-    facilitator_name: str | None
-    facilitator_email: str | None
-    participant_count: int
-    created_at: datetime | None

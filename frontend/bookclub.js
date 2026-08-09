@@ -1178,7 +1178,7 @@ const renderMembers = () => {
               <div class="member-cell"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><span class="member-email-row"><small class="member-email">${escapeHtml(member.email)}</small><button class="copy-email-button" type="button" data-copy-email="${escapeHtml(member.email)}" aria-label="Copy ${escapeHtml(member.name)}'s email address" title="Copy email address"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg></button></span></div></div>
               <span class="status-pill ${member.active ? "" : "inactive"}">${member.active ? "Active" : "Inactive"}</span>
             </header>
-            <div class="member-badge-row">${lapsed ? '<span class="status-pill attention-badge">May need a hello</span>' : ""}${badgeHtml}</div>
+            <div class="member-badge-row">${member.participant_account_linked ? '<span class="status-pill">Portal account</span>' : ""}${lapsed ? '<span class="status-pill attention-badge">May need a hello</span>' : ""}${badgeHtml}</div>
             <div class="member-engagement">
               <div class="attendance-summary"><span>Attendance</span><strong>${attendedCount}<small> / ${meetingsTotal}</small></strong><div class="attendance-track" role="img" aria-label="${attendanceRate}% attendance"><span style="width: ${attendanceRate}%"></span></div></div>
               <div class="giveaway-summary pages-summary"><span>Pages read</span><strong>${(participation?.pages_read || 0).toLocaleString("en-CA")}<small> pages</small></strong></div>
@@ -1741,6 +1741,7 @@ $("#club-settings-form").addEventListener("submit", async (event) => {
       method: "PATCH",
       body: JSON.stringify({
         name: form.elements.name.value.trim(),
+        club_type: form.elements.club_type.value,
         description: form.elements.description.value.trim() || null,
         organizer_name: form.elements.organizer_name.value.trim() || null,
         organizer_branch: form.elements.organizer_branch.value.trim() || null,

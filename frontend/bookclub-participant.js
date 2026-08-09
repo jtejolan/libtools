@@ -45,7 +45,6 @@ const render = (participant) => {
   document.title = `${participant.club_name} — Book Club`;
   $("#club-eyebrow").textContent = participant.club_name;
   $("#welcome-heading").textContent = `Welcome, ${capitalizeFirst(participant.name)}`;
-  $("#manage-panel").hidden = participant.role !== "owner";
 
   const panel = $("#email-panel");
   if (!participant.email_verified) {

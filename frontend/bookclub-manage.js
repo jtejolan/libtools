@@ -35,6 +35,7 @@ const formatDate = (value) =>
     new Date(`${value}T12:00:00`),
   );
 
+const API = "/bookclub/community";
 const state = { books: [], meetings: [], templates: [] };
 
 // ---- tabs ----
@@ -73,7 +74,7 @@ const renderBooks = () => {
 };
 
 const loadBooks = async () => {
-  state.books = await request("/facilitator/books?limit=500");
+  state.books = await request(`${API}/books?limit=500`);
   renderBooks();
   const select = $("#meeting-book-select");
   select.innerHTML = state.books.map((book) => `<option value="${book.id}">${escapeHtml(book.title)}</option>`).join("");
@@ -113,7 +114,7 @@ $("#import-book").addEventListener("click", async () => {
   }
   $("#import-book-status").textContent = "Fetching…";
   try {
-    const result = await request("/facilitator/books/import", {
+    const result = await request(`${API}/books/import`, {
       method: "POST",
       body: JSON.stringify({ catalogue_url: url }),
     });
@@ -140,8 +141,8 @@ $("#book-form").addEventListener("submit", async (event) => {
     if (data[key] === "") delete data[key];
   }
   try {
-    if (id) await request(`/facilitator/books/${id}`, { method: "PATCH", body: JSON.stringify(data) });
-    else await request("/facilitator/books", { method: "POST", body: JSON.stringify(data) });
+    if (id) await request(`${API}/books/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+    else await request(`${API}/books`, { method: "POST", body: JSON.stringify(data) });
     $("#book-dialog").close();
     await loadBooks();
     toast("Book saved.");
@@ -154,7 +155,7 @@ $("#delete-book").addEventListener("click", async () => {
   const id = $("#book-form").elements.id.value;
   if (!id || !confirm("Delete this book?")) return;
   try {
-    await request(`/facilitator/books/${id}`, { method: "DELETE" });
+    await request(`${API}/books/${id}`, { method: "DELETE" });
     $("#book-dialog").close();
     await loadBooks();
     toast("Book deleted.");
@@ -184,7 +185,7 @@ const renderMeetings = () => {
 };
 
 const loadMeetings = async () => {
-  state.meetings = await request("/facilitator/meetings?limit=500");
+  state.meetings = await request(`${API}/meetings?limit=500`);
   renderMeetings();
 };
 
@@ -231,8 +232,8 @@ $("#meeting-form").addEventListener("submit", async (event) => {
     if (data[key] === "") delete data[key];
   }
   try {
-    if (id) await request(`/facilitator/meetings/${id}`, { method: "PATCH", body: JSON.stringify(data) });
-    else await request("/facilitator/meetings", { method: "POST", body: JSON.stringify(data) });
+    if (id) await request(`${API}/meetings/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+    else await request(`${API}/meetings`, { method: "POST", body: JSON.stringify(data) });
     $("#meeting-dialog").close();
     await loadMeetings();
     toast("Meeting saved.");
@@ -245,7 +246,7 @@ $("#delete-meeting").addEventListener("click", async () => {
   const id = $("#meeting-form").elements.id.value;
   if (!id || !confirm("Delete this meeting?")) return;
   try {
-    await request(`/facilitator/meetings/${id}`, { method: "DELETE" });
+    await request(`${API}/meetings/${id}`, { method: "DELETE" });
     $("#meeting-dialog").close();
     await loadMeetings();
     toast("Meeting deleted.");
@@ -278,7 +279,7 @@ const renderTemplates = () => {
 };
 
 const loadTemplates = async () => {
-  state.templates = await request("/facilitator/templates");
+  state.templates = await request(`${API}/templates`);
   renderTemplates();
 };
 
@@ -313,7 +314,7 @@ $("#templates-list").addEventListener("click", async (event) => {
   if (!confirm("Send this email to all subscribed participants now?")) return;
   button.disabled = true;
   try {
-    const result = await request("/facilitator/broadcast", {
+    const result = await request(`${API}/broadcast`, {
       method: "POST",
       body: JSON.stringify({ template_key: key }),
     });
@@ -340,8 +341,8 @@ $("#template-form").addEventListener("submit", async (event) => {
   const data = Object.fromEntries(new FormData(form));
   if (editingKey) delete data.key;
   try {
-    if (editingKey) await request(`/facilitator/templates/${editingKey}`, { method: "PATCH", body: JSON.stringify(data) });
-    else await request("/facilitator/templates", { method: "POST", body: JSON.stringify(data) });
+    if (editingKey) await request(`${API}/templates/${editingKey}`, { method: "PATCH", body: JSON.stringify(data) });
+    else await request(`${API}/templates`, { method: "POST", body: JSON.stringify(data) });
     $("#template-dialog").close();
     await loadTemplates();
     toast("Template saved.");
@@ -406,7 +407,7 @@ const renderVoting = (round) => {
 
 const loadVoting = async () => {
   try {
-    const round = await request("/facilitator/voting-round");
+    const round = await request(`${API}/voting-round`);
     renderVoting(round);
   } catch (error) {
     if (error.status === 404) renderVoting(null);
@@ -431,7 +432,7 @@ $("#start-voting-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const ids = $$("#start-voting-choices input:checked").map((input) => Number(input.value));
   try {
-    const round = await request("/facilitator/voting-round", {
+    const round = await request(`${API}/voting-round`, {
       method: "POST",
       body: JSON.stringify({ candidate_book_ids: ids }),
     });
@@ -447,7 +448,7 @@ $("#add-candidate-button").addEventListener("click", async () => {
   const select = $("#candidate-book-select");
   if (!select.value) return;
   try {
-    await request("/facilitator/voting-round/candidates", {
+    await request(`${API}/voting-round/candidates`, {
       method: "POST",
       body: JSON.stringify({ book_id: Number(select.value) }),
     });
@@ -464,7 +465,7 @@ $("#voting-list").addEventListener("click", async (event) => {
   if (!approve && !reject) return;
   const id = (approve ?? reject).dataset[approve ? "approveCandidate" : "rejectCandidate"];
   try {
-    const round = await request(`/facilitator/candidates/${id}/${approve ? "approve" : "reject"}`, {
+    const round = await request(`${API}/candidates/${id}/${approve ? "approve" : "reject"}`, {
       method: "POST",
     });
     renderVoting(round);
@@ -476,7 +477,7 @@ $("#voting-list").addEventListener("click", async (event) => {
 $("#close-voting-round").addEventListener("click", async () => {
   if (!confirm("Close voting and pick a winner?")) return;
   try {
-    const round = await request("/facilitator/voting-round/close", { method: "POST" });
+    const round = await request(`${API}/voting-round/close`, { method: "POST" });
     renderVoting(round);
     toast("Voting closed.");
   } catch (error) {
@@ -523,7 +524,7 @@ const renderDatePoll = (poll) => {
 
 const loadDatePoll = async () => {
   try {
-    const poll = await request("/facilitator/date-poll");
+    const poll = await request(`${API}/date-poll`);
     renderDatePoll(poll);
   } catch (error) {
     if (error.status === 404) renderDatePoll(null);
@@ -543,7 +544,7 @@ $("#start-date-poll-form").addEventListener("submit", async (event) => {
     .map((input) => input.value)
     .filter(Boolean);
   try {
-    const poll = await request("/facilitator/date-poll", {
+    const poll = await request(`${API}/date-poll`, {
       method: "POST",
       body: JSON.stringify({ option_dates: dates }),
     });
@@ -559,7 +560,7 @@ $("#add-date-option-button").addEventListener("click", async () => {
   const input = $("#date-option-input");
   if (!input.value) return;
   try {
-    const poll = await request("/facilitator/date-poll/options", {
+    const poll = await request(`${API}/date-poll/options`, {
       method: "POST",
       body: JSON.stringify({ option_date: input.value }),
     });
@@ -574,7 +575,7 @@ $("#add-date-option-button").addEventListener("click", async () => {
 $("#close-date-poll").addEventListener("click", async () => {
   if (!confirm("Close the date poll and pick a winner?")) return;
   try {
-    const poll = await request("/facilitator/date-poll/close", { method: "POST" });
+    const poll = await request(`${API}/date-poll/close`, { method: "POST" });
     renderDatePoll(poll);
     toast("Date poll closed.");
   } catch (error) {
@@ -584,22 +585,19 @@ $("#close-date-poll").addEventListener("click", async () => {
 
 // ---- init ----
 $("#logout").addEventListener("click", async () => {
-  await request("/participant/auth/logout", { method: "POST" });
-  location.href = "/";
+  await request("/auth/logout", { method: "POST" });
+  location.href = "/login";
 });
 
 (async () => {
   try {
-    const me = await request("/participant/auth/me");
-    if (me.role !== "owner") {
-      location.href = "/dashboard";
-      return;
-    }
-    $("#club-eyebrow").textContent = me.club_name;
-    document.title = `${me.club_name} — Manage`;
+    await request("/auth/me");
+    const club = await request("/bookclub/clubs/selected");
+    $("#club-eyebrow").textContent = club.name;
+    document.title = `${club.name} — Community`;
     await loadBooks();
     await Promise.all([loadMeetings(), loadTemplates(), loadVoting(), loadDatePoll()]);
   } catch {
-    location.href = "/";
+    location.href = "/bookclub";
   }
 })();

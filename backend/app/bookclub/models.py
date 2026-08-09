@@ -29,13 +29,9 @@ class BookClub(Base):
     organizer_name: Mapped[str | None] = mapped_column(String(200))
     organizer_branch: Mapped[str | None] = mapped_column(String(200))
     video_call_url: Mapped[str | None] = mapped_column(String(500))
-    # "library" clubs are staff-run (LibtoolsUser + BookClubAccess, managed
-    # from the /bookclub staff tool); "self_serve" clubs are facilitator-run
-    # (an owner-role ParticipantAccount, managed from bookclub.libtools.app).
-    # The two are already structurally disjoint — a self_serve club never
-    # gets a BookClubAccess row and a library club never gets an owner
-    # ParticipantAccount — this column exists for filtering (e.g. the admin
-    # visibility view), not as the actual access-control mechanism.
+    # Both library and private clubs are managed by LibtoolsUser accounts.
+    # This controls library-specific defaults/presentation only;
+    # BookClubAccess is the authorization mechanism for both.
     club_type: Mapped[str] = mapped_column(String(20), default="library", server_default="library")
 
     access: Mapped[list["BookClubAccess"]] = relationship(
@@ -73,6 +69,13 @@ class BookClubMember(Base):
     )
     name: Mapped[str] = mapped_column(String(200))
     email: Mapped[str] = mapped_column(String(320), index=True)
+    # A roster entry is canonical whether or not the reader has a portal
+    # login. Linking an account unlocks community features without creating
+    # a second, parallel roster population.
+    participant_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("bookclub_participant_accounts.id", ondelete="SET NULL"),
+        index=True,
+    )
     joined_on: Mapped[date] = mapped_column(Date())
     active: Mapped[bool] = mapped_column(
         Boolean(), default=True, server_default="1"
@@ -97,6 +100,13 @@ class BookClubMember(Base):
     last_reminder_sent_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True)
     )
+    participant_unsubscribed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+
+    @property
+    def participant_account_linked(self) -> bool:
+        return self.participant_account_id is not None
 
 
 class BookClubBook(Base):
@@ -316,11 +326,8 @@ class BookClubRating(Base):
 
 class BookClubVotingRound(Base):
     """A poll for "what should we read next". Simplified from the original
-    draft/open/closed design to just open/closed: since facilitators are
-    now ParticipantAccounts (role="owner") rather than a separate
-    LibtoolsUser-based flow, there's no longer a reason for a candidate to
-    reference two different proposer types, and no strong need for a
-    prep-only "draft" stage before participants can see it — a facilitator
+    draft/open/closed design to just open/closed. There is no strong need
+    for a prep-only "draft" stage before participants can see it: a facilitator
     opens a round with an initial candidate list already in hand. One open
     round per club at a time, enforced at the application layer in crud.py
     (not a DB constraint — SQLite's partial-unique-index support is
@@ -345,9 +352,8 @@ class BookClubVotingRound(Base):
 
 class BookClubBookCandidate(Base):
     """A book nominated for a voting round. `proposed_by_participant_id` is
-    always a ParticipantAccount — a facilitator's own proposals are just an
-    owner-role participant proposing (auto-approved); a member's proposal
-    starts "pending" until a facilitator approves or rejects it.
+    identifies participant proposals. Manager-added candidates use NULL and
+    auto-approve; participant proposals start pending until reviewed.
     """
 
     __tablename__ = "bookclub_book_candidates"

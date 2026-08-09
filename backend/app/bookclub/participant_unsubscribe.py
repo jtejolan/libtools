@@ -34,8 +34,8 @@ def _secret() -> str:
 _serializer = URLSafeSerializer(_secret(), salt=_SALT)
 
 
-def issue_unsubscribe_token(participant_id: int) -> str:
-    return _serializer.dumps(participant_id)
+def issue_unsubscribe_token(member_id: int) -> str:
+    return _serializer.dumps(member_id)
 
 
 def verify_unsubscribe_token(token: str) -> int | None:

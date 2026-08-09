@@ -160,89 +160,21 @@ a single IIFE fetches `GET /api/public/clubs/{slug}` and renders the club
 name/description, book shelf, and next meeting directly into the DOM. Uses
 `platform.css`, not `bookclub.css`.
 
-## `bookclub.libtools.app` pages
+## `bookclub.libtools.app` participant portal
 
-Served by `bookclub_public_app` (see `docs/architecture.md`), not the
-primary app — separate pages from everything above, styled with
-`platform.css` for visual consistency but functionally independent.
-
-- **`bookclub-landing.html` / `.js`** — subdomain root. "Start a club" goes
-  to `/create` — entirely in-subdomain, since facilitators are
-  `ParticipantAccount`s now, not `LibtoolsUser`s (see
-  `docs/backend/bookclub.md`); "Find your club" is a slug search that
-  navigates to `/clubs/{slug}`.
-- **`bookclub-account.html` / `.js`** — one shared shell for both the
-  facilitator create-club flow and participant
-  join/login/forgot-password/verify-email/reset-password, keyed by URL path
-  the same way `account.html`/`account.js` handles the equivalent staff
-  flows. `/create` (create a club + its owner account together, no slug —
-  there's no club yet), `/clubs/{slug}/join`, `/clubs/{slug}/login`, and
-  `/clubs/{slug}/forgot-password` read the slug from the URL path (no club
-  picker); `/verify-email` and `/reset-password` don't need one since a
-  token alone identifies the participant.
-- **`bookclub-participant.html` / `.js`** — logged-in participant dashboard
-  at `/dashboard`, shared by both plain participants and facilitators
-  (`role="owner"`). A welcome message, email-verification nudge, logout,
-  and — for owners only — a "Manage your club" card linking to `/manage`.
-  A "Vote on the next book" section (`#voting-content`) shows the current
-  round's approved candidates with a vote button (highlights
-  `my_vote_candidate_id`), a "propose another book" `<select>` built from
-  books not already candidates, and — for the participant's own
-  not-yet-approved proposals only — a small "awaiting facilitator approval"
-  note; other participants' pending/rejected proposals aren't shown at all.
-  While the round is open, `vote_count` comes back `null` from the API
-  (hidden) so no tally renders; once `status: "closed"`, results render
-  with counts and a 🏆 next to the winning book. Below that, a "Rate what
-  you've read" section (`#ratings-list`, `.rating-card`/`.star-row`/
-  `.star-button` in `platform.css`) lists every book in the club with a
-  clickable 1-5 star widget and an optional review textarea; ratings are an
-  upsert (`PUT /participant/books/{id}/rating`) — resubmitting updates your
-  existing rating rather than adding a second one. Other participants'
-  ratings/reviews are visible too, collapsed behind a `<details>` ("N other
-  reviews"), not just an aggregate average — fetched per-book
-  (`GET .../ratings`), N+1 requests, acceptable at club-catalogue scale.
-  The club's book list (`/participant/books`) is fetched once into
-  `participantState.books` and reused by both the ratings section and the
-  voting "propose" dropdown, rather than fetched twice. A separate "Vote on
-  the next meeting date" section (`#date-poll-content`) follows the same
-  hidden-tally-while-open / 🏆-on-close pattern as book voting, but has no
-  "propose a date" form at all — date options are facilitator-only (see
-  `docs/backend/bookclub.md`'s "two separate systems" gotcha), so there's
-  nothing for a participant to propose.
-- **`bookclub-manage.html` / `.js`** — the facilitator console at `/manage`,
-  redirects non-owners back to `/dashboard`. A single tabbed page (Books /
-  Meetings / Voting / Meeting date / Templates, `.manage-tab`/
-  `.manage-dialog` in `platform.css`), not a `bookclub.js`-style multi-view
-  SPA — deliberately smaller, since it only needs the generic CRUD
-  `facilitator_routes.py` exposes (no member-roster/transit-label/giveaway
-  UI, none of that applies to self-serve clubs). Books support the same
-  BiblioCommons catalogue-import flow as the staff tool
-  (`POST /facilitator/books/import`). The Voting tab: "Start a poll" opens
-  `#start-voting-dialog` with a checkbox per club book (facilitator-proposed
-  candidates auto-approve); once open, pending (participant-proposed)
-  candidates get inline Approve/Reject buttons, vote counts are always
-  visible (unlike the participant view), and "Add another candidate"
-  appends more books to the same open round without needing a new poll.
-  The Meeting date tab is the same shape but simpler — `#start-date-poll-dialog`
-  has three plain `<input type=date>` fields (2 optional) instead of a book
-  checklist, since there's no approval queue to render. On the Templates
-  tab, `kind === "email"` templates get a "Send to participants" button
-  (`POST /facilitator/broadcast`) alongside Edit — a `confirm()` dialog
-  first (same pattern as delete actions elsewhere in this file), then a
-  toast reporting `sent_count`/`recipient_count`, or — since
-  `RESEND_API_KEY` is commonly unset in dev — "Email delivery isn't
-  connected yet — would have reached N participants" when
-  `delivery_configured` is `false`. A second toast surfaces
-  `missing_variables` if the template had unfilled `{{placeholders}}`.
-- **`bookclub-unsubscribe.html` / `.js`** — the public page at `/unsubscribe?token=…`
-  linked from every broadcast email. Loading the page does *not* unsubscribe
-  anyone — it shows a "Confirm unsubscribe" button the visitor must click,
-  specifically so an email client's link-prefetching/security-scanning
-  can't trigger a real unsubscribe just by fetching the URL. Works with no
-  login at all (`POST /participant/unsubscribe` takes only the token).
-  Re-visiting an already-used link renders "Already unsubscribed" rather
-  than erroring, since the underlying token isn't single-use (see
-  `docs/backend/bookclub.md`'s gotcha on why).
+- `bookclub-landing.html` finds an existing club. “Start a club” sends the
+  user to the regular Libtools signup/Book Club Manager flow.
+- `public-club.html` exposes Join and Participant sign-in actions on the
+  subdomain.
+- `bookclub-account.html` handles participant registration, login, recovery,
+  and verification only; the old facilitator creation card is removed.
+- `bookclub-participant.html` is the community page for ratings, reviews,
+  book proposals/votes, and meeting-date votes. It has no facilitator role
+  or management link.
+- `bookclub-manage.html` is now served from
+  `libtools.app/bookclub/community`, authenticated by the regular Libtools
+  session and selected club. It manages voting, date polls, templates, and
+  participant broadcasts; the primary manager links to it as Community.
 
 ## Gotchas
 

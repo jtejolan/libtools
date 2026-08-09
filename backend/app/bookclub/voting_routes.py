@@ -85,7 +85,7 @@ def propose_candidate(
     if crud.get_book(db, value.book_id) is None:
         raise _not_found("Book not found")
     candidate = crud.add_candidate(
-        db, round_.id, value.book_id, participant.id, auto_approve=participant.role == "owner"
+        db, round_.id, value.book_id, participant.id, auto_approve=False
     )
     return CandidateResponse(
         id=candidate.id,

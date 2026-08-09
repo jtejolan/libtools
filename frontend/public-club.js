@@ -12,4 +12,9 @@ const renderShelf=(books)=>{
     return `<div class="shelf-item"><div class="shelf-cover">${cover?`<img src="${escapeHtml(cover)}" alt="Cover of ${escapeHtml(book.title)}" loading="lazy" />`:escapeHtml(initials(book.title))}</div><strong>${escapeHtml(book.title)}</strong><small>${escapeHtml(book.author)}</small></div>`;
   }).join("");
 };
+if(location.hostname==="bookclub.libtools.app"){
+  $("#participant-actions").hidden=false;
+  $("#join-club-link").href=`/clubs/${encodeURIComponent(slug)}/join`;
+  $("#participant-login-link").href=`/clubs/${encodeURIComponent(slug)}/login`;
+}
 (async()=>{const response=await fetch(`/api/public/clubs/${encodeURIComponent(slug)}`,{cache:"no-store"});if(!response.ok){$("#club-name").textContent="Club not found";$("#club-description").textContent="This club page is unavailable or private.";return;}const club=await response.json();document.title=`${club.name} — Library Tools`;$("#club-name").textContent=club.name;$("#club-description").textContent=club.description||"A community book club.";renderShelf(club.shelf||[]);const meeting=club.upcoming_meeting;if(!meeting){$("#meeting-details").hidden=false;$("#meeting-details").innerHTML="<strong>Next meeting coming soon</strong><span>Check back for the next selection.</span>";return;}$("#meeting-details").hidden=false;$("#meeting-details").innerHTML=`<p class="eyebrow">Next meeting</p><strong>${escapeHtml(meeting.book.title)}</strong><span>by ${escapeHtml(meeting.book.author)} · ${escapeHtml(formatDate(meeting.meeting_date))}${meeting.meeting_time?` · ${escapeHtml(meeting.meeting_time)}`:""}${meeting.location?` · ${escapeHtml(meeting.location)}`:""}</span>`;const cover=meeting.book.cover_image_url;if(cover){const image=new Image();image.alt=`Cover of ${meeting.book.title}`;image.src=cover;$("#public-cover").replaceChildren(image);}else{$("#public-cover").textContent=meeting.book.title.split(/\s+/).slice(0,2).map(word=>word[0]).join("");}})();

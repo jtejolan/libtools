@@ -45,18 +45,15 @@ class DatePollRoutesTests(unittest.TestCase):
         with self.engine.begin() as connection:
             for table in reversed(Base.metadata.sorted_tables):
                 connection.execute(table.delete())
-        self.facilitator = TestClient(app, base_url="http://bookclub.libtools.app")
-        created = self.facilitator.post(
-            "/participant/clubs",
-            json={
-                "club_name": "Mystery Lovers Club",
-                "facilitator_name": "Alex Facilitator",
-                "facilitator_email": "alex@example.com",
-                "password": "facilitator-pw-1",
-                "confirm_password": "facilitator-pw-1",
-            },
-        )
+        self.facilitator = TestClient(app)
+        registered = self.facilitator.post("/auth/register", json={
+            "name": "Alex Facilitator", "username": "alex", "email": "alex@example.com",
+            "password": "facilitator-pw-1", "confirm_password": "facilitator-pw-1",
+        })
+        self.assertEqual(registered.status_code, 201, registered.text)
+        created = self.facilitator.post("/bookclub/clubs", json={"name": "Mystery Lovers Club"})
         self.assertEqual(created.status_code, 201, created.text)
+        self.facilitator.post(f"/bookclub/clubs/{created.json()['id']}/select")
         self.reader_a = self.register_reader("reader-a@example.com")
         self.reader_b = self.register_reader("reader-b@example.com")
 
@@ -83,19 +80,19 @@ class DatePollRoutesTests(unittest.TestCase):
 
     def open_poll(self, option_dates=None) -> dict:
         response = self.facilitator.post(
-            "/facilitator/date-poll",
+            "/bookclub/community/date-poll",
             json={"option_dates": option_dates or ["2026-09-01", "2026-09-08"]},
         )
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
 
     def test_only_facilitator_can_open_a_poll(self) -> None:
-        response = self.reader_a.post("/facilitator/date-poll", json={"option_dates": ["2026-09-01"]})
-        self.assertEqual(response.status_code, 403, response.text)
+        response = self.reader_a.post("/bookclub/community/date-poll", json={"option_dates": ["2026-09-01"]})
+        self.assertEqual(response.status_code, 404, response.text)
 
     def test_cannot_open_a_second_poll_while_one_is_open(self) -> None:
         self.open_poll()
-        response = self.facilitator.post("/facilitator/date-poll", json={"option_dates": ["2026-09-15"]})
+        response = self.facilitator.post("/bookclub/community/date-poll", json={"option_dates": ["2026-09-15"]})
         self.assertEqual(response.status_code, 409, response.text)
 
     def test_participant_can_view_and_vote(self) -> None:
@@ -116,14 +113,14 @@ class DatePollRoutesTests(unittest.TestCase):
         poll = self.open_poll()
         option_id = poll["options"][0]["id"]
         self.reader_a.put("/participant/date-poll/vote", json={"option_id": option_id})
-        response = self.facilitator.get("/facilitator/date-poll")
+        response = self.facilitator.get("/bookclub/community/date-poll")
         matching = [o for o in response.json()["options"] if o["id"] == option_id][0]
         self.assertEqual(matching["vote_count"], 1)
 
     def test_facilitator_can_add_another_option_to_open_poll(self) -> None:
         self.open_poll(option_dates=["2026-09-01"])
         response = self.facilitator.post(
-            "/facilitator/date-poll/options", json={"option_date": "2026-09-22"}
+            "/bookclub/community/date-poll/options", json={"option_date": "2026-09-22"}
         )
         self.assertEqual(response.status_code, 201, response.text)
         self.assertEqual(len(response.json()["options"]), 2)
@@ -136,7 +133,7 @@ class DatePollRoutesTests(unittest.TestCase):
         onlooker = self.register_reader("onlooker@example.com")
         onlooker.put("/participant/date-poll/vote", json={"option_id": first})
 
-        response = self.facilitator.post("/facilitator/date-poll/close")
+        response = self.facilitator.post("/bookclub/community/date-poll/close")
         self.assertEqual(response.status_code, 200, response.text)
         body = response.json()
         self.assertEqual(body["status"], "closed")
@@ -146,7 +143,7 @@ class DatePollRoutesTests(unittest.TestCase):
     def test_cannot_vote_after_poll_is_closed(self) -> None:
         poll = self.open_poll()
         option_id = poll["options"][0]["id"]
-        self.facilitator.post("/facilitator/date-poll/close")
+        self.facilitator.post("/bookclub/community/date-poll/close")
         response = self.reader_a.put("/participant/date-poll/vote", json={"option_id": option_id})
         self.assertEqual(response.status_code, 404, response.text)
 
@@ -154,15 +151,15 @@ class DatePollRoutesTests(unittest.TestCase):
         poll = self.open_poll()
         option_id = poll["options"][0]["id"]
         self.reader_a.put("/participant/date-poll/vote", json={"option_id": option_id})
-        self.facilitator.post("/facilitator/date-poll/close")
+        self.facilitator.post("/bookclub/community/date-poll/close")
         response = self.reader_b.get("/participant/date-poll")
         matching = [o for o in response.json()["options"] if o["id"] == option_id][0]
         self.assertEqual(matching["vote_count"], 1)
 
     def test_facilitator_can_open_a_new_poll_after_closing(self) -> None:
         self.open_poll()
-        self.facilitator.post("/facilitator/date-poll/close")
-        response = self.facilitator.post("/facilitator/date-poll", json={"option_dates": ["2026-10-01"]})
+        self.facilitator.post("/bookclub/community/date-poll/close")
+        response = self.facilitator.post("/bookclub/community/date-poll", json={"option_dates": ["2026-10-01"]})
         self.assertEqual(response.status_code, 201, response.text)
 
     def test_book_voting_and_date_polling_are_independent(self) -> None:
@@ -170,10 +167,10 @@ class DatePollRoutesTests(unittest.TestCase):
         # open date poll, and vice versa — confirms the "two separate
         # systems" design choice actually holds at the API level.
         book = self.facilitator.post(
-            "/facilitator/books", json={"title": "Dune", "author": "Frank Herbert"}
+            "/bookclub/community/books", json={"title": "Dune", "author": "Frank Herbert"}
         ).json()
-        self.facilitator.post("/facilitator/voting-round", json={"candidate_book_ids": [book["id"]]})
-        response = self.facilitator.post("/facilitator/date-poll", json={"option_dates": ["2026-09-01"]})
+        self.facilitator.post("/bookclub/community/voting-round", json={"candidate_book_ids": [book["id"]]})
+        response = self.facilitator.post("/bookclub/community/date-poll", json={"option_dates": ["2026-09-01"]})
         self.assertEqual(response.status_code, 201, response.text)
 
 

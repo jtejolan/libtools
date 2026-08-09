@@ -19,7 +19,7 @@ Post-login landing page — tool grid, quick actions, per-tool summary cards
 Calls `/auth/quick-actions`, `/auth/logout`, `/auth/me`,
 `/auth/dashboard-summary`.
 
-`isBookclubOnlyFacilitator(user, tools)` special-cases self-serve book club
+`isBookclubOnlyFacilitator(user, tools)` special-cases private book club
 leads: a signed-in account with no `admin` role, no `lendery_manage` tool
 access, but at least one club in `user.clubs` gets a stripped-down
 dashboard — one enlarged `.dash-card-solo` Book Club Manager card plus the

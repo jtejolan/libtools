@@ -22,7 +22,7 @@ whole product — all routers, the full static frontend, session-gated
 `/docs`+`/openapi.json`. A second app, `lendery_public_app`, has **no auth
 and no session middleware** and serves only `public_lendery_router` plus a
 single landing page (`check.html`) — the Lendery "Quick Check" micro-site.
-A third app, `bookclub_public_app`, is the public/participant-facing surface
+A third app, `bookclub_public_app`, is the public/participant-only surface
 for book clubs at `bookclub.libtools.app` — it *does* need its own session
 state, with a distinct cookie name (`bookclub_participant_session`) so
 participant sessions never collide with or get confused for the primary
@@ -34,13 +34,10 @@ apps are truly separate ASGI mounts (all three are reachable only because
 below), a sub-app with its own session middleware still runs *inside* the
 primary app's session middleware too, and two stock `SessionMiddleware`
 instances alias onto the same `scope["session"]` key regardless of cookie
-name, corrupting both cookies. Self-serve club facilitators are also
-`ParticipantAccount`s (`role="owner"`) rather than `LibtoolsUser`s — fully
-segmented from the primary app's account system, by design (see
-`docs/backend/bookclub.md`'s "Participant accounts" section). Library-run
-clubs are unaffected: staff still sign in and manage those from the primary
-app at `libtools.app/bookclub`, via `LibtoolsUser`/`BookClubAccess`, exactly
-as before. Each sub-app is mounted onto the primary app via
+name, corrupting both cookies. Participant identities are global across club
+rosters but remain separate from `LibtoolsUser`; facilitators always use a
+regular `LibtoolsUser` and manage both private and library-run clubs on the
+primary app via `BookClubAccess`. Each sub-app is mounted via
 `Host("<subdomain>.libtools.app", app=...)`, and each mount is **inserted at
 `app.router.routes[0]`** (not appended) so Starlette matches it before the
 generic any-host routes below would otherwise shadow the same paths (e.g.

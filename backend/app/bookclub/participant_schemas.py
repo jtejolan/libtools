@@ -68,28 +68,10 @@ class ParticipantResponse(BaseModel):
     name: str
     email: str
     email_verified: bool
-    role: str
+    member_id: int
+    role: str = "member"
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
-
-
-class ParticipantClubCreateRequest(ParticipantPasswordPair):
-    club_name: str = Field(min_length=1, max_length=200)
-    club_slug: str | None = Field(default=None, max_length=120)
-    club_description: str | None = None
-    facilitator_name: str = Field(min_length=1, max_length=200)
-    # Required and verified, same reasoning as ParticipantRegistrationRequest.
-    facilitator_email: str = Field(min_length=3, max_length=320)
-
-    @field_validator("facilitator_name")
-    @classmethod
-    def validate_facilitator_name(cls, value: str) -> str:
-        return _clean_name(value)
-
-    @field_validator("facilitator_email")
-    @classmethod
-    def validate_facilitator_email(cls, value: str) -> str:
-        return _clean_email(value)
 
 
 class ParticipantEmailActionResponse(BaseModel):

@@ -46,20 +46,17 @@ class RatingRoutesTests(unittest.TestCase):
         with self.engine.begin() as connection:
             for table in reversed(Base.metadata.sorted_tables):
                 connection.execute(table.delete())
-        self.facilitator = TestClient(app, base_url="http://bookclub.libtools.app")
-        created = self.facilitator.post(
-            "/participant/clubs",
-            json={
-                "club_name": "Mystery Lovers Club",
-                "facilitator_name": "Alex Facilitator",
-                "facilitator_email": "alex@example.com",
-                "password": "facilitator-pw-1",
-                "confirm_password": "facilitator-pw-1",
-            },
-        )
+        self.facilitator = TestClient(app)
+        registered = self.facilitator.post("/auth/register", json={
+            "name": "Alex Facilitator", "username": "alex", "email": "alex@example.com",
+            "password": "facilitator-pw-1", "confirm_password": "facilitator-pw-1",
+        })
+        self.assertEqual(registered.status_code, 201, registered.text)
+        created = self.facilitator.post("/bookclub/clubs", json={"name": "Mystery Lovers Club"})
         self.assertEqual(created.status_code, 201, created.text)
+        self.facilitator.post(f"/bookclub/clubs/{created.json()['id']}/select")
         book = self.facilitator.post(
-            "/facilitator/books",
+            "/bookclub/community/books",
             json={"title": "The Silent Patient", "author": "Alex Michaelides"},
         )
         self.assertEqual(book.status_code, 201, book.text)
@@ -144,20 +141,11 @@ class RatingRoutesTests(unittest.TestCase):
         self.assertIsNone(response.json()["average"])
 
     def test_rating_a_book_from_another_club_is_not_found(self) -> None:
-        self.facilitator.post("/participant/auth/logout")
-        other_club = self.facilitator.post(
-            "/participant/clubs",
-            json={
-                "club_name": "Sci-Fi Explorers",
-                "facilitator_name": "Sam Two",
-                "facilitator_email": "sam@example.com",
-                "password": "facilitator-pw-2",
-                "confirm_password": "facilitator-pw-2",
-            },
-        )
+        other_club = self.facilitator.post("/bookclub/clubs", json={"name": "Sci-Fi Explorers"})
         self.assertEqual(other_club.status_code, 201, other_club.text)
+        self.facilitator.post(f"/bookclub/clubs/{other_club.json()['id']}/select")
         other_book = self.facilitator.post(
-            "/facilitator/books", json={"title": "Dune", "author": "Frank Herbert"}
+            "/bookclub/community/books", json={"title": "Dune", "author": "Frank Herbert"}
         )
         self.assertEqual(other_book.status_code, 201, other_book.text)
 
@@ -166,9 +154,9 @@ class RatingRoutesTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 404, response.text)
 
-    def test_facilitator_can_also_rate_as_a_participant(self) -> None:
+    def test_libtools_manager_session_is_not_a_participant_session(self) -> None:
         response = self.facilitator.put(f"/participant/books/{self.book_id}/rating", json={"rating": 4})
-        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.status_code, 404, response.text)
 
 
 if __name__ == "__main__":

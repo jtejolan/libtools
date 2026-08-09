@@ -46,18 +46,15 @@ class VotingRoutesTests(unittest.TestCase):
         with self.engine.begin() as connection:
             for table in reversed(Base.metadata.sorted_tables):
                 connection.execute(table.delete())
-        self.facilitator = TestClient(app, base_url="http://bookclub.libtools.app")
-        created = self.facilitator.post(
-            "/participant/clubs",
-            json={
-                "club_name": "Mystery Lovers Club",
-                "facilitator_name": "Alex Facilitator",
-                "facilitator_email": "alex@example.com",
-                "password": "facilitator-pw-1",
-                "confirm_password": "facilitator-pw-1",
-            },
-        )
+        self.facilitator = TestClient(app)
+        registered = self.facilitator.post("/auth/register", json={
+            "name": "Alex Facilitator", "username": "alex", "email": "alex@example.com",
+            "password": "facilitator-pw-1", "confirm_password": "facilitator-pw-1",
+        })
+        self.assertEqual(registered.status_code, 201, registered.text)
+        created = self.facilitator.post("/bookclub/clubs", json={"name": "Mystery Lovers Club"})
         self.assertEqual(created.status_code, 201, created.text)
+        self.facilitator.post(f"/bookclub/clubs/{created.json()['id']}/select")
         self.book_a = self.create_book("Dune")
         self.book_b = self.create_book("Foundation")
         self.book_c = self.create_book("The Martian")
@@ -67,7 +64,7 @@ class VotingRoutesTests(unittest.TestCase):
 
     def create_book(self, title: str) -> int:
         response = self.facilitator.post(
-            "/facilitator/books", json={"title": title, "author": "Someone"}
+            "/bookclub/community/books", json={"title": title, "author": "Someone"}
         )
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()["id"]
@@ -95,7 +92,7 @@ class VotingRoutesTests(unittest.TestCase):
 
     def open_round(self, candidate_book_ids=None) -> dict:
         response = self.facilitator.post(
-            "/facilitator/voting-round",
+            "/bookclub/community/voting-round",
             json={"candidate_book_ids": candidate_book_ids or [self.book_a, self.book_b]},
         )
         self.assertEqual(response.status_code, 201, response.text)
@@ -103,14 +100,14 @@ class VotingRoutesTests(unittest.TestCase):
 
     def test_only_facilitator_can_open_a_round(self) -> None:
         response = self.reader_a.post(
-            "/facilitator/voting-round", json={"candidate_book_ids": [self.book_a]}
+            "/bookclub/community/voting-round", json={"candidate_book_ids": [self.book_a]}
         )
-        self.assertEqual(response.status_code, 403, response.text)
+        self.assertEqual(response.status_code, 404, response.text)
 
     def test_cannot_open_a_second_round_while_one_is_open(self) -> None:
         self.open_round()
         response = self.facilitator.post(
-            "/facilitator/voting-round", json={"candidate_book_ids": [self.book_c]}
+            "/bookclub/community/voting-round", json={"candidate_book_ids": [self.book_c]}
         )
         self.assertEqual(response.status_code, 409, response.text)
 
@@ -138,7 +135,7 @@ class VotingRoutesTests(unittest.TestCase):
         round_ = self.open_round()
         candidate_id = round_["candidates"][0]["id"]
         self.reader_a.put("/participant/voting-round/vote", json={"candidate_id": candidate_id})
-        response = self.facilitator.get("/facilitator/voting-round")
+        response = self.facilitator.get("/bookclub/community/voting-round")
         self.assertEqual(response.status_code, 200, response.text)
         matching = [c for c in response.json()["candidates"] if c["id"] == candidate_id][0]
         self.assertEqual(matching["vote_count"], 1)
@@ -148,7 +145,7 @@ class VotingRoutesTests(unittest.TestCase):
         first, second = round_["candidates"][0]["id"], round_["candidates"][1]["id"]
         self.reader_a.put("/participant/voting-round/vote", json={"candidate_id": first})
         self.reader_a.put("/participant/voting-round/vote", json={"candidate_id": second})
-        results = self.facilitator.get("/facilitator/voting-round").json()
+        results = self.facilitator.get("/bookclub/community/voting-round").json()
         counts = {c["id"]: c["vote_count"] for c in results["candidates"]}
         self.assertEqual(counts[first], 0)
         self.assertEqual(counts[second], 1)
@@ -165,7 +162,7 @@ class VotingRoutesTests(unittest.TestCase):
         )
         self.assertEqual(vote.status_code, 404, vote.text)
 
-        approved = self.facilitator.post(f"/facilitator/candidates/{response.json()['id']}/approve")
+        approved = self.facilitator.post(f"/bookclub/community/candidates/{response.json()['id']}/approve")
         self.assertEqual(approved.status_code, 200, approved.text)
         vote_after_approval = self.reader_b.put(
             "/participant/voting-round/vote", json={"candidate_id": response.json()["id"]}
@@ -177,7 +174,7 @@ class VotingRoutesTests(unittest.TestCase):
         proposed = self.reader_a.post(
             "/participant/voting-round/candidates", json={"book_id": self.book_c}
         ).json()
-        self.facilitator.post(f"/facilitator/candidates/{proposed['id']}/reject")
+        self.facilitator.post(f"/bookclub/community/candidates/{proposed['id']}/reject")
         vote = self.reader_b.put("/participant/voting-round/vote", json={"candidate_id": proposed["id"]})
         self.assertEqual(vote.status_code, 404, vote.text)
 
@@ -189,7 +186,7 @@ class VotingRoutesTests(unittest.TestCase):
         onlooker = self.register_reader("onlooker@example.com")
         onlooker.put("/participant/voting-round/vote", json={"candidate_id": first})
 
-        response = self.facilitator.post("/facilitator/voting-round/close")
+        response = self.facilitator.post("/bookclub/community/voting-round/close")
         self.assertEqual(response.status_code, 200, response.text)
         body = response.json()
         self.assertEqual(body["status"], "closed")
@@ -200,7 +197,7 @@ class VotingRoutesTests(unittest.TestCase):
         round_ = self.open_round()
         candidate_id = round_["candidates"][0]["id"]
         self.reader_a.put("/participant/voting-round/vote", json={"candidate_id": candidate_id})
-        self.facilitator.post("/facilitator/voting-round/close")
+        self.facilitator.post("/bookclub/community/voting-round/close")
 
         response = self.reader_b.get("/participant/voting-round")
         self.assertEqual(response.status_code, 200, response.text)
@@ -212,33 +209,24 @@ class VotingRoutesTests(unittest.TestCase):
     def test_cannot_vote_after_round_is_closed(self) -> None:
         round_ = self.open_round()
         candidate_id = round_["candidates"][0]["id"]
-        self.facilitator.post("/facilitator/voting-round/close")
+        self.facilitator.post("/bookclub/community/voting-round/close")
         response = self.reader_a.put("/participant/voting-round/vote", json={"candidate_id": candidate_id})
         self.assertEqual(response.status_code, 404, response.text)
 
     def test_facilitator_can_open_a_new_round_after_closing_the_previous_one(self) -> None:
         self.open_round()
-        self.facilitator.post("/facilitator/voting-round/close")
+        self.facilitator.post("/bookclub/community/voting-round/close")
         response = self.facilitator.post(
-            "/facilitator/voting-round", json={"candidate_book_ids": [self.book_c]}
+            "/bookclub/community/voting-round", json={"candidate_book_ids": [self.book_c]}
         )
         self.assertEqual(response.status_code, 201, response.text)
 
     def test_voting_round_scoped_to_own_club(self) -> None:
         self.open_round()
-        self.facilitator.post("/participant/auth/logout")
-        other_club = self.facilitator.post(
-            "/participant/clubs",
-            json={
-                "club_name": "Sci-Fi Explorers",
-                "facilitator_name": "Sam Two",
-                "facilitator_email": "sam@example.com",
-                "password": "facilitator-pw-2",
-                "confirm_password": "facilitator-pw-2",
-            },
-        )
+        other_club = self.facilitator.post("/bookclub/clubs", json={"name": "Sci-Fi Explorers"})
         self.assertEqual(other_club.status_code, 201, other_club.text)
-        response = self.facilitator.get("/facilitator/voting-round")
+        self.facilitator.post(f"/bookclub/clubs/{other_club.json()['id']}/select")
+        response = self.facilitator.get("/bookclub/community/voting-round")
         self.assertEqual(response.status_code, 404, response.text)
 
 

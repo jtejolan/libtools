@@ -836,8 +836,8 @@ def ensure_default_templates(db: Session) -> None:
     club = db.get(models.BookClub, club_id)
     # DEFAULT_TEMPLATES is hardcoded library-specific content (physical
     # pickup/transfer copy, a named organizer) — meaningless, confusing
-    # content for a self-serve club, so it's never auto-seeded there.
-    # Self-serve clubs start with zero templates; facilitators create their
+    # content for a private club, so it is never auto-seeded there.
+    # Private clubs start with zero templates; facilitators create their
     # own. This is called from list_templates/get_template (and therefore
     # update_template), so guarding here covers every read path.
     if club is not None and club.club_type != "library":
@@ -1201,7 +1201,7 @@ def get_open_voting_round(db: Session) -> models.BookClubVotingRound | None:
 
 
 def open_voting_round(
-    db: Session, candidate_book_ids: list[int], proposer_id: int
+    db: Session, candidate_book_ids: list[int], proposer_id: int | None
 ) -> models.BookClubVotingRound:
     if get_open_voting_round(db) is not None:
         raise ValueError("A voting round is already open")
@@ -1221,7 +1221,7 @@ def open_voting_round(
 
 
 def add_candidate(
-    db: Session, voting_round_id: int, book_id: int, proposer_id: int, *, auto_approve: bool
+    db: Session, voting_round_id: int, book_id: int, proposer_id: int | None, *, auto_approve: bool
 ) -> models.BookClubBookCandidate:
     candidate = models.BookClubBookCandidate(
         voting_round_id=voting_round_id,
@@ -1454,58 +1454,27 @@ def close_date_poll(db: Session, poll_id: int) -> models.BookClubDatePoll:
     return _commit(db, poll)
 
 
-def list_broadcastable_participants(db: Session) -> list[ParticipantAccount]:
-    return list(
-        db.scalars(
-            select(ParticipantAccount).where(
-                ParticipantAccount.club_id == _club_id(db),
-                ParticipantAccount.active.is_(True),
-                ParticipantAccount.unsubscribed_at.is_(None),
-            )
-        )
-    )
-
-
-def mark_participant_unsubscribed(db: Session, participant: ParticipantAccount) -> None:
-    if participant.unsubscribed_at is None:
-        participant.unsubscribed_at = datetime.now(timezone.utc)
-        db.commit()
-
-
-def list_self_serve_clubs(
+def list_broadcastable_participants(
     db: Session,
-) -> list[tuple[models.BookClub, ParticipantAccount | None, int]]:
-    """Self-serve clubs with their owner participant and participant count.
-
-    Self-serve clubs never get a BookClubAccess row, so the staff tool has
-    no visibility into them at all — this is the admin-only support/abuse
-    triage view, deliberately unscoped by db.info["bookclub_id"] since it
-    spans every club rather than one selected club.
-    """
-    clubs = list(
-        db.scalars(
-            select(models.BookClub)
-            .where(models.BookClub.club_type == "self_serve")
-            .order_by(models.BookClub.name)
-        )
-    )
-    if not clubs:
-        return []
-    club_ids = [club.id for club in clubs]
-    owners = {
-        owner.club_id: owner
-        for owner in db.scalars(
-            select(ParticipantAccount).where(
-                ParticipantAccount.club_id.in_(club_ids),
-                ParticipantAccount.role == "owner",
-            )
-        )
-    }
-    counts = dict(
+) -> list[tuple[models.BookClubMember, ParticipantAccount]]:
+    return list(
         db.execute(
-            select(ParticipantAccount.club_id, func.count(ParticipantAccount.id))
-            .where(ParticipantAccount.club_id.in_(club_ids))
-            .group_by(ParticipantAccount.club_id)
+            select(models.BookClubMember, ParticipantAccount)
+            .join(
+                ParticipantAccount,
+                ParticipantAccount.id == models.BookClubMember.participant_account_id,
+            )
+            .where(
+                models.BookClubMember.club_id == _club_id(db),
+                models.BookClubMember.active.is_(True),
+                models.BookClubMember.participant_unsubscribed_at.is_(None),
+                ParticipantAccount.active.is_(True),
+            )
         ).all()
     )
-    return [(club, owners.get(club.id), counts.get(club.id, 0)) for club in clubs]
+
+
+def mark_participant_unsubscribed(db: Session, member: models.BookClubMember) -> None:
+    if member.participant_unsubscribed_at is None:
+        member.participant_unsubscribed_at = datetime.now(timezone.utc)
+        db.commit()

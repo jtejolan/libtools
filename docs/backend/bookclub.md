@@ -9,7 +9,7 @@ Multi-tenant book club manager. Every club-owned table is scoped by
 
 | Model | Table | Purpose |
 |---|---|---|
-| `BookClub` | `book_clubs` | A club: name, slug, `public` flag, organizer info, `club_type` (`"library"` default / `"self_serve"` — descriptive/filtering only, see below, not itself an access-control check) |
+| `BookClub` | `book_clubs` | A club: name, slug, `public` flag, organizer info, and `club_type` (`library`/`private`, presentation/defaults only) |
 | `BookClubAccess` | `book_club_access` | User-to-club grant (`role`, e.g. owner) |
 | `BookClubMember` | `bookclub_members` | A club's member roster; unique per `(club_id, email)`; carries delivery details plus transit-label/email timestamps |
 | `BookClubBook` | `bookclub_books` | A book the club has read/will read; unique per `(club_id, isbn)`; can be flagged as an undated past selection |
@@ -19,100 +19,42 @@ Multi-tenant book club manager. Every club-owned table is scoped by
 | `BookClubDiscussionQuestion` | `bookclub_discussion_questions` | Legacy ordered questions retained for API compatibility; migration `e93f1a6b2c47` copies existing text into meeting discussion notes |
 | `BookClubRating` | `bookclub_ratings` | A participant's 1-5 rating (DB `CheckConstraint`) + optional review of a book; unique per `(book_id, participant_id)`, editable (upsert, not append). FK to `ParticipantAccount` is a plain string FK (`bookclub_participant_accounts.id`), not an ORM `relationship()` — `crud.py` joins in the participant's name explicitly instead, since that model lives in `participant_models.py` and there's no existing precedent in this package for a cross-module `relationship()`. |
 | `BookClubVotingRound` | `bookclub_voting_rounds` | A "what should we read next" poll; `status` `"open"`/`"closed"` only (simplified from an originally-planned draft/open/closed — see gotcha below), `winning_book_id` set on close. One open round per club at a time, enforced in `crud.py` (app-level, not a DB constraint). |
-| `BookClubBookCandidate` | `bookclub_book_candidates` | A book nominated for a round; unique per `(voting_round_id, book_id)`. `status` `"pending"`/`"approved"`/`"rejected"` — facilitator-proposed candidates auto-approve, participant-proposed ones need `POST /facilitator/candidates/{id}/approve`. Has a normal in-module `book` relationship (unlike `BookClubRating`'s participant FK, this one doesn't cross into `participant_models.py`). |
+| `BookClubBookCandidate` | `bookclub_book_candidates` | A book nominated for a round; manager-added candidates auto-approve, participant proposals require approval through `/bookclub/community/candidates/{id}/approve` |
 | `BookClubVote` | `bookclub_votes` | One participant's vote for a candidate; unique per `(voting_round_id, participant_id)` — casting a second vote updates the existing row rather than adding one. |
 | `BookClubDatePoll` | `bookclub_date_polls` | A "when should we meet next" poll — a **deliberately independent system** from `BookClubVotingRound`/`BookClubBookCandidate`/`BookClubVote` above, not a shared generalized poll (explicit product choice). Same open/closed shape, `winning_date` set on close, one open poll per club at a time (app-level, same as voting rounds). |
 | `BookClubDatePollOption` | `bookclub_date_poll_options` | A candidate date; unique per `(poll_id, option_date)`. **Facilitator-only** — no participant-proposal path, so unlike `BookClubBookCandidate` there's no `status`/approval queue at all. |
 | `BookClubDatePollVote` | `bookclub_date_poll_votes` | One participant's vote for a date option; unique per `(poll_id, participant_id)`. |
 
-## Participant accounts (`bookclub.libtools.app`)
+## Account and roster model
 
-A second, separate account system for club **participants** (readers) and
-**facilitators** (leads), not to be confused with staff
-`LibtoolsUser`/`BookClubAccess` accounts. Lives in `bookclub/participant_*.py`
-and is only reachable from the `bookclub_public_app` sub-app (see
-`docs/architecture.md`) — none of it is mounted on the primary `libtools.app`
-app.
+Every club—library-run or private—is created and managed by a regular
+`LibtoolsUser` through `BookClubAccess` and the primary Book Club Manager.
+`bookclub.libtools.app` is participant-only. Its `/create` and `/manage`
+paths redirect to the corresponding `libtools.app` account/manager flows.
 
-**Facilitators are `ParticipantAccount`s too, not a third account system.**
-Whoever creates a club via `POST /participant/clubs` gets a `ParticipantAccount`
-with `role="owner"` on it (single owner in v1) — same table, same session
-machinery, same login flow as an ordinary reader, just a `role` check away
-from facilitator permissions. This was a deliberate pivot: an earlier version
-of this feature made self-serve facilitators ordinary `LibtoolsUser`s who
-managed their club from the staff `/bookclub` tool; that was reversed so a
-self-serve facilitator never touches `libtools.app`, not even technically.
-Library-run clubs (staff-provisioned, `LibtoolsUser`/`BookClubAccess`,
-managed from the staff tool) are completely unaffected by any of this.
+`BookClubMember` is the canonical roster record. It may have a nullable
+`participant_account_id`; unlinked members still support attendance, email,
+delivery, notes, and giveaways, while linked members can also use ratings,
+book voting, and date polling. Registration claims an existing same-email
+roster row or creates a new one. A successful login can claim an unlinked
+same-email row in another club.
 
-| Model | Table | Purpose |
-|---|---|---|
-| `ParticipantAccount` | `bookclub_participant_accounts` | A reader's or facilitator's login for one club; unique per `(club_id, email)` — the same person joining two clubs gets two rows. Email is required and must be verified. `role` is `"member"` (default) or `"owner"` (the facilitator). `unsubscribed_at` excludes them from facilitator broadcast emails (see below) — doesn't affect transactional email (verify/reset) or their ability to use the club. |
-| `ParticipantAccountToken` | `bookclub_participant_account_tokens` | Hashed/expiring email-verification and password-reset tokens, parallel to `accounts.AccountToken` but never shared with it. |
+`ParticipantAccount` is a global email/password identity, unique by email,
+and can link to roster entries in multiple clubs. The participant session
+stores both the global account ID and the currently entered roster member ID.
+Unsubscribe state is per roster membership, not global, so leaving one club's
+broadcasts does not silence another club.
 
-| Router | Prefix | File | Endpoints | Purpose |
-|---|---|---|---|---|
-| `router` | `/participant/auth` | `participant_routes.py` | 8 | register/login/logout/me, email verification, password reset — all scoped by `club_slug` in the request body (a participant's identity is club-specific, so most requests need to say which club) |
-| `club_router` | `/participant/clubs` | `participant_routes.py` | 1 | `POST ""` — creates a `BookClub` (`club_type="self_serve"`) and its owner `ParticipantAccount` together, in one transaction; mirrors `club_routes.py`'s slug-collision retry. Rate-limited like registration. |
-| `router` | `/facilitator` | `facilitator_routes.py` | 26 | Book CRUD (incl. catalogue import), meeting CRUD, template CRUD, voting-round management (open/close, add/approve/reject candidates), date-poll management (open/close, add option), and `POST /broadcast` — thin wrappers calling the *same* `crud.py` functions `routes.py` uses, gated by `require_facilitator` instead of `require_selected_club`. No member-roster, onboarding/arrival-email, reminder-broadcast, giveaway, or transit-label endpoints — none of that applies to self-serve clubs. |
-| `router` | `/participant/books` | `rating_routes.py` | 4 | `GET ""` (list club's books), `GET/PUT/DELETE "/{book_id}/rating(s)"` — any signed-in participant (member *or* owner) can browse and rate; gated by `CurrentParticipantClub`, not `require_facilitator`. |
-| `router` | `/participant/voting-round` | `voting_routes.py` | 4 | `GET ""` (current round), `POST /candidates` (propose), `PUT/DELETE /vote` — any participant can view/propose/vote; `build_round_response()` here is imported by `facilitator_routes.py` too, so both sides render the exact same shape. |
-| `router` | `/participant/date-poll` | `date_poll_routes.py` | 3 | `GET ""` (current poll), `PUT/DELETE /vote` — no propose endpoint (facilitator-only options); `build_poll_response()` here is imported by `facilitator_routes.py`, mirroring `voting_routes.py`'s pattern. |
-| `router` | `/participant/unsubscribe` | `unsubscribe_routes.py` | 1 | `POST ""` — **deliberately public**, no `CurrentParticipant` dependency at all; authenticated only by the signed token in the request body, since it must work from a cold email client with no session. |
+Community management routes live at `/bookclub/community/*` on the primary
+app and use `require_selected_club`. Participant routes remain on the
+subdomain at `/participant/*`. Manager-added poll candidates use a null
+participant proposer and auto-approve; reader proposals enter the approval
+queue.
 
-**Admin visibility** (`admin_routes.py`, mounted on the primary `app`, *not*
-`bookclub_public_app` — it's a `LibtoolsUser`-admin feature reachable from
-`libtools.app`, not a participant/facilitator one): `GET
-/api/admin/bookclub/self-serve-clubs`, gated by `accounts.auth.
-require_platform_admin`, lists `club_type="self_serve"` clubs (name, slug,
-facilitator name/email, participant count, created date) via
-`crud.list_self_serve_clubs`. Read-only, no management actions — self-serve
-clubs never get a `BookClubAccess` row, so this is the *only* place an admin
-can see they exist at all (support/abuse triage). `created_at` on the
-response is the owner `ParticipantAccount`'s `created_at`, not a column on
-`BookClub` itself — `BookClub` has no `created_at` column, and since the
-owner row is created in the same transaction as the club
-(`participant_routes.py`'s `create_club`), it's an accurate proxy without a
-migration. Frontend: `admin-bookclub.html`/`.js` at `/admin/bookclub`,
-linked from `admin-accounts.html` and the dashboard's admin account menu.
-
-**Facilitator broadcast email** (`POST /facilitator/broadcast`, body
-`{template_key, variables}`) reuses the existing `BookClubTemplate`/
-`crud.render_template` machinery (the same one `routes.py`'s reminder
-endpoints use for `BookClubMember`), pointed at
-`crud.list_broadcastable_participants` instead — active, non-unsubscribed
-`ParticipantAccount`s for the club. `club_name` is auto-injected into the
-template variables so facilitators don't have to pass it themselves. Unlike
-`bookclub/email_delivery.send_reminder_batch`'s member reminders (one BCC'd
-send to everyone), broadcasts to participants send **one email per
-recipient** via `participant_email_delivery.send_broadcast_email` — this is
-required, not incidental: each email needs its own working, no-login-required
-unsubscribe link (`bookclub/participant_unsubscribe.py` signs a token with
-`itsdangerous`, reusing `LIBTOOLS_SESSION_SECRET` with a distinct salt), and
-a single BCC send can't embed a different link per recipient.
-`BroadcastEmailResponse.recipient_count` is the audience size regardless of
-delivery success — kept separate from `sent_count` specifically so it
-doesn't misleadingly read `0` in dev/test where `RESEND_API_KEY` isn't set
-(this was a real bug caught during testing, see gotcha below).
-
-`participant_auth.py`'s `require_participant_club`/`CurrentParticipantClub`
-is the same `db.info["bookclub_id"]`-setting pattern as `require_facilitator`,
-just without the owner-only check — `require_facilitator`
-(`facilitator_auth.py`) now layers its role check on top of
-`CurrentParticipantClub` rather than duplicating the club-resolution logic.
-
-Other participant-only modules: `participant_auth.py` (session dependency
-`CurrentParticipant`, mirrors `accounts/auth.py`), `participant_tokens.py`
-(mirrors `accounts/account_tokens.py`), `participant_email_delivery.py`
-(plain-text sends, mirrors `bookclub/email_delivery.py`, plus
-`send_broadcast_email`), `participant_unsubscribe.py` (signs/verifies the
-unsubscribe token — see below), `participant_session.py` (see gotcha below
-— this is **not** a copy for duplication's sake, it fixes a real
-cookie-collision bug), `facilitator_auth.py` (`require_facilitator`/
-`CurrentFacilitator` — checks `role == "owner"` then sets
-`db.info["bookclub_id"]`/`["bookclub"]` exactly like `access.py`'s
-`require_selected_club` does for staff, so facilitator routes can call the
-*same* `crud.py` functions `routes.py` uses, just via a different auth path).
+Migration `7e4c2a1f9d30` removes obsolete test-only `self_serve` clubs and
+participant identities, makes participant email global, and adds the roster
+link and per-membership unsubscribe fields. No compatibility merge is
+attempted because the removed data was explicitly non-production test data.
 
 ## Routes
 
@@ -147,15 +89,10 @@ cookie-collision bug), `facilitator_auth.py` (`require_facilitator`/
   `*_date_poll`/`*_date_option`/`*_date_vote` functions — a parallel,
   independent set, not shared with the voting functions above), broadcast
   email (`list_broadcastable_participants`, `mark_participant_unsubscribed`),
-  and `list_self_serve_clubs` (admin visibility — deliberately not scoped by
-  `db.info["bookclub_id"]`, since it spans every self-serve club rather than
-  one selected club).
 - `GET /bookclub/books/{book_id}/insights` is the staff Books-page detail
   aggregate. It combines club-scoped meeting participation/discussion data
   with participant-account ratings, returning per-meeting attendance and
   reader-page impact without exposing participant email or authentication data.
-- `admin_routes.py` (37 lines) — the admin-only self-serve-club visibility
-  router, see above.
 - `email_delivery.py` (26 lines) — thin plain-text wrapper over the shared
   `backend/app/email_delivery.py`.
 
@@ -222,22 +159,11 @@ cookie-collision bug), `facilitator_auth.py` (`require_facilitator`/
 - **`crud.ensure_default_templates` is club-type-aware — it's the only place
   that guards this, not the call sites.** `DEFAULT_TEMPLATES` (`crud.py:16-...`)
   is hardcoded library-specific content (physical pickup/transfer copy, a
-  named organizer) — meaningless, confusing content for a self-serve club.
-  `POST /participant/clubs` deliberately doesn't call it at creation time,
-  but that alone isn't enough: `crud.list_templates`/`get_template` (and
-  therefore `update_template`, which calls `get_template`) *unconditionally*
-  call `ensure_default_templates` as a side effect on every read — this was
-  a real bug during Phase 3 testing, where simply calling
-  `GET /facilitator/templates` silently seeded all six library defaults
-  (mentioning "Josh"/"PBRL") into a self-serve club. Fixed by making
-  `ensure_default_templates` itself check `club.club_type` and no-op for
-  anything but `"library"` — self-serve clubs genuinely start with zero
-  templates now, regardless of which template function is called first.
+  named organizer) and is inappropriate for private clubs. The guard must
+  remain inside `ensure_default_templates`, because template reads call it
+  as a side effect. Private clubs start with no templates.
 - **Book voting simplified from the original draft/open/closed design to
-  just open/closed.** Once facilitators became `ParticipantAccount`s
-  (`role="owner"`) instead of a separate `LibtoolsUser`-based flow, there
-  was no longer a reason for `BookClubBookCandidate` to carry two different
-  proposer-type FKs, and no strong need for a prep-only "draft" stage before
+  just open/closed.** There is no prep-only "draft" stage before
   participants can see a round — a facilitator opens a round with an
   initial candidate list already chosen. If a "prepare candidates before
   announcing" workflow is wanted later, add the draft state back rather
@@ -255,7 +181,7 @@ cookie-collision bug), `facilitator_auth.py` (`require_facilitator`/
 - **Vote counts are hidden from participants while a round is open**
   (`CandidateResponse.vote_count` is `None`), to avoid an early visible
   tally influencing later votes — always visible to the facilitator
-  (`GET /facilitator/voting-round` passes `show_counts=True`
+  (`GET /bookclub/community/voting-round` passes `show_counts=True`
   unconditionally) and to everyone once the round is `"closed"`.
 - **Tie-breaking on close** (`crud.close_voting_round`) goes to whichever
   approved candidate was proposed first (lowest `id`), via
@@ -307,5 +233,4 @@ cookie-collision bug), `facilitator_auth.py` (`require_facilitator`/
 | Change catalogue import parsing | `bookclub/catalogue.py` — remember `lendery/catalogue.py` does its own separate scraping and won't pick up the fix |
 | Change how meeting time/duration is parsed or computed | `bookclub/scheduling.py` (used by both `models.py` and `crud.py`) |
 | Add a manual "mark as sent" action for a new email type | `bookclub/crud.py` (mirror `mark_onboarding_email_sent`), `routes.py` (mirror the `.../mark-sent` route) |
-| Expose an existing `crud.py` capability to self-serve facilitators | `bookclub/facilitator_routes.py` (add a thin wrapper calling the same `crud.py` function `routes.py` uses — see the reuse pattern this file already follows) |
-| Add an admin-only view over self-serve clubs | `bookclub/admin_routes.py` (mounted on the primary `app`, gated by `require_platform_admin`), `crud.list_self_serve_clubs`, `schemas.SelfServeClubSummary`, `frontend/admin-bookclub.html`/`.js` |
+| Expose a community-management capability | `bookclub/facilitator_routes.py` under `/bookclub/community`, using regular selected-club authorization |

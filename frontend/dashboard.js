@@ -162,8 +162,8 @@ const bookclubCard = (tools, summary, solo = false) => {
   </div>`;
 };
 
-// A self-serve book club lead's LibtoolsUser account is deliberately the
-// same account system staff use (see docs/backend/bookclub.md) — but their
+// A private book club lead uses the same Libtools account system staff use,
+// but their
 // dashboard should still look purpose-built rather than showing Lendery/
 // quick-actions cards that mean nothing to them. Anyone without admin role
 // or lendery_manage access, who does have at least one club, gets the
@@ -380,7 +380,6 @@ const renderDashboard = (user, summary) => {
   $("#dashboard-account-name").textContent = displayName;
   $("#dashboard-account-username").textContent = `@${user.username}`;
   $("#admin-link").hidden = user.role !== "admin";
-  $("#admin-bookclub-link").hidden = user.role !== "admin";
   $("#quick-check-link").hidden = user.role !== "admin";
   const tools = new Set(user.tools);
   if (user.role === "admin") {

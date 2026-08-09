@@ -15,7 +15,7 @@ directory, a filesystem oddity; there is no npm project here, don't try to
 | File | Lines | Purpose |
 |---|---|---|
 | `dom-utils.js` | 8 | `escapeHtml()` — the only shared JS helper, included via `<script defer>` on 9 of the 10 app pages (all except `index.html`) |
-| `platform.css` | 284 | Shared chrome/layout across `account`, `admin-accounts`, `admin-users`, `admin-bookclub`, `dashboard`, `check`, `public-club`, `bookclub-landing`, `bookclub-account`, `bookclub-participant`, `bookclub-manage` |
+| `platform.css` | 284 | Shared chrome/layout across account, dashboard, public/participant, and lightweight management pages |
 | `quotes.js` | 614 | Static book-quote content data (not logic), used by `index.html` and `dashboard.html` only |
 
 There is **no shared `api.js`** — every page duplicates its own
@@ -31,7 +31,6 @@ consistent convention — see `docs/coding-guidelines.md`.
 | `account.html`/`account.js` | 162+284 | Login/register/password-reset/recovery/settings | `docs/frontend/accounts.md` |
 | `admin-accounts.html`/`.js` | 70+178 | Platform-admin account management (canonical) | `docs/frontend/accounts.md` |
 | `admin-users.html`/`.js` | 2+12 | Minified legacy duplicate — don't edit | `docs/frontend/accounts.md` |
-| `admin-bookclub.html`/`.js` | 37+66 | Platform-admin, read-only list of self-serve clubs (support/abuse triage) | `docs/backend/bookclub.md` |
 | `bookclub.html`/`bookclub.js` | 406+1514 | Book Club Manager app | `docs/frontend/bookclub.md` |
 | `public-club.html`/`.js` | 1+15 | Public read-only club page (minified) | `docs/frontend/bookclub.md` |
 | `lendery.html`/`lendery.js` | 466+2458 | Lendery inventory app (largest JS file in repo) | `docs/frontend/lendery.md` |

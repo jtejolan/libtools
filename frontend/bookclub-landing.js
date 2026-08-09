@@ -1,9 +1,8 @@
 const $ = (s) => document.querySelector(s);
 
-// Facilitators are ParticipantAccounts (role=owner), fully segmented from
-// the general libtools.app account system — see docs/backend/bookclub.md.
-// "Start a club" stays entirely on this subdomain.
-$("#start-club-link").href = "/create";
+// Club creation and management live in the full Libtools account product;
+// this subdomain is the participant portal only.
+$("#start-club-link").href = "https://libtools.app/signup?next=/bookclub";
 
 $("#find-club-form").addEventListener("submit", (event) => {
   event.preventDefault();

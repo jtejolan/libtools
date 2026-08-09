@@ -14,7 +14,7 @@ from main import app, bookclub_public_app
 
 class BroadcastEmailTests(unittest.TestCase):
     """Covers facilitator broadcast email (facilitator_routes.py's
-    /facilitator/broadcast) and the public unsubscribe endpoint
+    /bookclub/community/broadcast) and the public unsubscribe endpoint
     (unsubscribe_routes.py) — no email delivery is actually configured in
     tests (no RESEND_API_KEY), so `delivery_configured` is always False,
     but the recipient-selection, rendering, and unsubscribe-state logic all
@@ -50,18 +50,15 @@ class BroadcastEmailTests(unittest.TestCase):
         with self.engine.begin() as connection:
             for table in reversed(Base.metadata.sorted_tables):
                 connection.execute(table.delete())
-        self.facilitator = TestClient(app, base_url="http://bookclub.libtools.app")
-        created = self.facilitator.post(
-            "/participant/clubs",
-            json={
-                "club_name": "Mystery Lovers Club",
-                "facilitator_name": "Alex Facilitator",
-                "facilitator_email": "alex@example.com",
-                "password": "facilitator-pw-1",
-                "confirm_password": "facilitator-pw-1",
-            },
-        )
+        self.facilitator = TestClient(app)
+        registered = self.facilitator.post("/auth/register", json={
+            "name": "Alex Facilitator", "username": "alex", "email": "alex@example.com",
+            "password": "facilitator-pw-1", "confirm_password": "facilitator-pw-1",
+        })
+        self.assertEqual(registered.status_code, 201, registered.text)
+        created = self.facilitator.post("/bookclub/clubs", json={"name": "Mystery Lovers Club"})
         self.assertEqual(created.status_code, 201, created.text)
+        self.facilitator.post(f"/bookclub/clubs/{created.json()['id']}/select")
         self.reader_a = self.register_reader("reader-a@example.com")
         self.reader_b = self.register_reader("reader-b@example.com")
 
@@ -88,7 +85,7 @@ class BroadcastEmailTests(unittest.TestCase):
 
     def create_email_template(self, key="meeting_reminder") -> None:
         response = self.facilitator.post(
-            "/facilitator/templates",
+            "/bookclub/community/templates",
             json={
                 "key": key,
                 "name": "Meeting reminder",
@@ -101,11 +98,10 @@ class BroadcastEmailTests(unittest.TestCase):
 
     def test_broadcast_reaches_all_participants(self) -> None:
         self.create_email_template()
-        response = self.facilitator.post("/facilitator/broadcast", json={"template_key": "meeting_reminder"})
+        response = self.facilitator.post("/bookclub/community/broadcast", json={"template_key": "meeting_reminder"})
         self.assertEqual(response.status_code, 200, response.text)
         body = response.json()
-        # Facilitator (Alex) is also a participant and counts as a recipient.
-        self.assertEqual(body["recipient_count"], 3)
+        self.assertEqual(body["recipient_count"], 2)
         self.assertFalse(body["delivery_configured"])  # no RESEND_API_KEY in tests
         self.assertEqual(body["missing_variables"], [])
 
@@ -113,12 +109,12 @@ class BroadcastEmailTests(unittest.TestCase):
         # club_name isn't passed explicitly — facilitator_routes.py injects
         # it automatically so it's never a "missing" placeholder.
         self.create_email_template()
-        response = self.facilitator.post("/facilitator/broadcast", json={"template_key": "meeting_reminder"})
+        response = self.facilitator.post("/bookclub/community/broadcast", json={"template_key": "meeting_reminder"})
         self.assertEqual(response.json()["missing_variables"], [])
 
     def test_broadcast_reports_missing_variables(self) -> None:
         self.facilitator.post(
-            "/facilitator/templates",
+            "/bookclub/community/templates",
             json={
                 "key": "custom",
                 "name": "Custom",
@@ -127,43 +123,43 @@ class BroadcastEmailTests(unittest.TestCase):
                 "body": "Body text.",
             },
         )
-        response = self.facilitator.post("/facilitator/broadcast", json={"template_key": "custom"})
+        response = self.facilitator.post("/bookclub/community/broadcast", json={"template_key": "custom"})
         self.assertEqual(response.status_code, 200, response.text)
         self.assertIn("first_name", response.json()["missing_variables"])
 
     def test_broadcast_rejects_print_template(self) -> None:
         self.facilitator.post(
-            "/facilitator/templates",
+            "/bookclub/community/templates",
             json={"key": "sign", "name": "Sign", "kind": "print", "body": "Print body"},
         )
-        response = self.facilitator.post("/facilitator/broadcast", json={"template_key": "sign"})
+        response = self.facilitator.post("/bookclub/community/broadcast", json={"template_key": "sign"})
         self.assertEqual(response.status_code, 422, response.text)
 
     def test_broadcast_template_not_found(self) -> None:
-        response = self.facilitator.post("/facilitator/broadcast", json={"template_key": "nope"})
+        response = self.facilitator.post("/bookclub/community/broadcast", json={"template_key": "nope"})
         self.assertEqual(response.status_code, 404, response.text)
 
     def test_only_facilitator_can_broadcast(self) -> None:
         self.create_email_template()
-        response = self.reader_a.post("/facilitator/broadcast", json={"template_key": "meeting_reminder"})
-        self.assertEqual(response.status_code, 403, response.text)
+        response = self.reader_a.post("/bookclub/community/broadcast", json={"template_key": "meeting_reminder"})
+        self.assertEqual(response.status_code, 404, response.text)
 
     def test_unsubscribed_participant_excluded_from_broadcast_count(self) -> None:
         self.create_email_template()
         # Get reader A's own token via the same signing module the
         # broadcast endpoint uses (simulates clicking the emailed link).
         me = self.reader_a.get("/participant/auth/me").json()
-        token = issue_unsubscribe_token(me["id"])
+        token = issue_unsubscribe_token(me["member_id"])
         unsub = self.reader_a.post("/participant/unsubscribe", json={"token": token})
         self.assertEqual(unsub.status_code, 200, unsub.text)
         self.assertFalse(unsub.json()["already_unsubscribed"])
 
-        response = self.facilitator.post("/facilitator/broadcast", json={"template_key": "meeting_reminder"})
-        self.assertEqual(response.json()["recipient_count"], 2)  # facilitator + reader B, not reader A
+        response = self.facilitator.post("/bookclub/community/broadcast", json={"template_key": "meeting_reminder"})
+        self.assertEqual(response.json()["recipient_count"], 1)
 
     def test_unsubscribe_is_idempotent(self) -> None:
         me = self.reader_a.get("/participant/auth/me").json()
-        token = issue_unsubscribe_token(me["id"])
+        token = issue_unsubscribe_token(me["member_id"])
         first = self.reader_a.post("/participant/unsubscribe", json={"token": token})
         second = self.reader_a.post("/participant/unsubscribe", json={"token": token})
         self.assertEqual(first.status_code, 200)
@@ -173,7 +169,7 @@ class BroadcastEmailTests(unittest.TestCase):
 
     def test_unsubscribe_does_not_require_login(self) -> None:
         me = self.reader_a.get("/participant/auth/me").json()
-        token = issue_unsubscribe_token(me["id"])
+        token = issue_unsubscribe_token(me["member_id"])
         self.reader_a.post("/participant/auth/logout")
         response = self.reader_a.post("/participant/unsubscribe", json={"token": token})
         self.assertEqual(response.status_code, 200, response.text)

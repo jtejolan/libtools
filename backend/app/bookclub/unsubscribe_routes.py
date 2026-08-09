@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from bookclub import crud
 from bookclub.models import BookClub
-from bookclub.participant_models import ParticipantAccount
+from bookclub.models import BookClubMember
 from bookclub.participant_schemas import UnsubscribeRequest, UnsubscribeResponse
 from bookclub.participant_unsubscribe import verify_unsubscribe_token
 from dependencies import DatabaseSession
@@ -16,17 +16,17 @@ router = APIRouter(prefix="/participant", tags=["bookclub-participant-unsubscrib
 
 @router.post("/unsubscribe", response_model=UnsubscribeResponse)
 def unsubscribe(value: UnsubscribeRequest, db: DatabaseSession):
-    participant_id = verify_unsubscribe_token(value.token)
-    if participant_id is None:
+    member_id = verify_unsubscribe_token(value.token)
+    if member_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="This unsubscribe link is invalid."
         )
-    participant = db.get(ParticipantAccount, participant_id)
-    if participant is None:
+    member = db.get(BookClubMember, member_id)
+    if member is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found.")
-    already_unsubscribed = participant.unsubscribed_at is not None
-    crud.mark_participant_unsubscribed(db, participant)
-    club = db.get(BookClub, participant.club_id)
+    already_unsubscribed = member.participant_unsubscribed_at is not None
+    crud.mark_participant_unsubscribed(db, member)
+    club = db.get(BookClub, member.club_id)
     return UnsubscribeResponse(
-        club_name=club.name, email=participant.email, already_unsubscribed=already_unsubscribed
+        club_name=club.name, email=member.email, already_unsubscribed=already_unsubscribed
     )

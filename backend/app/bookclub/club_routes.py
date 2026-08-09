@@ -26,6 +26,7 @@ def club_response(club: BookClub, role: str | None = None) -> schemas.ClubRespon
         organizer_name=club.organizer_name,
         organizer_branch=club.organizer_branch,
         video_call_url=club.video_call_url,
+        club_type=club.club_type,
         role=role,
     )
 

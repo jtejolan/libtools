@@ -257,11 +257,9 @@ class BookClubApiTests(unittest.TestCase):
 
         with self.sessions() as db:
             participant = ParticipantAccount(
-                club_id=1,
                 name="Jamie Reviewer",
                 email="jamie-reviewer@example.com",
                 password_hash=hash_password("participant-password"),
-                role="member",
             )
             db.add(participant)
             db.flush()

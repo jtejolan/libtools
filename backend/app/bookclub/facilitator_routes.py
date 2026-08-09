@@ -6,8 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from bookclub import catalogue, crud, models, participant_email_delivery, schemas
 from bookclub.date_poll_routes import build_poll_response
-from bookclub.facilitator_auth import require_facilitator
-from bookclub.participant_auth import CurrentParticipant, CurrentParticipantClub
+from bookclub.access import SelectedClub, require_selected_club
 from bookclub.participant_schemas import (
     AddDateOptionRequest,
     BroadcastEmailRequest,
@@ -23,20 +22,14 @@ from bookclub.participant_unsubscribe import issue_unsubscribe_token
 from bookclub.voting_routes import build_round_response
 from dependencies import DatabaseSession
 
-# Thin wrapper endpoints for self-serve facilitators (owner-role
-# ParticipantAccounts), calling the exact same crud.py functions the staff
-# routes.py uses — require_facilitator sets db.info["bookclub_id"] the same
-# way require_selected_club does, so nothing below needs to know which auth
-# path resolved the club. Deliberately excludes member-roster,
-# onboarding/arrival-email, reminder-broadcast, giveaway, and transit-label
-# endpoints — none of that applies to self-serve clubs (see
-# docs/backend/bookclub.md). Broadcast email to participants is a later,
-# separate phase, not reused from here.
+# Community administration is part of the regular Book Club Manager. These
+# routes use the same selected-club Libtools authorization as routes.py;
+# bookclub.libtools.app is participant-only.
 
 router = APIRouter(
-    prefix="/facilitator",
-    tags=["bookclub-facilitator"],
-    dependencies=[Depends(require_facilitator)],
+    prefix="/bookclub/community",
+    tags=["bookclub-community-management"],
+    dependencies=[Depends(require_selected_club)],
 )
 
 Offset = Annotated[int, Query(ge=0)]
@@ -181,28 +174,28 @@ def update_template(key: str, changes: schemas.TemplateUpdate, db: DatabaseSessi
 
 
 @router.get("/voting-round", response_model=VotingRoundResponse)
-def get_voting_round(participant: CurrentParticipant, db: DatabaseSession):
+def get_voting_round(db: DatabaseSession):
     round_ = crud.get_current_voting_round(db)
     if round_ is None:
         raise _not_found("No voting round yet")
     # Unlike the participant-facing GET, facilitators always see live vote
     # counts — the "hide the tally" concern is about influencing other
     # participants' votes, not about the facilitator running the poll.
-    return build_round_response(db, round_, participant_id=participant.id, show_counts=True)
+    return build_round_response(db, round_, participant_id=None, show_counts=True)
 
 
 @router.post(
     "/voting-round", response_model=VotingRoundResponse, status_code=status.HTTP_201_CREATED
 )
-def open_voting_round(value: OpenVotingRoundRequest, participant: CurrentParticipant, db: DatabaseSession):
+def open_voting_round(value: OpenVotingRoundRequest, db: DatabaseSession):
     for book_id in value.candidate_book_ids:
         if crud.get_book(db, book_id) is None:
             raise _not_found(f"Book {book_id} not found")
     try:
-        round_ = crud.open_voting_round(db, value.candidate_book_ids, participant.id)
+        round_ = crud.open_voting_round(db, value.candidate_book_ids, None)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    return build_round_response(db, round_, participant_id=participant.id, show_counts=True)
+    return build_round_response(db, round_, participant_id=None, show_counts=True)
 
 
 @router.post(
@@ -210,44 +203,44 @@ def open_voting_round(value: OpenVotingRoundRequest, participant: CurrentPartici
     response_model=CandidateResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def add_candidate(value: ProposeCandidateRequest, participant: CurrentParticipant, db: DatabaseSession):
+def add_candidate(value: ProposeCandidateRequest, db: DatabaseSession):
     round_ = crud.get_open_voting_round(db)
     if round_ is None:
         raise _not_found("There is no open voting round")
     if crud.get_book(db, value.book_id) is None:
         raise _not_found("Book not found")
-    candidate = crud.add_candidate(db, round_.id, value.book_id, participant.id, auto_approve=True)
+    candidate = crud.add_candidate(db, round_.id, value.book_id, None, auto_approve=True)
     return CandidateResponse(
         id=candidate.id,
         book=crud.get_book(db, candidate.book_id),
         status=candidate.status,
         proposed_by_participant_id=candidate.proposed_by_participant_id,
-        proposed_by_name=participant.name,
+        proposed_by_name=None,
         vote_count=0,
         created_at=candidate.created_at,
     )
 
 
 @router.post("/candidates/{candidate_id}/approve", response_model=VotingRoundResponse)
-def approve_candidate(candidate_id: int, participant: CurrentParticipant, db: DatabaseSession):
+def approve_candidate(candidate_id: int, db: DatabaseSession):
     candidate = crud.set_candidate_status(db, candidate_id, "approved")
     if candidate is None:
         raise _not_found("Candidate not found")
     round_ = db.get(models.BookClubVotingRound, candidate.voting_round_id)
-    return build_round_response(db, round_, participant_id=participant.id, show_counts=True)
+    return build_round_response(db, round_, participant_id=None, show_counts=True)
 
 
 @router.post("/candidates/{candidate_id}/reject", response_model=VotingRoundResponse)
-def reject_candidate(candidate_id: int, participant: CurrentParticipant, db: DatabaseSession):
+def reject_candidate(candidate_id: int, db: DatabaseSession):
     candidate = crud.set_candidate_status(db, candidate_id, "rejected")
     if candidate is None:
         raise _not_found("Candidate not found")
     round_ = db.get(models.BookClubVotingRound, candidate.voting_round_id)
-    return build_round_response(db, round_, participant_id=participant.id, show_counts=True)
+    return build_round_response(db, round_, participant_id=None, show_counts=True)
 
 
 @router.post("/voting-round/close", response_model=VotingRoundResponse)
-def close_voting_round(participant: CurrentParticipant, db: DatabaseSession):
+def close_voting_round(db: DatabaseSession):
     round_ = crud.get_open_voting_round(db)
     if round_ is None:
         raise _not_found("There is no open voting round")
@@ -257,37 +250,37 @@ def close_voting_round(participant: CurrentParticipant, db: DatabaseSession):
         raise _not_found(str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    return build_round_response(db, round_, participant_id=participant.id, show_counts=True)
+    return build_round_response(db, round_, participant_id=None, show_counts=True)
 
 
 @router.get("/date-poll", response_model=DatePollResponse)
-def get_date_poll(participant: CurrentParticipant, db: DatabaseSession):
+def get_date_poll(db: DatabaseSession):
     poll = crud.get_current_date_poll(db)
     if poll is None:
         raise _not_found("No date poll yet")
-    return build_poll_response(db, poll, participant_id=participant.id, show_counts=True)
+    return build_poll_response(db, poll, participant_id=None, show_counts=True)
 
 
 @router.post("/date-poll", response_model=DatePollResponse, status_code=status.HTTP_201_CREATED)
-def open_date_poll(value: OpenDatePollRequest, participant: CurrentParticipant, db: DatabaseSession):
+def open_date_poll(value: OpenDatePollRequest, db: DatabaseSession):
     try:
         poll = crud.open_date_poll(db, value.option_dates)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    return build_poll_response(db, poll, participant_id=participant.id, show_counts=True)
+    return build_poll_response(db, poll, participant_id=None, show_counts=True)
 
 
 @router.post("/date-poll/options", response_model=DatePollResponse, status_code=status.HTTP_201_CREATED)
-def add_date_option(value: AddDateOptionRequest, participant: CurrentParticipant, db: DatabaseSession):
+def add_date_option(value: AddDateOptionRequest, db: DatabaseSession):
     poll = crud.get_open_date_poll(db)
     if poll is None:
         raise _not_found("There is no open date poll")
     crud.add_date_option(db, poll.id, value.option_date)
-    return build_poll_response(db, poll, participant_id=participant.id, show_counts=True)
+    return build_poll_response(db, poll, participant_id=None, show_counts=True)
 
 
 @router.post("/date-poll/close", response_model=DatePollResponse)
-def close_date_poll(participant: CurrentParticipant, db: DatabaseSession):
+def close_date_poll(db: DatabaseSession):
     poll = crud.get_open_date_poll(db)
     if poll is None:
         raise _not_found("There is no open date poll")
@@ -297,14 +290,14 @@ def close_date_poll(participant: CurrentParticipant, db: DatabaseSession):
         raise _not_found(str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    return build_poll_response(db, poll, participant_id=participant.id, show_counts=True)
+    return build_poll_response(db, poll, participant_id=None, show_counts=True)
 
 
 @router.post("/broadcast", response_model=BroadcastEmailResponse)
 def send_broadcast(
     value: BroadcastEmailRequest,
     request: Request,
-    club: CurrentParticipantClub,
+    club: SelectedClub,
     db: DatabaseSession,
 ):
     template = crud.get_template(db, value.template_key)
@@ -321,11 +314,11 @@ def send_broadcast(
 
     recipients = crud.list_broadcastable_participants(db)
     sent_count = 0
-    for recipient in recipients:
-        token = issue_unsubscribe_token(recipient.id)
+    for member, recipient in recipients:
+        token = issue_unsubscribe_token(member.id)
         unsubscribe_url = f"{base_url}/unsubscribe?token={token}"
         if participant_email_delivery.send_broadcast_email(
-            recipient=recipient.email,
+            recipient=member.email,
             subject=rendered.subject or template.name,
             body=rendered.body,
             unsubscribe_url=unsubscribe_url,
