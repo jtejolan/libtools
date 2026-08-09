@@ -138,7 +138,7 @@ class BookClubApiTests(unittest.TestCase):
         entrypoint = self.client.get("/bookclub")
         self.assertEqual(entrypoint.status_code, 200)
         self.assertIn("Book Club Manager", entrypoint.text)
-        self.assertIn('/static/bookclub.js?v=35', entrypoint.text)
+        self.assertIn('/static/bookclub.js?v=36', entrypoint.text)
         self.assertIn('/static/bookclub.css?v=37', entrypoint.text)
         self.assertNotIn('data-view="messages"', entrypoint.text)
         self.assertIn('id="open-reminder-dialog"', entrypoint.text)
@@ -146,6 +146,17 @@ class BookClubApiTests(unittest.TestCase):
         self.assertIn('id="followup-dialog"', entrypoint.text)
         self.assertIn('href="/signup">Create an account</a>', entrypoint.text)
         self.assertEqual(entrypoint.headers["cache-control"], "no-store")
+
+        community = self.client.get("/bookclub/community")
+        self.assertEqual(community.status_code, 200)
+        self.assertIn('aria-label="Book Club Manager navigation"', community.text)
+        self.assertIn('href="/bookclub?action=view-meetings"', community.text)
+        self.assertIn('href="/bookclub?action=view-books"', community.text)
+        self.assertIn('href="/bookclub?action=view-members"', community.text)
+        self.assertIn('aria-current="page">', community.text)
+        self.assertIn('/static/bookclub.css?v=37', community.text)
+        self.assertIn('/static/bookclub-manage.css?v=1', community.text)
+        self.assertEqual(community.headers["cache-control"], "no-store")
 
     @patch("bookclub.catalogue.fetch_catalogue_book")
     def test_imports_a_vaughan_catalogue_book(self, fetch_book) -> None:

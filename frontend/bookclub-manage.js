@@ -24,6 +24,20 @@ const toast = (message) => {
 
 const formatDate = (value) => new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }).format(new Date(`${value}T12:00:00`));
 const formatTimestamp = (value) => new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
+const capitalizeFirst = (value = "") => value ? value[0].toLocaleUpperCase() + value.slice(1) : "";
+
+const applyManagerShell = (user, club) => {
+  $("#sidebar-club-name").textContent = club.name;
+  $("#switch-club").textContent = club.name;
+  $("#club-eyebrow").textContent = club.name;
+  $("#user-badge").textContent = user.role === "admin" ? "Administrator" : "Member";
+  $("#account-menu-name").textContent = capitalizeFirst(user.name);
+  $("#account-menu-username").textContent = `@${user.username}`;
+  $$('[data-platform-admin-only]').forEach((element) => { element.hidden = user.role !== "admin"; });
+  const publicLink = $("#public-club-link");
+  publicLink.hidden = !club.public;
+  publicLink.href = `/clubs/${encodeURIComponent(club.slug)}`;
+};
 
 const selectView = (view) => {
   $$(".manage-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
@@ -122,4 +136,4 @@ $("#add-date-option-button").addEventListener("click", async () => { const input
 $("#close-date-poll").addEventListener("click", async () => { if (!confirm("Close the poll and select the leading date?")) return; try { renderDatePoll(await request(`${API}/date-poll/close`, { method: "POST" })); toast("Date poll closed."); } catch (error) { toast(error.message); } });
 
 $("#logout").addEventListener("click", async () => { await request("/auth/logout", { method: "POST" }); location.href = "/login"; });
-(async () => { try { await request("/auth/me"); const club = await request("/bookclub/clubs/selected"); $("#club-eyebrow").textContent = club.name; document.title = `${club.name} — Community`; state.books = await request(`${API}/books?limit=500`); await Promise.all([loadOverview(), loadVoting(), loadDatePoll(), loadAnnouncements()]); } catch { location.href = "/bookclub"; } })();
+(async () => { try { const user = await request("/auth/me"); const club = await request("/bookclub/clubs/selected"); applyManagerShell(user, club); document.title = `${club.name} — Community`; state.books = await request(`${API}/books?limit=500`); await Promise.all([loadOverview(), loadVoting(), loadDatePoll(), loadAnnouncements()]); } catch { location.href = "/bookclub"; } })();

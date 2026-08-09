@@ -148,6 +148,14 @@ const runDashboardAction = async () => {
   } else if (action === "add-book") {
     await setView("books");
     openBookDialog();
+  } else if (action === "view-meetings") {
+    await setView("meetings");
+  } else if (action === "view-books") {
+    await setView("books");
+  } else if (action === "view-members") {
+    await setView("members");
+  } else if (action === "view-settings") {
+    await setView("club-settings");
   } else if (action === "followup" && memberId && stage) {
     await jumpToPendingMeeting(memberId, stage);
   }

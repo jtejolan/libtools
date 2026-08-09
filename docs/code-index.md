@@ -115,7 +115,7 @@ from `backend/` — see root `CLAUDE.md` for full commands.
 | `frontend/bookclub-landing.html` / `bookclub-landing.js` | 1 / 20 | Root landing page for `bookclub.libtools.app` — "Start a club" goes to `/create` (in-subdomain), club-slug search | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-account.html` / `bookclub-account.js` | 114 / 214 | Facilitator create-club + participant join/login/forgot-password/verify-email/reset-password — one shared shell keyed by URL path, mirrors `account.html`/`account.js` | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-participant.html` / `bookclub-participant.js` | — | Participant dashboard — next meeting/calendar/RSVP, current reading/progress, announcements, decisions, personal activity, preferences, ratings and reviews | `docs/frontend/bookclub.md` |
-| `frontend/bookclub-manage.html` / `bookclub-manage.js` | — | Focused community console: health/activation overview, RSVP summary, polls and announcements | `docs/frontend/bookclub.md` |
+| `frontend/bookclub-manage.html` / `bookclub-manage.js` | — | Focused community console inside the Book Club Manager green-sidebar shell: health/activation overview, RSVP summary, polls and announcements | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-unsubscribe.html` / `bookclub-unsubscribe.js` | 43 / 49 | Public unsubscribe confirmation page — click-to-confirm (not an auto-GET) so email-client link prefetching can't trigger it | `docs/frontend/bookclub.md` |
 | `frontend/lendery.html` / `lendery.js` | 466 / 2458 | Lendery inventory app — largest JS file in repo | `docs/frontend/lendery.md` |
 | `frontend/lendery-export.html` / `lendery-export.js` | 89 / 256 | Configurable CSV export UI at `/lendery/export` | `docs/frontend/lendery.md` |

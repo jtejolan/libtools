@@ -176,9 +176,12 @@ name/description, book shelf, and next meeting directly into the DOM. Uses
   or management link.
 - `bookclub-manage.html` is now served from
   `libtools.app/bookclub/community`, authenticated by the regular Libtools
-  session and selected club. It focuses on community health/account activation,
-  next-meeting RSVP counts, book/date polls, and announcements. Books, meetings,
-  roster details, and email templates stay on their dedicated manager pages.
+  session and selected club. It shares the Book Club Manager's green sidebar,
+  account menu, responsive shell, and direct navigation to the Meetings, Books,
+  Members, and Settings views. Its content focuses on community health/account
+  activation, next-meeting RSVP counts, book/date polls, and announcements.
+  Books, meetings, roster details, and email templates stay on their dedicated
+  manager pages.
 
 ## Gotchas
 
