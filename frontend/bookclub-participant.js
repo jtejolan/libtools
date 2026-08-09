@@ -55,7 +55,7 @@ const render = (participant) => {
   }
 };
 
-const participantState = { participantId: null, books: [] };
+const participantState = { participantId: null, books: [], upcomingMeeting: null, readingProgress: null };
 
 const formatTimestamp = (value) =>
   new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
@@ -87,6 +87,7 @@ const renderRsvp = (data) => {
     return;
   }
   const meeting = data.meeting;
+  participantState.upcomingMeeting = data;
   $("#rsvp-heading").textContent = meeting.book.title;
   const options = [
     ["attending", "I’m attending"],
@@ -94,13 +95,56 @@ const renderRsvp = (data) => {
     ["not_attending", "Can’t attend"],
   ];
   content.innerHTML = `<p>${escapeHtml(formatDate(meeting.meeting_date))}${meeting.meeting_time ? ` · ${escapeHtml(meeting.meeting_time)}` : ""}${meeting.location ? ` · ${escapeHtml(meeting.location)}` : ""}</p>
-    <div class="user-actions" style="justify-content:flex-start;margin-top:14px">
+    <div class="meeting-actions">
       ${options.map(([status, label]) => `<button class="${data.rsvp_status === status ? "primary-button" : "secondary-button"}" data-rsvp="${status}" data-meeting-id="${meeting.id}">${label}</button>`).join("")}
     </div>
-    <p class="muted" style="margin-top:10px">${data.rsvp_status ? "Your response is saved. You can change it anytime before the meeting." : "Let your facilitator know if you plan to join."}</p>`;
+    <div class="calendar-actions"><a class="calendar-link" href="${escapeHtml(data.google_calendar_url)}" target="_blank" rel="noopener">Add to Google Calendar ↗</a><a class="calendar-link" href="${escapeHtml(data.ics_calendar_url)}" download>Download calendar event</a></div>
+    <p class="muted" style="margin-top:14px">${data.rsvp_status ? "Your response is saved. You can change it anytime before the meeting." : "Let your facilitator know if you plan to join."}</p>`;
 };
 
-const loadRsvp = async () => renderRsvp(await request("/participant/meetings/upcoming"));
+const progressLabels = { not_started: "Not started", reading: "Reading", finished: "Finished" };
+
+const renderCurrentReading = (data, progress) => {
+  const section = $("#current-reading-section");
+  if (!data) { section.hidden = true; return; }
+  const book = data.meeting.book;
+  section.hidden = false;
+  $("#current-reading-title").textContent = book.title;
+  $("#current-reading-meta").textContent = `${book.author} · Discussing ${formatDate(data.meeting.meeting_date)}`;
+  const cover = $("#current-reading-cover");
+  cover.src = book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1";
+  cover.alt = book.cover_image_url ? `Cover of ${book.title}` : "";
+  $("#reading-progress-options").innerHTML = ["not_started", "reading", "finished"]
+    .map((status) => `<button type="button" class="${progress?.status === status ? "primary-button" : "secondary-button"} progress-button" data-reading-status="${status}" data-book-id="${book.id}">${progressLabels[status]}</button>`)
+    .join("") + (progress?.status ? `<button type="button" class="quiet-button" data-reading-status="" data-book-id="${book.id}">Clear</button>` : "");
+};
+
+const loadCurrentReading = async (data = participantState.upcomingMeeting) => {
+  if (!data) { renderCurrentReading(null, null); return; }
+  participantState.readingProgress = await request(`/participant/books/${data.meeting.book.id}/reading-progress`);
+  renderCurrentReading(data, participantState.readingProgress);
+};
+
+const loadRsvp = async () => {
+  const data = await request("/participant/meetings/upcoming");
+  participantState.upcomingMeeting = data;
+  renderRsvp(data);
+  await loadCurrentReading(data);
+};
+
+$("#reading-progress-options").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-reading-status]");
+  if (!button) return;
+  try {
+    participantState.readingProgress = await request(`/participant/books/${button.dataset.bookId}/reading-progress`, {
+      method: "PUT",
+      body: JSON.stringify({ status: button.dataset.readingStatus || null }),
+    });
+    renderCurrentReading(participantState.upcomingMeeting, participantState.readingProgress);
+    await loadActivity();
+    toast(button.dataset.readingStatus ? "Reading progress saved." : "Reading progress cleared.");
+  } catch (error) { toast(error.message); }
+});
 
 $("#rsvp-content").addEventListener("click", async (event) => {
   const button = event.target.closest("[data-rsvp]");
@@ -196,6 +240,7 @@ document.addEventListener("submit", async (event) => {
     });
     toast("Proposed — waiting on facilitator approval.");
     await loadVoting();
+    await loadActivity();
   } catch (error) {
     toast(error.message);
   }
@@ -211,6 +256,7 @@ $("#voting-content").addEventListener("click", async (event) => {
     });
     renderVoting(round);
     toast("Vote saved.");
+    await loadActivity();
   } catch (error) {
     toast(error.message);
   }
@@ -274,6 +320,7 @@ $("#date-poll-content").addEventListener("click", async (event) => {
     });
     renderDatePoll(poll);
     toast("Vote saved.");
+    await loadActivity();
   } catch (error) {
     toast(error.message);
   }
@@ -293,9 +340,9 @@ const renderBookRatingCard = (book, ratingsData) => {
   const others = ratingsData.ratings.filter((entry) => entry.participant_id !== ratingsState.participantId);
   const averageCopy = ratingsData.count ? `${ratingsData.average}★ average (${ratingsData.count} rating${ratingsData.count > 1 ? "s" : ""})` : "No ratings yet";
 
-  return `<article class="rating-card" data-book-id="${book.id}">
-    <h3>${escapeHtml(book.title)}</h3>
-    <p class="user-meta">${escapeHtml(book.author)} · ${averageCopy}</p>
+  return `<details class="rating-card" data-book-id="${book.id}">
+    <summary style="cursor:pointer"><h3 style="display:inline">${escapeHtml(book.title)}</h3><p class="user-meta">${escapeHtml(book.author)} · ${averageCopy}${mine ? ` · You rated ${mine.rating}★` : ""}</p></summary>
+    <div style="padding-top:14px">
     <div class="star-row">${stars}</div>
     <textarea class="rating-review" data-book-id="${book.id}" placeholder="Optional review" rows="2">${mine?.review_text ? escapeHtml(mine.review_text) : ""}</textarea>
     <button class="secondary-button" data-save-rating="${book.id}">${mine ? "Update rating" : "Save rating"}</button>
@@ -309,7 +356,8 @@ const renderBookRatingCard = (book, ratingsData) => {
             .join("")}</details>`
         : ""
     }
-  </article>`;
+    </div>
+  </details>`;
 };
 
 const loadRatings = async () => {
@@ -356,6 +404,7 @@ $("#ratings-list").addEventListener("click", async (event) => {
     delete ratingsState.pendingStars[bookId];
     toast("Rating saved.");
     await loadRatings();
+    await loadActivity();
   } catch (error) {
     toast(error.message);
   }
@@ -379,6 +428,48 @@ $("#resend-verification").addEventListener("click", async () => {
   }
 });
 
+const renderActivity = (activity) => {
+  const stats = [
+    [activity.attended_meetings_count, "meetings attended"],
+    [activity.ratings_count, "books rated"],
+    [activity.book_votes_count + activity.date_votes_count, "votes cast"],
+    [activity.proposals_count, "books proposed"],
+  ];
+  $("#activity-stats").innerHTML = stats.map(([count, label]) => `<div class="activity-stat"><strong>${count}</strong><span>${label}</span></div>`).join("");
+  $("#activity-list").innerHTML = activity.recent.length
+    ? activity.recent.map((item) => `<div class="activity-item"><p><strong>${escapeHtml(item.label)}</strong>${item.detail ? ` · ${escapeHtml(item.detail)}` : ""}</p><small>${escapeHtml(formatTimestamp(item.occurred_at))}</small></div>`).join("")
+    : '<p class="muted">Your ratings, votes, proposals, and reading updates will appear here.</p>';
+};
+
+const loadActivity = async () => renderActivity(await request("/participant/activity"));
+
+let notificationPreferences = null;
+const loadNotificationPreferences = async () => {
+  notificationPreferences = await request("/participant/notification-preferences");
+  return notificationPreferences;
+};
+
+$("#notification-settings").addEventListener("click", async () => {
+  try {
+    const preferences = notificationPreferences || await loadNotificationPreferences();
+    const form = $("#notification-form");
+    ["announcements", "polls", "meeting_reminders", "discussion_replies"].forEach((name) => { form.elements[name].checked = preferences[name]; });
+    $("#notification-error").textContent = "";
+    $("#notification-dialog").showModal();
+  } catch (error) { toast(error.message); }
+});
+$("#close-notification-dialog").addEventListener("click", () => $("#notification-dialog").close());
+$("#notification-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(["announcements", "polls", "meeting_reminders", "discussion_replies"].map((name) => [name, form.elements[name].checked]));
+  try {
+    notificationPreferences = await request("/participant/notification-preferences", { method: "PUT", body: JSON.stringify(data) });
+    $("#notification-dialog").close();
+    toast("Notification preferences saved.");
+  } catch (error) { $("#notification-error").textContent = error.message; }
+});
+
 (async () => {
   try {
     const participant = await request("/participant/auth/me");
@@ -386,7 +477,7 @@ $("#resend-verification").addEventListener("click", async () => {
     ratingsState.participantId = participant.id;
     participantState.participantId = participant.id;
     participantState.books = await request("/participant/books");
-    await Promise.all([loadAnnouncements(), loadRsvp(), loadVoting(), loadDatePoll(), loadRatings()]);
+    await Promise.all([loadAnnouncements(), loadRsvp(), loadVoting(), loadDatePoll(), loadRatings(), loadActivity(), loadNotificationPreferences()]);
   } catch {
     location.href = "/";
   }

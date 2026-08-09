@@ -286,6 +286,52 @@ class RsvpUpdate(BaseModel):
 class ParticipantMeetingResponse(BaseModel):
     meeting: MeetingResponse
     rsvp_status: str | None = None
+    google_calendar_url: str
+    ics_calendar_url: str
+
+
+class ReadingProgressUpdate(BaseModel):
+    status: str | None
+
+    @field_validator("status")
+    @classmethod
+    def valid_status(cls, value: str | None) -> str | None:
+        if value not in (None, "not_started", "reading", "finished"):
+            raise ValueError("Choose not started, reading, finished, or clear the status")
+        return value
+
+
+class ReadingProgressResponse(BaseModel):
+    book_id: int
+    status: str | None = None
+    updated_at: datetime | None = None
+
+
+class NotificationPreferencesUpdate(BaseModel):
+    announcements: bool
+    polls: bool
+    meeting_reminders: bool
+    discussion_replies: bool
+
+
+class NotificationPreferencesResponse(NotificationPreferencesUpdate):
+    updated_at: datetime | None = None
+
+
+class PersonalActivityItem(BaseModel):
+    kind: str
+    label: str
+    detail: str | None = None
+    occurred_at: datetime
+
+
+class PersonalActivityResponse(BaseModel):
+    ratings_count: int
+    book_votes_count: int
+    date_votes_count: int
+    proposals_count: int
+    attended_meetings_count: int
+    recent: list[PersonalActivityItem]
 
 
 class UnsubscribeRequest(BaseModel):

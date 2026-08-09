@@ -37,7 +37,7 @@ guaranteed exact) · **Purpose** (one clause) · **Detail in**.
 
 | Path | Lines | Purpose | Detail in |
 |---|---|---|---|
-| `backend/app/bookclub/models.py` | — | Club/member/book/meeting/participation (attendance + RSVP)/announcement/template/question/rating/voting/date-poll models | `docs/backend/bookclub.md` |
+| `backend/app/bookclub/models.py` | — | Club/member/book/meeting/participation, announcements, reading progress, notification preferences, templates, ratings and polls | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/schemas.py` | 461 | Pydantic schemas incl. `PublicXResponse` subset types, book-detail insights, `SelfServeClubSummary` (admin view) | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/crud.py` | — | DB ops for all bookclub entities including roster-linked participant broadcasts, ratings, voting, and date polling | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/routes.py` | 693 | Members/books (incl. detail insights)/meetings/roster/emails (incl. mark-sent)/giveaway/templates/questions (45 endpoints) | `docs/backend/bookclub.md` |
@@ -49,7 +49,7 @@ guaranteed exact) · **Purpose** (one clause) · **Detail in**.
 | `backend/app/bookclub/participant_models.py` | — | Global `ParticipantAccount` identity and tokens; club membership lives on linked roster rows | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/participant_schemas.py` | — | Participant auth, ratings, polls, announcement, RSVP, activation overview, broadcast/unsubscribe schemas | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/facilitator_routes.py` | — | `/bookclub/community/*` overview, announcements, polls and supporting routes, using regular selected-club access | `docs/backend/bookclub.md` |
-| `backend/app/bookclub/participant_community_routes.py` | — | `/participant/announcements` and `/participant/meetings/*` portal APIs | `docs/backend/bookclub.md` |
+| `backend/app/bookclub/participant_community_routes.py` | — | Participant announcements, RSVP/calendar, reading progress, preferences, and personal activity APIs | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/voting_routes.py` | 125 | `/participant/voting-round/*` — propose/vote, `build_round_response()` reused by `facilitator_routes.py` | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/date_poll_routes.py` | 77 | `/participant/date-poll/*` — vote (no propose, facilitator-only options), `build_poll_response()` reused by `facilitator_routes.py`; independent from `voting_routes.py` by design | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/participant_unsubscribe.py` | 46 | Signs/verifies unsubscribe tokens via `itsdangerous` — no DB table, reused `LIBTOOLS_SESSION_SECRET` with a distinct salt | `docs/backend/bookclub.md` |
@@ -114,7 +114,7 @@ from `backend/` — see root `CLAUDE.md` for full commands.
 | `frontend/public-club.html` / `public-club.js` | 1 / 15 | Public read-only club page (minified), served on both `libtools.app` and `bookclub.libtools.app` | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-landing.html` / `bookclub-landing.js` | 1 / 20 | Root landing page for `bookclub.libtools.app` — "Start a club" goes to `/create` (in-subdomain), club-slug search | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-account.html` / `bookclub-account.js` | 114 / 214 | Facilitator create-club + participant join/login/forgot-password/verify-email/reset-password — one shared shell keyed by URL path, mirrors `account.html`/`account.js` | `docs/frontend/bookclub.md` |
-| `frontend/bookclub-participant.html` / `bookclub-participant.js` | — | Participant dashboard — announcements, upcoming-meeting RSVP, book/date voting, ratings and reviews | `docs/frontend/bookclub.md` |
+| `frontend/bookclub-participant.html` / `bookclub-participant.js` | — | Participant dashboard — next meeting/calendar/RSVP, current reading/progress, announcements, decisions, personal activity, preferences, ratings and reviews | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-manage.html` / `bookclub-manage.js` | — | Focused community console: health/activation overview, RSVP summary, polls and announcements | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-unsubscribe.html` / `bookclub-unsubscribe.js` | 43 / 49 | Public unsubscribe confirmation page — click-to-confirm (not an auto-GET) so email-client link prefetching can't trigger it | `docs/frontend/bookclub.md` |
 | `frontend/lendery.html` / `lendery.js` | 466 / 2458 | Lendery inventory app — largest JS file in repo | `docs/frontend/lendery.md` |

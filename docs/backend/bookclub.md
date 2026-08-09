@@ -16,6 +16,8 @@ Multi-tenant book club manager. Every club-owned table is scoped by
 | `BookClubMeeting` | `bookclub_meetings` | A dated session tied to one book, with `meeting_duration_minutes`, an `archived_at` display-mode flag, and discussion notes; `book_title`/`book_author` are denormalized copies kept in sync on write. `starts_at`/`ends_at` are computed `@property`s (not columns), from `bookclub/scheduling.py` |
 | `BookClubParticipation` | `bookclub_participation` | Member roster for one meeting (`attended`, participant-set `rsvp_status`, and a session-only note); unique per `(meeting_id, member_id)`. RSVP and attendance intentionally share this record. |
 | `BookClubAnnouncement` | `bookclub_announcements` | Portal announcement scoped to one club, with title/body, timestamps, and optional pinned priority. |
+| `BookClubReadingProgress` | `bookclub_reading_progress` | Optional private reading state (`not_started`/`reading`/`finished`) for one roster member and club book; no row means the participant chose not to track it. |
+| `BookClubNotificationPreference` | `bookclub_notification_preferences` | Per-membership preferences for announcements, polls, meeting reminders, and future discussion replies. |
 | `BookClubTemplate` | `bookclub_templates` | Editable email template; unique per `(club_id, key)` |
 | `BookClubDiscussionQuestion` | `bookclub_discussion_questions` | Legacy ordered questions retained for API compatibility; migration `e93f1a6b2c47` copies existing text into meeting discussion notes |
 | `BookClubRating` | `bookclub_ratings` | A participant's 1-5 rating (DB `CheckConstraint`) + optional review of a book; unique per `(book_id, participant_id)`, editable (upsert, not append). FK to `ParticipantAccount` is a plain string FK (`bookclub_participant_accounts.id`), not an ORM `relationship()` — `crud.py` joins in the participant's name explicitly instead, since that model lives in `participant_models.py` and there's no existing precedent in this package for a cross-module `relationship()`. |
@@ -63,11 +65,18 @@ Announcements are managed at `/bookclub/community/announcements` and read at
 `/participant/meetings/*`; saving one creates or updates the same participation
 row staff later use to record attendance.
 
+Participant community routes also expose optional reading progress, per-club
+notification preferences, a personal activity aggregate, a Google Calendar
+link, and an authenticated `.ics` meeting download. Activity is derived from
+existing ratings, votes, proposals, attendance, and reading-progress records;
+it is not a second append-only audit log.
+
 Migration `7e4c2a1f9d30` removes obsolete test-only `self_serve` clubs and
 participant identities, makes participant email global, and adds the roster
 link and per-membership unsubscribe fields. No compatibility merge is
 attempted because the removed data was explicitly non-production test data.
 Migration `9b2f4d6a8c10` adds club announcements and nullable RSVP status.
+Migration `b4d7f1a3c920` adds optional reading progress and notification preferences.
 
 ## Routes
 
@@ -77,7 +86,7 @@ Migration `9b2f4d6a8c10` adds club announcements and nullable RSVP status.
 | `public_router` | `/api/public/clubs` | `club_routes.py` | 1 | `GET /{slug}` — public read-only club page |
 | `router` | `/bookclub` | `routes.py` | 45 | Members, books (incl. catalogue import and read-only `/{book_id}/insights` aggregation), meetings, roster/participation, onboarding/arrival email preview/send/**mark-sent** and reminder preview/send, giveaway draw, templates, transit labels, discussion questions — whole router requires `require_selected_club` |
 | `router` | `/bookclub/community` | `facilitator_routes.py` | — | Community overview, announcements, book/date polls, plus supporting scoped endpoints |
-| `router` | `/participant` | `participant_community_routes.py` | 3 | Participant announcement feed, next upcoming meeting, and RSVP update |
+| `router` | `/participant` | `participant_community_routes.py` | — | Announcements, next meeting/RSVP/calendar, optional reading progress, notification preferences, and personal activity |
 
 ## Other modules
 

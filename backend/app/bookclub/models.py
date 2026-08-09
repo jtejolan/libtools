@@ -264,6 +264,46 @@ class BookClubAnnouncement(Base):
     club: Mapped[BookClub] = relationship()
 
 
+class BookClubReadingProgress(Base):
+    __tablename__ = "bookclub_reading_progress"
+    __table_args__ = (
+        UniqueConstraint("member_id", "book_id", name="uq_bookclub_member_book_progress"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    club_id: Mapped[int] = mapped_column(
+        ForeignKey("book_clubs.id", ondelete="CASCADE"), index=True
+    )
+    member_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_members.id", ondelete="CASCADE"), index=True
+    )
+    book_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_books.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(20))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    book: Mapped[BookClubBook] = relationship()
+
+
+class BookClubNotificationPreference(Base):
+    __tablename__ = "bookclub_notification_preferences"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    member_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_members.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    announcements: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
+    polls: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
+    meeting_reminders: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
+    discussion_replies: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class BookClubTemplate(Base):
     __tablename__ = "bookclub_templates"
     __table_args__ = (

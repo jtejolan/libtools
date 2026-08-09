@@ -168,8 +168,11 @@ name/description, book shelf, and next meeting directly into the DOM. Uses
   subdomain.
 - `bookclub-account.html` handles participant registration, login, recovery,
   and verification only; the old facilitator creation card is removed.
-- `bookclub-participant.html` is the community page for announcements, next-
-  meeting RSVP, ratings, reviews, book proposals/votes, and meeting-date votes. It has no facilitator role
+- `bookclub-participant.html` is a participant-first dashboard organized around
+  the next meeting, current book, latest announcement, and open decisions. It
+  includes RSVP and Google/`.ics` calendar actions, optional private reading
+  progress, notification preferences, a personal activity summary, collapsed
+  rating/review cards, book proposals/votes, and meeting-date votes. It has no facilitator role
   or management link.
 - `bookclub-manage.html` is now served from
   `libtools.app/bookclub/community`, authenticated by the regular Libtools

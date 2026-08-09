@@ -153,6 +153,54 @@ class BookClubCommunityTests(unittest.TestCase):
         with self.sessions() as db:
             self.assertEqual(db.scalar(select(BookClubParticipation)).rsvp_status, "maybe")
 
+    def test_optional_reading_progress_preferences_calendar_and_activity(self) -> None:
+        meeting = self.create_meeting()
+        upcoming = self.reader.get("/participant/meetings/upcoming")
+        self.assertEqual(upcoming.status_code, 200, upcoming.text)
+        self.assertIn("calendar.google.com", upcoming.json()["google_calendar_url"])
+        self.assertEqual(
+            upcoming.json()["ics_calendar_url"],
+            f"/participant/meetings/{meeting['id']}/calendar.ics",
+        )
+        calendar = self.reader.get(upcoming.json()["ics_calendar_url"])
+        self.assertEqual(calendar.status_code, 200, calendar.text)
+        self.assertTrue(calendar.headers["content-type"].startswith("text/calendar"))
+        self.assertIn("SUMMARY:Book club: Dune", calendar.text)
+
+        book_id = meeting["book_id"]
+        empty_progress = self.reader.get(f"/participant/books/{book_id}/reading-progress")
+        self.assertIsNone(empty_progress.json()["status"])
+        saved_progress = self.reader.put(
+            f"/participant/books/{book_id}/reading-progress", json={"status": "reading"}
+        )
+        self.assertEqual(saved_progress.status_code, 200, saved_progress.text)
+        self.assertEqual(saved_progress.json()["status"], "reading")
+        activity = self.reader.get("/participant/activity")
+        self.assertEqual(activity.status_code, 200, activity.text)
+        self.assertEqual(activity.json()["recent"][0]["kind"], "progress")
+        self.assertIn("Dune", activity.json()["recent"][0]["label"])
+        cleared = self.reader.put(
+            f"/participant/books/{book_id}/reading-progress", json={"status": None}
+        )
+        self.assertIsNone(cleared.json()["status"])
+        self.assertEqual(self.reader.get("/participant/activity").json()["recent"], [])
+
+        defaults = self.reader.get("/participant/notification-preferences")
+        self.assertTrue(defaults.json()["announcements"])
+        preferences = {
+            "announcements": True,
+            "polls": False,
+            "meeting_reminders": True,
+            "discussion_replies": False,
+        }
+        saved_preferences = self.reader.put(
+            "/participant/notification-preferences", json=preferences
+        )
+        self.assertEqual(saved_preferences.status_code, 200, saved_preferences.text)
+        current = self.reader.get("/participant/notification-preferences").json()
+        for key, value in preferences.items():
+            self.assertEqual(current[key], value)
+
 
 if __name__ == "__main__":
     unittest.main()
