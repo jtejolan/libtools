@@ -1,6 +1,6 @@
 # frontend — Book Club Manager
 
-## `bookclub.html` / `bookclub.js` (468 / 2,417 lines)
+## `bookclub.html` / `bookclub.js` (463 / 2,446 lines)
 
 The app. Single `state` object (top of `bookclub.js`) holds: `user`,
 `clubs`/`club` (selected club), `view` (current tab — meetings/books/
@@ -48,9 +48,18 @@ member gets a distinct "✦ First meeting" badge (`.status-pill.first-session-ba
 computed client-side from `state.participation`) when the meeting being
 viewed is their first-ever attended session — roster only, not the Members
 grid. Don't confuse this with `.status-pill.new-badge`, which despite its
-name means "welcome email pending," not "new member." Day-of mode
-temporarily removes the broader application chrome and summary cards so
-attendance, notes, and the giveaway remain in focus.
+name means "welcome email pending," not "new member." The **Run session**
+button toggles the internal `dayOfMode`: it temporarily removes broader
+application chrome and the recap, then lays out attendance beside a sticky
+discussion-notes panel on desktop (stacked on mobile) so both remain usable
+during the conversation. The old three-card meeting stats block is now a
+compact `.session-summary-strip` inside the roster heading.
+
+The post-meeting recap is progressively disclosed via
+`#toggle-session-recap`. A newly opened planned meeting starts collapsed; it
+automatically expands when attendance or discussion notes make the summary
+useful, and completed meetings open it by default. Manual Show/Hide controls
+remain available afterward.
 
 Roster entries render as `.roster-member-card` articles (`renderRoster()`,
 `#roster-table` — an `id` left over from when this was a `<table>`, now a

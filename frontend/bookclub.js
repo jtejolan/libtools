@@ -686,8 +686,8 @@ const renderSessionControls = () => {
     meeting?.status === "completed" ? "Reopen this session" : "Mark this session completed";
   $("#day-of-mode").disabled = !meeting;
   $("#day-of-mode").innerHTML = state.dayOfMode
-    ? '<span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3" /><path d="M21 8h-3a2 2 0 0 1-2-2V3" /><path d="M3 16h3a2 2 0 0 1 2 2v3" /><path d="M16 21v-3a2 2 0 0 1 2-2h3" /></svg></span> Exit day-of mode'
-    : '<span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /></svg></span> Day-of mode';
+    ? '<span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3" /><path d="M21 8h-3a2 2 0 0 1-2-2V3" /><path d="M3 16h3a2 2 0 0 1 2 2v3" /><path d="M16 21v-3a2 2 0 0 1 2-2h3" /></svg></span> Exit session view'
+    : '<span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /></svg></span> Run session';
 };
 
 const renderDiscussionNotes = () => {
@@ -841,19 +841,44 @@ const renderArchiveView = () => {
   `;
 };
 
+const setSessionRecapExpanded = (expanded) => {
+  const body = $("#session-recap-body");
+  const toggle = $("#toggle-session-recap");
+  body.hidden = !expanded;
+  toggle.setAttribute("aria-expanded", String(expanded));
+  $("#recap-toggle-label").textContent = expanded ? "Hide recap" : "Show recap";
+  $("#post-meeting-recap").classList.toggle("is-collapsed", !expanded);
+};
+
 const renderPostMeetingRecap = () => {
   const recap = sessionRecap();
   const grid = $("#recap-grid");
+  const panel = $("#post-meeting-recap");
   $("#copy-session-recap").disabled = !recap;
+  $("#toggle-session-recap").disabled = !recap;
   if (!recap) {
     grid.innerHTML = '<div class="empty-card"><p>Add a meeting to create its recap.</p></div>';
     $("#recap-narrative").textContent = "";
+    panel.dataset.meetingId = "";
+    panel.dataset.relevant = "false";
+    panel.dataset.completed = "false";
+    setSessionRecapExpanded(false);
     return;
   }
   const { meeting, attended, pages, winner, followups } = recap;
+  const relevant = meeting.status === "completed" || attended.length > 0 || Boolean(meeting.discussion_notes);
+  const meetingChanged = panel.dataset.meetingId !== String(meeting.id);
+  const becameRelevant = relevant && panel.dataset.relevant !== "true";
+  const becameComplete = meeting.status === "completed" && panel.dataset.completed !== "true";
+  if (meetingChanged || becameRelevant || becameComplete) setSessionRecapExpanded(relevant);
+  panel.dataset.meetingId = String(meeting.id);
+  panel.dataset.relevant = String(relevant);
+  panel.dataset.completed = String(meeting.status === "completed");
   $("#recap-context").textContent = meeting.status === "completed"
     ? "This session is complete. The recap is ready to share or file."
-    : "This live summary updates as attendance and session details change.";
+    : relevant
+      ? "This live summary updates as attendance and session details change."
+      : "The recap will open when attendance or discussion notes are added.";
   grid.innerHTML = `
     <article><span>◎</span><strong>${attended.length}<small> / ${state.roster.length}</small></strong><p>Attended</p></article>
     <article><span>∑</span><strong>${meeting.book.page_count ? pages.toLocaleString("en-CA") : "—"}</strong><p>Pages read together</p></article>
@@ -862,7 +887,7 @@ const renderPostMeetingRecap = () => {
   $("#recap-narrative").textContent = attended.length
     ? `${attended.length} ${attended.length === 1 ? "reader was" : "readers were"} part of the conversation about ${meeting.book.title}.`
     : "Attendance has not been recorded for this session yet.";
-  $("#post-meeting-recap").classList.toggle(
+  panel.classList.toggle(
     "is-complete",
     meeting.status === "completed",
   );
@@ -2293,6 +2318,10 @@ $("#copy-session-recap").addEventListener("click", async () => {
   if (!recap) return showToast("Add a meeting first.");
   await navigator.clipboard.writeText(recap);
   showToast("Session recap copied.");
+});
+$("#toggle-session-recap").addEventListener("click", () => {
+  const expanded = $("#toggle-session-recap").getAttribute("aria-expanded") === "true";
+  setSessionRecapExpanded(!expanded);
 });
 $("#open-reminder-dialog").addEventListener("click", () => {
   if (!currentMeeting()) return showToast("Add a meeting first.");

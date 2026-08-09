@@ -10,9 +10,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/bookclub.css?v=36" />
+    <link rel="stylesheet" href="/static/bookclub.css?v=37" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub.js?v=34" defer></script>
+    <script src="/static/bookclub.js?v=35" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -121,19 +121,14 @@
               <div class="session-mode-controls">
                 <button class="reminder-trigger giveaway-trigger" id="open-giveaway-dialog" type="button"><span class="reminder-trigger-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" /><path d="M20 2v4" /><path d="M22 4h-4" /><circle cx="4" cy="20" r="2" /></svg></span><span><strong>Draw a Name</strong><small id="giveaway-inline-status">No winner yet</small></span></button>
                 <button class="status-pill meeting-status-badge" id="toggle-completed" type="button">Planned</button>
-                <button class="secondary-button" id="day-of-mode" type="button"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /></svg></span> Day-of mode</button>
+                <button class="secondary-button" id="day-of-mode" type="button"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /></svg></span> Run session</button>
               </div>
             </section>
 
-            <section class="stats-grid stats-grid-3" aria-label="Meeting overview">
-              <article><span class="stat-icon green">◎</span><div><strong id="roster-stat">—</strong><span>Members</span></div></article>
-              <article><span class="stat-icon gold">✦</span><div><strong id="new-registrant-stat">—</strong><span>New registrants</span></div></article>
-              <article><span class="stat-icon orange">◫</span><div><strong id="attendance-stat">—</strong><span>Attended</span></div></article>
-            </section>
-
+            <div class="session-workspace-grid">
             <section class="panel roster-panel">
               <div class="panel-heading">
-                <div><p class="eyebrow"><span></span> Monthly roster</p><h2>Members &amp; attendance</h2></div>
+                <div><p class="eyebrow"><span></span> Monthly roster</p><h2>Members &amp; attendance</h2><section class="session-summary-strip" aria-label="Meeting overview"><article><strong id="roster-stat">—</strong><span>Members</span></article><article><strong id="new-registrant-stat">—</strong><span>New</span></article><article><strong id="attendance-stat">—</strong><span>Attended</span></article></section></div>
                 <div class="panel-actions roster-add-bar">
                   <button class="roster-reminder-trigger" id="open-reminder-dialog" type="button"><strong id="reminder-trigger-label">Send Reminder</strong><small id="reminder-inline-status">Not sent yet</small></button>
                   <div class="roster-add-search-wrap">
@@ -156,14 +151,14 @@
                 <div class="discussion-notes-actions"><span id="discussion-notes-status">No notes yet</span><button class="primary-button" id="save-discussion-notes" type="button">Save notes</button></div>
               </div>
             </section>
+            </div>
 
             <section class="panel recap-panel" id="post-meeting-recap">
               <div class="panel-heading">
                 <div><p class="eyebrow"><span></span> After the conversation</p><h2>Post-meeting recap</h2><p class="panel-description" id="recap-context">A live summary of this session.</p></div>
-                <button class="secondary-button" id="copy-session-recap" type="button">Copy recap</button>
+                <div class="recap-heading-actions"><button class="secondary-button" id="copy-session-recap" type="button">Copy recap</button><button class="quiet-button recap-toggle" id="toggle-session-recap" type="button" aria-expanded="false" aria-controls="session-recap-body"><span id="recap-toggle-label">Show recap</span><span class="recap-toggle-icon" aria-hidden="true">⌄</span></button></div>
               </div>
-              <div class="recap-grid" id="recap-grid"></div>
-              <p class="recap-narrative" id="recap-narrative"></p>
+              <div id="session-recap-body" hidden><div class="recap-grid" id="recap-grid"></div><p class="recap-narrative" id="recap-narrative"></p></div>
             </section>
             </div>
           </div>
