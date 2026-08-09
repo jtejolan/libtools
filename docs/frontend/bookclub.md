@@ -4,9 +4,9 @@
 
 The app. Single `state` object (top of `bookclub.js`) holds: `user`,
 `clubs`/`club` (selected club), `view` (current tab — meetings/books/
-members/etc), and per-entity lists (`members`, `books`, `meetings`,
-`roster`, `templates`, `participation`) plus UI-only fields
-(search queries for the larger collections, `memberSort`/`bookSort`,
+members/etc), and per-entity lists (`members`, `memberAccess`, `books`,
+`meetings`, `roster`, `templates`, `participation`) plus UI-only fields
+(search queries for the larger collections, `memberSort`/`memberAccessFilter`/`bookSort`,
 `bookDisplay`, the open `bookDetailId`, day-of mode, and unsaved
 discussion-note state).
 Talks to `/bookclub/*` (club-scoped CRUD call sites for
@@ -129,9 +129,14 @@ Templates page anymore.
 Members and participation share one card-based community view. Each member
 card shows a prominent, copyable email (`.copy-email-button`, clipboard copy
 via a `data-copy-email` click-delegate branch) alongside attendance and pages
-read; the history dialog lists attended books only and summarizes books,
-pages, and giveaway wins. Pending welcome/arrival email badges appear both
-there and on meeting roster cards.
+read. Every card also has a plain-language **Community access** row: Community
+active, Verification pending, Invitation not accepted, Account disabled, or
+Inactive member. The directory can filter on the same states and flags when
+announcements are off. Context actions copy the public invitation, resend email
+verification, or reactivate an inactive roster member when that action applies;
+history and edit remain available on every card. The history dialog lists
+attended books only and summarizes books, pages, and giveaway wins. Pending
+welcome/arrival email badges appear both there and on meeting roster cards.
 
 Communication actions live on the session instead of a separate Messages page.
 Roster prompts (`openFollowupDialog()`) open a dialog with four distinct
@@ -163,7 +168,7 @@ open/invitation-only/closed enrollment policy. When a participant session is
 present, it changes from generic signup links to an account-aware open/join
 action and supports joining a second open club without another account.
 
-## `bookclub.libtools.app` participant portal
+## `bookclub.libtools.app` participant community
 
 - `bookclub-landing.html` is the participant-first entry point. Its invitation
   tab accepts either a full `/clubs/{slug}` link or the slug as a short club

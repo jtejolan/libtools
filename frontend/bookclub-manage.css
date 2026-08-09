@@ -37,6 +37,7 @@
 .activation-statuses { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
 .status-pill.pending { color: #7a5311; background: #fff2d8; }
 .status-pill.unlinked { color: #68625a; background: #f0eeea; }
+.status-pill.disabled { color: #68625a; background: #e5e1da; }
 .status-pill.rsvp { color: #35546d; background: #edf2f8; }
 .rsvp-strip { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
 .rsvp-count { padding: 7px 10px; border-radius: 8px; background: rgba(24,59,51,.055); font-size: 11px; }

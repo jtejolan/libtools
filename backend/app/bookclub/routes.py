@@ -1,11 +1,21 @@
 from datetime import date
+import logging
 from typing import Annotated
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from bookclub import catalogue, crud, schemas
+from bookclub import (
+    catalogue,
+    crud,
+    participant_email_delivery,
+    participant_tokens,
+    schemas,
+)
 from bookclub.access import require_selected_club
+from bookclub.participant_models import ParticipantAccount
 from dependencies import DatabaseSession
 
 router = APIRouter(
@@ -16,6 +26,7 @@ router = APIRouter(
 
 Offset = Annotated[int, Query(ge=0)]
 Limit = Annotated[int, Query(ge=1, le=500)]
+logger = logging.getLogger(__name__)
 
 
 def _not_found(detail: str) -> HTTPException:
@@ -60,12 +71,110 @@ def member_participation_summary(db: DatabaseSession):
     return crud.member_participation_summary(db)
 
 
+@router.get(
+    "/members/community-access",
+    response_model=list[schemas.MemberCommunityAccessResponse],
+)
+def member_community_access(db: DatabaseSession):
+    members = crud.list_members(db, limit=500)
+    account_ids = {
+        member.participant_account_id
+        for member in members
+        if member.participant_account_id is not None
+    }
+    accounts = {
+        account.id: account
+        for account in db.scalars(
+            select(ParticipantAccount).where(ParticipantAccount.id.in_(account_ids))
+        )
+    } if account_ids else {}
+    response = []
+    for member in members:
+        account = accounts.get(member.participant_account_id)
+        if not member.active:
+            access_status = "inactive_member"
+        elif account is None:
+            access_status = "invitation_not_accepted"
+        elif not account.active:
+            access_status = "account_disabled"
+        elif account.email_verified_at is None:
+            access_status = "verification_pending"
+        else:
+            access_status = "community_active"
+        response.append(
+            schemas.MemberCommunityAccessResponse(
+                member_id=member.id,
+                status=access_status,
+                announcements_enabled=member.participant_unsubscribed_at is None,
+            )
+        )
+    return response
+
+
 @router.get("/members/{member_id}", response_model=schemas.MemberResponse)
 def get_member(member_id: int, db: DatabaseSession):
     member = crud.get_member(db, member_id)
     if member is None:
         raise _not_found("Member not found")
     return member
+
+
+@router.post(
+    "/members/{member_id}/verification",
+    response_model=schemas.MemberVerificationResponse,
+)
+def resend_member_verification(
+    member_id: int,
+    db: DatabaseSession,
+):
+    member = crud.get_member(db, member_id)
+    if member is None:
+        raise _not_found("Member not found")
+    account = (
+        db.get(ParticipantAccount, member.participant_account_id)
+        if member.participant_account_id is not None
+        else None
+    )
+    if account is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This member has not accepted the invitation yet",
+        )
+    if not account.active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This participant account is disabled",
+        )
+    if account.email_verified_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This participant has already verified their email",
+        )
+    token = participant_tokens.issue_token(
+        db,
+        account,
+        participant_tokens.EMAIL_VERIFICATION,
+        participant_tokens.EMAIL_VERIFICATION_LIFETIME,
+    )
+    db.commit()
+    verification_url = (
+        "https://bookclub.libtools.app/verify-email?"
+        + urlencode({"token": token})
+    )
+    try:
+        delivered = participant_email_delivery.send_verification_email(
+            recipient=account.email,
+            name=account.name,
+            club_name=db.info["bookclub"].name,
+            verification_url=verification_url,
+        )
+    except Exception:
+        logger.exception("Could not send participant verification email")
+        delivered = False
+    return schemas.MemberVerificationResponse(
+        message="Verification email sent." if delivered else "Verification email prepared.",
+        delivery_configured=participant_email_delivery.DELIVERY_CONFIGURED,
+    )
 
 
 @router.patch("/members/{member_id}", response_model=schemas.MemberResponse)
@@ -138,15 +247,16 @@ def list_books(
     )
 
 
-@router.post("/books/import", response_model=schemas.BookImportResponse)
-def import_book(value: schemas.BookImportRequest):
+@router.post("/books/search", response_model=schemas.BookSearchResponse)
+def search_books(value: schemas.BookSearchRequest):
     try:
-        return catalogue.fetch_catalogue_book(str(value.catalogue_url))
+        results = catalogue.search_catalogue_books(value.query)
     except catalogue.CatalogueImportError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         ) from exc
+    return schemas.BookSearchResponse(results=results)
 
 
 @router.get("/books/{book_id}", response_model=schemas.BookResponse)

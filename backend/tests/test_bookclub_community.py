@@ -1,5 +1,6 @@
 import unittest
 from datetime import date, datetime, timedelta, timezone
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
@@ -7,7 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from accounts import login_throttle
-from bookclub.models import BookClubParticipation
+from bookclub.models import BookClubMember, BookClubParticipation
 from bookclub.participant_models import ParticipantAccount
 from database import Base
 from dependencies import get_db
@@ -104,6 +105,18 @@ class BookClubCommunityTests(unittest.TestCase):
         reader_status = next(item for item in body["accounts"] if item["member_id"] == self.reader_member_id)
         self.assertEqual(reader_status["rsvp_status"], "attending")
 
+        access = self.facilitator.get("/bookclub/members/community-access")
+        self.assertEqual(access.status_code, 200, access.text)
+        access_by_member = {item["member_id"]: item for item in access.json()}
+        self.assertEqual(
+            access_by_member[self.reader_member_id]["status"],
+            "verification_pending",
+        )
+        self.assertEqual(
+            access_by_member[unlinked.json()["id"]]["status"],
+            "invitation_not_accepted",
+        )
+
         with self.sessions() as db:
             account = db.scalar(select(ParticipantAccount))
             account.email_verified_at = datetime.now(timezone.utc)
@@ -111,6 +124,31 @@ class BookClubCommunityTests(unittest.TestCase):
         activated = self.facilitator.get("/bookclub/community/overview").json()
         self.assertEqual(activated["verified_account_count"], 1)
         self.assertEqual(activated["pending_verification_count"], 0)
+
+    @patch("bookclub.routes.participant_email_delivery.send_verification_email", return_value=True)
+    def test_facilitator_can_resend_participant_verification(self, send_verification) -> None:
+        response = self.facilitator.post(
+            f"/bookclub/members/{self.reader_member_id}/verification"
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["message"], "Verification email sent.")
+        verification_url = send_verification.call_args.kwargs["verification_url"]
+        self.assertTrue(
+            verification_url.startswith("https://bookclub.libtools.app/verify-email?token=")
+        )
+
+        with self.sessions() as db:
+            account = db.scalar(select(ParticipantAccount))
+            account.active = False
+            member = db.get(BookClubMember, self.reader_member_id)
+            member.participant_unsubscribed_at = datetime.now(timezone.utc)
+            db.commit()
+        access = self.facilitator.get("/bookclub/members/community-access").json()
+        reader_access = next(item for item in access if item["member_id"] == self.reader_member_id)
+        self.assertEqual(reader_access["status"], "account_disabled")
+        self.assertFalse(reader_access["announcements_enabled"])
+        overview = self.facilitator.get("/bookclub/community/overview").json()
+        self.assertEqual(overview["disabled_account_count"], 1)
 
     def test_facilitator_can_generate_an_invitation_qr_code(self) -> None:
         response = self.facilitator.get("/bookclub/community/invite-qr.svg")

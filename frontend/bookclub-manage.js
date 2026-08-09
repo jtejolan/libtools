@@ -116,8 +116,8 @@ $$("[data-copy-invite]").forEach((button) => button.addEventListener("click", as
   }
 }));
 
-const activationLabel = (status) => ({ active: "Activated", pending_verification: "Verify email", not_registered: "Not registered" })[status] || status;
-const activationClass = (status) => status === "active" ? "" : status === "pending_verification" ? "pending" : "unlinked";
+const activationLabel = (status) => ({ active: "Community active", pending_verification: "Verification pending", not_registered: "Invitation not accepted", account_disabled: "Account disabled" })[status] || status;
+const activationClass = (status) => status === "active" ? "" : status === "pending_verification" ? "pending" : status === "account_disabled" ? "disabled" : "unlinked";
 const rsvpLabel = (status) => ({ attending: "Attending", maybe: "Maybe", not_attending: "Can’t attend" })[status] || "No RSVP";
 
 const renderOverview = (overview) => {
@@ -125,7 +125,7 @@ const renderOverview = (overview) => {
   $("#member-count").textContent = overview.member_count;
   $("#linked-count").textContent = overview.linked_account_count;
   $("#verified-count").textContent = overview.verified_account_count;
-  const attention = overview.pending_verification_count + overview.unlinked_member_count + overview.pending_book_proposals;
+  const attention = overview.pending_verification_count + overview.disabled_account_count + overview.unlinked_member_count + overview.pending_book_proposals;
   $("#attention-count").textContent = attention;
 
   const meeting = overview.next_meeting;
@@ -141,7 +141,8 @@ const renderOverview = (overview) => {
   const queue = [];
   if (overview.pending_book_proposals) queue.push(`<button class="quiet-button" data-open-view="voting">${overview.pending_book_proposals} book proposal${overview.pending_book_proposals === 1 ? "" : "s"} to review</button>`);
   if (overview.pending_verification_count) queue.push(`<p><strong>${overview.pending_verification_count}</strong> account${overview.pending_verification_count === 1 ? "" : "s"} awaiting email verification</p>`);
-  if (overview.unlinked_member_count) queue.push(`<p><strong>${overview.unlinked_member_count}</strong> roster member${overview.unlinked_member_count === 1 ? "" : "s"} without a portal account</p>`);
+  if (overview.disabled_account_count) queue.push(`<p><strong>${overview.disabled_account_count}</strong> community account${overview.disabled_account_count === 1 ? " is" : "s are"} disabled</p>`);
+  if (overview.unlinked_member_count) queue.push(`<p><strong>${overview.unlinked_member_count}</strong> invitation${overview.unlinked_member_count === 1 ? " has" : "s have"} not been accepted</p>`);
   $("#attention-list").innerHTML = queue.length ? queue.join("") : '<p class="muted">Nothing needs your attention right now.</p>';
 
   $("#activation-list").innerHTML = overview.accounts.length ? overview.accounts.map((account) => `<div class="activation-row"><div><strong>${escapeHtml(account.name)}</strong><div class="user-meta">${escapeHtml(account.email)}</div></div><div class="activation-statuses"><span class="status-pill ${activationClass(account.status)}">${activationLabel(account.status)}</span>${meeting ? `<span class="status-pill rsvp">${rsvpLabel(account.rsvp_status)}</span>` : ""}</div></div>`).join("") : '<p class="empty-state">No active roster members yet.</p>';

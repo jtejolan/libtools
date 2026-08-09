@@ -16,7 +16,9 @@ const state = {
   templates: [],
   templateKey: null,
   participation: [],
+  memberAccess: {},
   memberSort: "name",
+  memberAccessFilter: "all",
   bookSort: "title-asc",
   bookDisplay: "list",
   bookUnscheduledOnly: false,
@@ -271,16 +273,20 @@ const renderBranchSuggestions = () => {
 };
 
 const loadCoreData = async () => {
-  const [members, books, meetings, participation] = await Promise.all([
+  const [members, books, meetings, participation, communityAccess] = await Promise.all([
     request("/bookclub/members?limit=500"),
     request("/bookclub/books?limit=500"),
     request("/bookclub/meetings?limit=500"),
     request("/bookclub/members/participation-summary"),
+    request("/bookclub/members/community-access"),
   ]);
   state.members = members;
   state.books = books;
   state.meetings = meetings;
   state.participation = participation;
+  state.memberAccess = Object.fromEntries(
+    communityAccess.map((item) => [item.member_id, item]),
+  );
   renderBranchSuggestions();
   if (!state.meetings.some((meeting) => meeting.id === state.meetingId)) {
     state.meetingId = chooseDefaultMeeting();
@@ -1125,6 +1131,20 @@ const memberPendingBadges = (member) => memberFollowupStages(member).map((stage)
   className: stage === "arrival" ? "arrival-badge" : "new-badge",
 }));
 
+const COMMUNITY_ACCESS_LABELS = {
+  community_active: "Community active",
+  verification_pending: "Verification pending",
+  invitation_not_accepted: "Invitation not accepted",
+  account_disabled: "Account disabled",
+  inactive_member: "Inactive member",
+};
+
+const communityAccessFor = (member) => state.memberAccess[member.id] || {
+  member_id: member.id,
+  status: member.active ? "invitation_not_accepted" : "inactive_member",
+  announcements_enabled: true,
+};
+
 const renderMembers = () => {
   const query = state.memberQuery.trim().toLowerCase();
   const participationByMember = new Map(
@@ -1133,6 +1153,10 @@ const renderMembers = () => {
   const members = state.members
     .filter((member) =>
       [member.name, member.email].join(" ").toLowerCase().includes(query),
+    )
+    .filter((member) =>
+      state.memberAccessFilter === "all"
+      || communityAccessFor(member).status === state.memberAccessFilter,
     )
     .sort((memberA, memberB) => {
       const rowA = participationByMember.get(memberA.id);
@@ -1160,15 +1184,19 @@ const renderMembers = () => {
   const lapsedCount = state.participation.filter(
     (row) => row.member.active && row.meetings_since_last_attended >= 3,
   ).length;
+  const accessValues = state.members.map((member) => communityAccessFor(member));
+  const communityActiveCount = accessValues.filter((item) => item.status === "community_active").length;
+  const invitationCount = accessValues.filter((item) => item.status === "invitation_not_accepted").length;
   $("#member-stat-active").textContent = activeCount;
   $("#member-stat-attendance").textContent = totalMeetings
     ? `${Math.round((totalAttended / totalMeetings) * 100)}%`
     : "—";
   $("#member-stat-pages").textContent = totalPages.toLocaleString("en-CA");
   $("#member-stat-lapsed").textContent = lapsedCount;
-  $("#member-count").textContent = query
-    ? `${members.length} matching · ${state.members.length} total`
-    : `${activeCount} active · ${state.members.length} total`;
+  const filtered = Boolean(query) || state.memberAccessFilter !== "all";
+  $("#member-count").textContent = filtered
+    ? `${members.length} shown · ${state.members.length} total · ${communityActiveCount} community active`
+    : `${activeCount} active · ${communityActiveCount} community active · ${invitationCount} invitation${invitationCount === 1 ? "" : "s"} not accepted`;
   $("#members-grid").innerHTML = members.length
     ? members
         .map((member) => {
@@ -1179,6 +1207,16 @@ const renderMembers = () => {
             ? Math.round((attendedCount / meetingsTotal) * 100)
             : 0;
           const lapsed = member.active && (participation?.meetings_since_last_attended || 0) >= 3;
+          const communityAccess = communityAccessFor(member);
+          const accessStatus = communityAccess.status;
+          const accessLabel = COMMUNITY_ACCESS_LABELS[accessStatus] || accessStatus;
+          const communityAction = accessStatus === "invitation_not_accepted" && state.club.public && state.club.enrollment_policy !== "closed"
+            ? `<button class="quiet-button" type="button" data-copy-community-invite="${member.id}">Copy invitation</button>`
+            : accessStatus === "verification_pending"
+              ? `<button class="quiet-button" type="button" data-resend-community-verification="${member.id}">Resend verification</button>`
+              : accessStatus === "inactive_member"
+                ? `<button class="quiet-button" type="button" data-reactivate-member="${member.id}">Reactivate member</button>`
+                : "";
           const badgeHtml = memberPendingBadges(member)
             .map(
               (badge) => `<button class="status-pill ${badge.className} jump-badge" type="button" data-jump-to-pending="${member.id}" data-stage="${badge.stage}">${escapeHtml(badge.label)}</button>`,
@@ -1189,7 +1227,8 @@ const renderMembers = () => {
               <div class="member-cell"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><span class="member-email-row"><small class="member-email">${escapeHtml(member.email)}</small><button class="copy-email-button" type="button" data-copy-email="${escapeHtml(member.email)}" aria-label="Copy ${escapeHtml(member.name)}'s email address" title="Copy email address"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg></button></span></div></div>
               <span class="status-pill ${member.active ? "" : "inactive"}">${member.active ? "Active" : "Inactive"}</span>
             </header>
-            <div class="member-badge-row">${member.participant_account_linked ? '<span class="status-pill">Portal account</span>' : ""}${lapsed ? '<span class="status-pill attention-badge">May need a hello</span>' : ""}${badgeHtml}</div>
+            <div class="community-access-row"><div><span>Community access</span><strong class="community-access-status ${accessStatus}"><i></i>${escapeHtml(accessLabel)}</strong></div>${communityAccess.announcements_enabled ? "" : '<span class="status-pill announcements-off-badge">Announcements off</span>'}</div>
+            <div class="member-badge-row">${lapsed ? '<span class="status-pill attention-badge">May need a hello</span>' : ""}${badgeHtml}</div>
             <div class="member-engagement">
               <div class="attendance-summary"><span>Attendance</span><strong>${attendedCount}<small> / ${meetingsTotal}</small></strong><div class="attendance-track" role="img" aria-label="${attendanceRate}% attendance"><span style="width: ${attendanceRate}%"></span></div></div>
               <div class="giveaway-summary pages-summary"><span>Pages read</span><strong>${(participation?.pages_read || 0).toLocaleString("en-CA")}<small> pages</small></strong></div>
@@ -1200,11 +1239,11 @@ const renderMembers = () => {
               <div><dt>Last contacted</dt><dd>${participation?.last_contacted_at ? escapeHtml(formatDate(participation.last_contacted_at.slice(0, 10))) : "Not yet"}</dd></div>
             </dl>
             ${member.notes ? `<p class="member-card-notes">${escapeHtml(member.notes)}</p>` : ""}
-            <footer class="member-profile-actions"><button class="quiet-button" type="button" data-member-history="${member.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l4 2" /></svg> View history</button><button class="secondary-button" type="button" data-edit-member="${member.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg> Edit member</button></footer>
+            <footer class="member-profile-actions ${communityAction ? "has-community-action" : ""}">${communityAction}<button class="quiet-button" type="button" data-member-history="${member.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l4 2" /></svg> View history</button><button class="secondary-button" type="button" data-edit-member="${member.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg> Edit member</button></footer>
           </article>`;
         })
         .join("")
-    : `<div class="empty-card member-directory-empty"><span>◎</span><h3>${query ? "No matching members" : "No members yet"}</h3><p>${query ? "Try a different name or email." : "Add the first person to begin building your club community."}</p></div>`;
+    : `<div class="empty-card member-directory-empty"><span>◎</span><h3>${filtered ? "No matching members" : "No members yet"}</h3><p>${filtered ? "Try a different search or Community access filter." : "Add the first person to begin building your club community."}</p></div>`;
 };
 
 const openFollowupDialog = (memberId, stage) => {
@@ -1306,6 +1345,8 @@ const openMeetingDialog = (meeting = null) => {
   $("#meeting-dialog").showModal();
 };
 
+let catalogueSearchResults = [];
+
 const openBookDialog = (book = null) => {
   const form = $("#book-form");
   form.reset();
@@ -1331,56 +1372,80 @@ const openBookDialog = (book = null) => {
   $("#book-dialog-title").textContent = book ? "Edit book" : "Add book";
   $("#book-error").textContent = "";
   const importStatus = $("#import-book-status");
-  importStatus.textContent = "Paste a book record link to fill the form automatically.";
+  importStatus.textContent = "Search for a book to fill the form automatically.";
   importStatus.className = "field-help";
-  $("#import-book").disabled = false;
+  $("#catalogue-search-results").hidden = true;
+  $("#catalogue-search-results").innerHTML = "";
+  catalogueSearchResults = [];
   $("#book-dialog").showModal();
 };
 
-const importBookDetails = async () => {
-  const form = $("#book-form");
-  const button = $("#import-book");
+const searchCatalogueBooks = async () => {
+  const button = $("#search-book");
   const status = $("#import-book-status");
-  const catalogueUrl = form.elements.catalogue_url.value.trim();
-  if (!catalogueUrl) {
-    status.textContent = "Paste a Vaughan Public Libraries book link first.";
+  const resultsContainer = $("#catalogue-search-results");
+  const query = $("#catalogue-search").value.trim();
+  if (!query) {
+    status.textContent = "Enter a title or author to search first.";
     status.className = "field-help error";
-    form.elements.catalogue_url.focus();
+    $("#catalogue-search").focus();
     return;
   }
   button.disabled = true;
-  button.textContent = "Finding details…";
-  status.textContent = "Reading the catalogue record…";
+  button.textContent = "Searching…";
+  status.textContent = "Searching for matching books…";
   status.className = "field-help";
   try {
-    const book = await request("/bookclub/books/import", {
+    const { results } = await request("/bookclub/books/search", {
       method: "POST",
-      body: JSON.stringify({ catalogue_url: catalogueUrl }),
+      body: JSON.stringify({ query }),
     });
-    [
-      "title",
-      "author",
-      "cover_image_url",
-      "description",
-      "publication_date",
-      "isbn",
-      "publisher",
-      "page_count",
-      "genres",
-      "series",
-      "catalogue_url",
-    ].forEach((field) => {
-      form.elements[field].value = book[field] ?? "";
-    });
-    status.textContent = "Details added. Review them, then save the book.";
-    status.className = "field-help success";
+    catalogueSearchResults = results;
+    resultsContainer.hidden = false;
+    resultsContainer.innerHTML = results.length
+      ? results
+          .map(
+            (result, index) => `<button class="member-search-result" type="button" data-catalogue-result="${index}">${result.cover_image_url ? `<img class="catalogue-result-cover" src="${escapeHtml(result.cover_image_url)}" alt="" />` : ""}<div><strong>${escapeHtml(result.title || "Untitled")}</strong><small>${escapeHtml(result.author || "Unknown author")}</small></div></button>`,
+          )
+          .join("")
+      : '<p class="field-help">No matching books. Try a different search.</p>';
+    status.textContent = results.length
+      ? "Pick a book below to fill the form."
+      : "No matching books were found.";
+    status.className = "field-help";
   } catch (error) {
+    resultsContainer.hidden = true;
+    resultsContainer.innerHTML = "";
     status.textContent = error.message;
     status.className = "field-help error";
   } finally {
     button.disabled = false;
-    button.textContent = "Fill book details";
+    button.textContent = "Search";
   }
+};
+
+const applyCatalogueSearchResult = (result) => {
+  const form = $("#book-form");
+  [
+    "title",
+    "author",
+    "cover_image_url",
+    "description",
+    "publication_date",
+    "isbn",
+    "publisher",
+    "page_count",
+    "genres",
+    "series",
+    "catalogue_url",
+  ].forEach((field) => {
+    form.elements[field].value = result[field] ?? "";
+  });
+  $("#catalogue-search-results").hidden = true;
+  $("#catalogue-search-results").innerHTML = "";
+  const status = $("#import-book-status");
+  status.textContent = "Details added. Review them, then save the book.";
+  status.className = "field-help success";
 };
 
 const showMemberHistory = async (memberId) => {
@@ -1752,7 +1817,6 @@ $("#club-settings-form").addEventListener("submit", async (event) => {
       method: "PATCH",
       body: JSON.stringify({
         name: form.elements.name.value.trim(),
-        club_type: form.elements.club_type.value,
         description: form.elements.description.value.trim() || null,
         organizer_name: form.elements.organizer_name.value.trim() || null,
         organizer_branch: form.elements.organizer_branch.value.trim() || null,
@@ -1768,11 +1832,18 @@ $("#club-settings-form").addEventListener("submit", async (event) => {
   }
 });
 
-$("#import-book").addEventListener("click", importBookDetails);
-$("#book-form").elements.catalogue_url.addEventListener("keydown", (event) => {
+$("#search-book").addEventListener("click", searchCatalogueBooks);
+$("#catalogue-search").addEventListener("keydown", (event) => {
   if (event.key !== "Enter") return;
   event.preventDefault();
-  importBookDetails();
+  searchCatalogueBooks();
+});
+$("#catalogue-search-results").addEventListener("click", (event) => {
+  const resultButton = event.target.closest("[data-catalogue-result]");
+  if (!resultButton) return;
+  const result = catalogueSearchResults[Number(resultButton.dataset.catalogueResult)];
+  if (!result) return;
+  applyCatalogueSearchResult(result);
 });
 
 $("#book-form").addEventListener("submit", async (event) => {
@@ -1984,6 +2055,45 @@ document.addEventListener("click", async (event) => {
   }
   const historyButton = event.target.closest("[data-member-history]");
   if (historyButton) return showMemberHistory(Number(historyButton.dataset.memberHistory));
+  const copyCommunityInvite = event.target.closest("[data-copy-community-invite]");
+  if (copyCommunityInvite) {
+    const invitationUrl = `${BOOKCLUB_PARTICIPANT_ORIGIN}/clubs/${encodeURIComponent(state.club.slug)}`;
+    try {
+      await navigator.clipboard.writeText(invitationUrl);
+      return showToast("Community invitation copied.");
+    } catch {
+      return showToast("Could not copy the invitation.");
+    }
+  }
+  const resendVerification = event.target.closest("[data-resend-community-verification]");
+  if (resendVerification) {
+    try {
+      const result = await request(
+        `/bookclub/members/${Number(resendVerification.dataset.resendCommunityVerification)}/verification`,
+        { method: "POST" },
+      );
+      return showToast(
+        result.delivery_configured
+          ? "Verification email sent."
+          : "Email delivery is not configured yet.",
+      );
+    } catch (error) {
+      return showToast(error.message);
+    }
+  }
+  const reactivateMember = event.target.closest("[data-reactivate-member]");
+  if (reactivateMember) {
+    try {
+      await request(`/bookclub/members/${Number(reactivateMember.dataset.reactivateMember)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ active: true }),
+      });
+      await loadCoreData();
+      return showToast("Member reactivated.");
+    } catch (error) {
+      return showToast(error.message);
+    }
+  }
   const jumpBadge = event.target.closest("[data-jump-to-pending]");
   if (jumpBadge) return jumpToPendingMeeting(
     Number(jumpBadge.dataset.jumpToPending),
@@ -2154,6 +2264,10 @@ $("#member-search").addEventListener("input", (event) => {
 });
 $("#member-sort").addEventListener("change", (event) => {
   state.memberSort = event.target.value;
+  renderMembers();
+});
+$("#member-access-filter").addEventListener("change", (event) => {
+  state.memberAccessFilter = event.target.value;
   renderMembers();
 });
 $("#meeting-search").addEventListener("input", (event) => {

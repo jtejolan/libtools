@@ -165,6 +165,23 @@ class MemberResponse(MemberBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class MemberCommunityAccessResponse(BaseModel):
+    member_id: int
+    status: Literal[
+        "community_active",
+        "verification_pending",
+        "invitation_not_accepted",
+        "account_disabled",
+        "inactive_member",
+    ]
+    announcements_enabled: bool = True
+
+
+class MemberVerificationResponse(BaseModel):
+    message: str
+    delivery_configured: bool
+
+
 class BookBase(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     author: str = Field(min_length=1, max_length=200)
@@ -268,11 +285,12 @@ class BookInsightsResponse(BaseModel):
     reading_impact_pages: int
 
 
-class BookImportRequest(BaseModel):
-    catalogue_url: HttpUrl
+class BookSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=200)
 
 
-class BookImportResponse(BaseModel):
+class BookSearchResult(BaseModel):
+    external_id: str | None = None
     title: str | None = None
     author: str | None = None
     cover_image_url: HttpUrl | None = None
@@ -283,7 +301,11 @@ class BookImportResponse(BaseModel):
     page_count: int | None = None
     genres: str | None = None
     series: str | None = None
-    catalogue_url: HttpUrl
+    catalogue_url: HttpUrl | None = None
+
+
+class BookSearchResponse(BaseModel):
+    results: list[BookSearchResult]
 
 
 class MeetingBase(BaseModel):

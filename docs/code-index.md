@@ -40,7 +40,7 @@ guaranteed exact) · **Purpose** (one clause) · **Detail in**.
 | `backend/app/bookclub/models.py` | — | Club/member/book/meeting/participation, announcements, reading progress, notification preferences, templates, ratings and polls | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/schemas.py` | 461 | Pydantic schemas incl. `PublicXResponse` subset types, book-detail insights, `SelfServeClubSummary` (admin view) | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/crud.py` | — | DB ops for all bookclub entities including roster-linked participant broadcasts, ratings, voting, and date polling | `docs/backend/bookclub.md` |
-| `backend/app/bookclub/routes.py` | 693 | Members/books (incl. detail insights)/meetings/roster/emails (incl. mark-sent)/giveaway/templates/questions (45 endpoints) | `docs/backend/bookclub.md` |
+| `backend/app/bookclub/routes.py` | — | Members (including community-access state and verification resend), books/meetings/roster/emails/giveaway/templates/questions | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/club_routes.py` | — | Club CRUD/switching + public club profile and calendar APIs | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/access.py` | 57 | `require_selected_club`, club-scoping dependencies | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/catalogue.py` | 200 | Scrapes Vaughan PL (BiblioCommons) for book metadata | `docs/backend/bookclub.md` |

@@ -10,9 +10,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/bookclub.css?v=37" />
+    <link rel="stylesheet" href="/static/bookclub.css?v=38" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub.js?v=38" defer></script>
+    <script src="/static/bookclub.js?v=39" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -229,6 +229,7 @@
                 <div><p class="eyebrow"><span></span> The whole club</p><h2>Member directory</h2><p class="panel-description" id="member-count">—</p></div>
                 <div class="member-directory-tools">
                   <label class="search-box"><span>⌕</span><span class="sr-only">Search all members</span><input id="member-search" type="search" placeholder="Search name or email…" /></label>
+                  <label class="member-sort-control"><span>Community access</span><select id="member-access-filter"><option value="all">All members</option><option value="community_active">Community active</option><option value="verification_pending">Verification pending</option><option value="invitation_not_accepted">Invitation not accepted</option><option value="account_disabled">Account disabled</option><option value="inactive_member">Inactive members</option></select></label>
                   <label class="member-sort-control"><span>Sort by</span><select id="member-sort"><option value="name">Name</option><option value="attendance">Attendance</option><option value="pages">Pages read</option><option value="last_attended">Last attended</option><option value="joined">Recently joined</option></select></label>
                 </div>
               </div>
@@ -340,8 +341,19 @@
         <input name="id" type="hidden" />
         <div class="form-grid">
           <div class="catalogue-import field-wide">
-            <div class="field"><label for="catalogue-url">Vaughan Public Libraries link</label><div class="catalogue-import-row"><input id="catalogue-url" name="catalogue_url" type="url" placeholder="https://vaughanpl.bibliocommons.com/v2/record/…" /><button class="secondary-button" id="import-book" type="button">Fill book details</button></div><small class="field-help" id="import-book-status">Paste a book record link to fill the form automatically.</small></div>
+            <div class="field">
+              <label for="catalogue-search">Search for a book</label>
+              <div class="catalogue-import-row">
+                <div class="book-picker">
+                  <label class="search-box"><span>⌕</span><span class="sr-only">Search for a book to autofill details</span><input id="catalogue-search" type="search" placeholder="Search by title or author…" autocomplete="off" /></label>
+                  <div id="catalogue-search-results" class="member-search-results" hidden></div>
+                </div>
+                <button class="secondary-button" id="search-book" type="button">Search</button>
+              </div>
+              <small class="field-help" id="import-book-status">Search for a book to fill the form automatically.</small>
+            </div>
           </div>
+          <input name="catalogue_url" type="hidden" />
           <label class="field"><span>Title <b>*</b></span><input name="title" required maxlength="300" /></label>
           <label class="field"><span>Author <b>*</b></span><input name="author" required maxlength="200" /></label>
           <label class="field field-wide"><span>Cover image URL</span><input name="cover_image_url" type="url" placeholder="https://…" /></label>

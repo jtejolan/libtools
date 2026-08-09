@@ -138,12 +138,13 @@ class BookClubApiTests(unittest.TestCase):
         entrypoint = self.client.get("/bookclub")
         self.assertEqual(entrypoint.status_code, 200)
         self.assertIn("Book Club Manager", entrypoint.text)
-        self.assertIn('/static/bookclub.js?v=38', entrypoint.text)
-        self.assertIn('/static/bookclub.css?v=37', entrypoint.text)
+        self.assertIn('/static/bookclub.js?v=39', entrypoint.text)
+        self.assertIn('/static/bookclub.css?v=38', entrypoint.text)
         self.assertNotIn('data-view="messages"', entrypoint.text)
         self.assertIn('id="open-reminder-dialog"', entrypoint.text)
         self.assertIn('id="send-book-dialog"', entrypoint.text)
         self.assertIn('id="followup-dialog"', entrypoint.text)
+        self.assertIn('id="member-access-filter"', entrypoint.text)
         self.assertIn('href="/signup">Create an account</a>', entrypoint.text)
         self.assertEqual(entrypoint.headers["cache-control"], "no-store")
 
@@ -155,56 +156,57 @@ class BookClubApiTests(unittest.TestCase):
         self.assertIn('href="/bookclub?action=view-members"', community.text)
         self.assertIn('aria-current="page">', community.text)
         self.assertIn('/static/bookclub.css?v=37', community.text)
-        self.assertIn('/static/bookclub-manage.css?v=2', community.text)
-        self.assertIn('/static/bookclub-manage.js?v=8', community.text)
+        self.assertIn('/static/bookclub-manage.css?v=3', community.text)
+        self.assertIn('/static/bookclub-manage.js?v=9', community.text)
         self.assertIn('id="invite-readers"', community.text)
         self.assertEqual(community.headers["cache-control"], "no-store")
 
-    @patch("bookclub.catalogue.fetch_catalogue_book")
-    def test_imports_a_vaughan_catalogue_book(self, fetch_book) -> None:
-        fetch_book.return_value = {
-            "title": "Project Hail Mary",
-            "author": "Andy Weir",
-            "cover_image_url": "https://www.syndetics.com/cover.jpg",
-            "description": "A lone astronaut must save Earth.",
-            "publication_date": "2021-01-01",
-            "isbn": "9780593135204",
-            "publisher": "Ballantine Books",
-            "page_count": 476,
-            "genres": "Science fiction, Astronauts — Fiction",
-            "series": None,
-            "catalogue_url": "https://vaughanpl.bibliocommons.com/v2/record/S130C532272",
-        }
+    @patch("bookclub.catalogue.search_catalogue_books")
+    def test_searches_google_books(self, search_books) -> None:
+        search_books.return_value = [
+            {
+                "external_id": "abc123",
+                "title": "Project Hail Mary",
+                "author": "Andy Weir",
+                "cover_image_url": "https://books.google.com/thumb.jpg",
+                "description": "A lone astronaut must save Earth.",
+                "publication_date": "2021-01-01",
+                "isbn": "9780593135204",
+                "publisher": "Ballantine Books",
+                "page_count": 476,
+                "genres": "Science fiction",
+                "series": None,
+                "catalogue_url": "https://books.google.com/books?id=abc123",
+            }
+        ]
 
         response = self.client.post(
-            "/bookclub/books/import",
-            json={
-                "catalogue_url": "https://vaughanpl.bibliocommons.com/v2/record/S130C532272"
-            },
+            "/bookclub/books/search",
+            json={"query": "Project Hail Mary Andy Weir"},
         )
 
         self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual(response.json()["title"], "Project Hail Mary")
-        self.assertEqual(response.json()["page_count"], 476)
-        fetch_book.assert_called_once_with(
-            "https://vaughanpl.bibliocommons.com/v2/record/S130C532272"
-        )
+        results = response.json()["results"]
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["title"], "Project Hail Mary")
+        self.assertEqual(results[0]["page_count"], 476)
+        search_books.assert_called_once_with("Project Hail Mary Andy Weir")
 
-    @patch("bookclub.catalogue.fetch_catalogue_book")
-    def test_reports_catalogue_import_errors(self, fetch_book) -> None:
+    @patch("bookclub.catalogue.search_catalogue_books")
+    def test_reports_catalogue_search_errors(self, search_books) -> None:
         from bookclub.catalogue import CatalogueImportError
 
-        fetch_book.side_effect = CatalogueImportError(
-            "Enter a Vaughan Public Libraries catalogue record link."
+        search_books.side_effect = CatalogueImportError(
+            "Enter a title or author to search."
         )
         response = self.client.post(
-            "/bookclub/books/import",
-            json={"catalogue_url": "https://example.com/not-a-book"},
+            "/bookclub/books/search",
+            json={"query": "   "},
         )
         self.assertEqual(response.status_code, 422)
         self.assertEqual(
             response.json()["detail"],
-            "Enter a Vaughan Public Libraries catalogue record link.",
+            "Enter a title or author to search.",
         )
 
     def test_books_are_reusable_and_protected_while_in_use(self) -> None:

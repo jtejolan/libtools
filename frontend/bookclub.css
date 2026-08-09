@@ -354,6 +354,9 @@ tbody tr:hover { background: rgba(255,255,255,.35); }
 .catalogue-import-row { display: flex; align-items: stretch; gap: 10px; }
 .catalogue-import-row input { min-width: 0; flex: 1; }
 .catalogue-import-row button { flex: 0 0 auto; white-space: nowrap; }
+.catalogue-import-row .book-picker { flex: 1; min-width: 0; }
+.catalogue-import .book-picker .search-box { display: flex; }
+.catalogue-result-cover { width: 32px; height: 44px; flex: 0 0 auto; object-fit: cover; border-radius: 3px; background: rgba(22,62,52,.08); }
 .catalogue-import .field-help { display: block; margin-top: 7px; }
 .catalogue-import .field-help.success { color: var(--forest); font-weight: 600; }
 .catalogue-import .field-help.error { color: #9c342a; }
@@ -647,6 +650,15 @@ footer { padding: 26px 38px; display: flex; justify-content: space-between; gap:
 .member-badge-row { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 5px; }
 .member-badge-row:empty { display: none; }
 .attention-badge { color: var(--danger); background: rgba(232,94,22,.11); }
+.community-access-row { margin-top: 14px; padding: 11px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid rgba(24,59,51,.09); border-radius: 8px; background: rgba(255,250,241,.72); }
+.community-access-row > div > span { display: block; color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.community-access-status { margin-top: 3px; display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.community-access-status i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--moss); box-shadow: 0 0 0 3px rgba(131,157,107,.15); }
+.community-access-status.verification_pending i { background: var(--gold); box-shadow: 0 0 0 3px rgba(227,170,66,.15); }
+.community-access-status.invitation_not_accepted i { background: var(--blue); box-shadow: 0 0 0 3px rgba(110,157,154,.15); }
+.community-access-status.account_disabled, .community-access-status.inactive_member { color: var(--muted); }
+.community-access-status.account_disabled i, .community-access-status.inactive_member i { background: #aaa397; box-shadow: 0 0 0 3px rgba(116,111,98,.12); }
+.announcements-off-badge { color: #7a5311; background: #fff2d8; white-space: nowrap; }
 .member-engagement { margin-top: 16px; padding: 14px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 18px; border: 1px solid rgba(24,59,51,.09); border-radius: 8px; background: rgba(131,157,107,.08); }
 .member-engagement span, .member-engagement small { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
 .member-engagement strong { display: block; margin-top: 2px; font-family: var(--serif); font-size: 26px; font-weight: 600; line-height: 1; }
@@ -660,6 +672,8 @@ footer { padding: 26px 38px; display: flex; justify-content: space-between; gap:
 .member-detail-list dd { margin: 2px 0 0; font-size: 11px; font-weight: 600; }
 .member-card-notes { margin: 14px 0 0; padding: 10px 11px; overflow: hidden; border-left: 2px solid var(--gold); color: var(--muted); background: rgba(227,170,66,.07); font-size: 11px; line-height: 1.45; }
 .member-profile-actions { margin-top: auto; padding-top: 17px; display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.member-profile-actions.has-community-action { grid-template-columns: 1fr 1fr; }
+.member-profile-actions.has-community-action > button:first-child { grid-column: 1 / -1; }
 .member-profile-actions button { min-height: 37px; padding: 0 10px; }
 .member-directory-empty, .member-grid-loading { min-height: 260px; grid-column: 1 / -1; border: 1px dashed var(--line); border-radius: 9px; }
 .member-directory-empty h3 { margin: 12px 0 0; font-size: 24px; font-weight: 500; }

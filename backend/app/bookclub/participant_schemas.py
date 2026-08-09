@@ -284,6 +284,7 @@ class CommunityOverviewResponse(BaseModel):
     linked_account_count: int
     verified_account_count: int
     pending_verification_count: int
+    disabled_account_count: int = 0
     unlinked_member_count: int
     accounts: list[CommunityAccountStatus]
     next_meeting: MeetingResponse | None = None

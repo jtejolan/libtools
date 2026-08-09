@@ -1,5 +1,6 @@
 import html
 import json
+import os
 import re
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
@@ -7,9 +8,17 @@ from urllib.parse import urljoin, urlparse
 import httpx
 
 
+# Shared BiblioCommons fetch/parse primitives below (CATALOGUE_HOST through
+# fetch_catalogue_page) are also imported by lendery/catalogue.py for its own
+# item-autofill scraping - don't remove or change their signatures without
+# checking that consumer too.
 CATALOGUE_HOST = "vaughanpl.bibliocommons.com"
 RECORD_PATH = re.compile(r"^/v2/record/(S130C\d+)/?$")
 MAX_RESPONSE_BYTES = 2_000_000
+
+GOOGLE_BOOKS_SEARCH_URL = "https://www.googleapis.com/books/v1/volumes"
+MAX_RESULTS = 10
+PUBLICATION_YEAR_PATTERN = re.compile(r"\b(1[5-9]\d{2}|20\d{2}|21\d{2})\b")
 
 
 class CatalogueImportError(ValueError):
@@ -71,93 +80,6 @@ def clean_catalogue_text(value: str | None) -> str | None:
     return value.strip() or None
 
 
-def _display_author(value: str) -> str:
-    parts = [part.strip() for part in value.split(",")]
-    if len(parts) == 2 and all(parts):
-        return f"{parts[1]} {parts[0]}"
-    return value.strip()
-
-
-def _field_values(record: dict, field_name: str) -> list[str]:
-    result: list[str] = []
-    for group in record.get("fields") or []:
-        for item in (group or {}).get("items") or []:
-            if (item or {}).get("fieldName") != field_name:
-                continue
-            for field_value in (item or {}).get("fieldValues") or []:
-                primary = (field_value or {}).get("primary") or {}
-                result.extend(v for v in primary.get("values") or [] if v)
-    return result
-
-
-def parse_catalogue_record(
-    page: str, catalogue_url: str, record_id: str
-) -> dict:
-    state = parse_catalogue_state(page)
-    try:
-        record = state["entities"]["catalogBibs"][record_id]
-        brief = record["brief"]
-    except (KeyError, TypeError) as exc:
-        raise CatalogueImportError("The catalogue record could not be read.") from exc
-    if not isinstance(brief, dict):
-        raise CatalogueImportError("The catalogue record could not be read.")
-
-    creators = brief.get("creators") or []
-    authors = [
-        _display_author(item["fullName"])
-        for item in creators
-        if item.get("fullName")
-    ]
-    isbn_values = _field_values(record, "ISBN") or brief.get("isbns") or []
-    # MARC ISBN fields often carry a trailing qualifier/price, e.g.
-    # "9780316462822 (trade paperback) $25.99" - only the leading token
-    # is the actual ISBN, the rest must not be folded into it.
-    isbn_candidates = [
-        re.sub(r"[^0-9Xx]", "", value.split()[0]).upper()
-        for value in isbn_values
-        if value and value.split()
-    ]
-    isbn = next((value for value in isbn_candidates if len(value) == 13), None)
-    isbn = isbn or next(iter(isbn_candidates), None)
-
-    publication = next(iter(_field_values(record, "PUBLICATION")), "")
-    publisher_match = re.search(r":\s*([^,;]+)", publication)
-    publisher = publisher_match.group(1).strip() if publisher_match else None
-    page_text = " ".join(_field_values(record, "DESCRIPTION"))
-    page_match = re.search(r"(\d[\d,]*)\s+pages?\b", page_text, re.IGNORECASE)
-    page_count = int(page_match.group(1).replace(",", "")) if page_match else None
-
-    subjects = _field_values(record, "GENRE") + _field_values(record, "SUBJECT")
-    genres = ", ".join(dict.fromkeys(value.strip(" .") for value in subjects))
-    genres = genres[:500].rstrip(", ") or None
-    series_values = _field_values(record, "SERIES")
-    series = ", ".join(dict.fromkeys(value.strip(" .") for value in series_values))
-    series = series[:300].rstrip(", ") or None
-    publication_year = re.search(
-        r"\b(1[5-9]\d{2}|20\d{2}|21\d{2})\b",
-        str(brief.get("publicationDate", "")),
-    )
-
-    cover = brief.get("coverImage") or {}
-    return {
-        "title": clean_catalogue_text(brief.get("title")),
-        "author": "; ".join(authors) or None,
-        "cover_image_url": (
-            cover.get("large") or cover.get("medium") or cover.get("small")
-        ),
-        "description": clean_catalogue_text(brief.get("description")),
-        "publication_date": (
-            f"{publication_year.group(1)}-01-01" if publication_year else None
-        ),
-        "isbn": isbn,
-        "publisher": publisher,
-        "page_count": page_count,
-        "genres": genres,
-        "series": series,
-        "catalogue_url": catalogue_url,
-    }
-
-
 def parse_catalogue_state(page: str) -> dict:
     parser = _MetadataParser()
     parser.feed(page)
@@ -196,13 +118,79 @@ def fetch_catalogue_page(value: str) -> tuple[str, str, str]:
     return response.text, url, record_id
 
 
-def fetch_catalogue_book(value: str) -> dict:
-    page, url, record_id = fetch_catalogue_page(value)
+def _api_key_param() -> dict[str, str]:
+    key = os.getenv("GOOGLE_BOOKS_API_KEY")
+    return {"key": key} if key else {}
+
+
+def _extract_isbn(identifiers: list[dict] | None) -> str | None:
+    by_type = {
+        item.get("type"): item.get("identifier")
+        for item in identifiers or []
+        if item and item.get("identifier")
+    }
+    isbn = by_type.get("ISBN_13") or by_type.get("ISBN_10")
+    if not isbn:
+        return None
+    return re.sub(r"[^0-9Xx]", "", isbn).upper() or None
+
+
+def _parse_volume(item: dict) -> dict:
+    info = item.get("volumeInfo") or {}
+    images = info.get("imageLinks") or {}
+    published = str(info.get("publishedDate") or "")
+    year_match = PUBLICATION_YEAR_PATTERN.search(published)
+    authors = info.get("authors") or []
+    categories = info.get("categories") or []
+
+    return {
+        "external_id": item.get("id"),
+        "title": clean_catalogue_text(info.get("title")),
+        "author": "; ".join(authors) or None,
+        "cover_image_url": images.get("thumbnail") or images.get("smallThumbnail"),
+        "description": clean_catalogue_text(info.get("description")),
+        "publication_date": (
+            f"{year_match.group(1)}-01-01" if year_match else None
+        ),
+        "isbn": _extract_isbn(info.get("industryIdentifiers")),
+        "publisher": info.get("publisher"),
+        "page_count": info.get("pageCount"),
+        "genres": ", ".join(dict.fromkeys(categories))[:500].rstrip(", ") or None,
+        # Google Books has no first-class "series" field.
+        "series": None,
+        "catalogue_url": info.get("infoLink") or info.get("canonicalVolumeLink"),
+    }
+
+
+def search_catalogue_books(query: str) -> list[dict]:
+    query = query.strip()
+    if not query:
+        raise CatalogueImportError("Enter a title or author to search.")
+
+    params = {
+        "q": query,
+        "maxResults": MAX_RESULTS,
+        "printType": "books",
+        **_api_key_param(),
+    }
     try:
-        return parse_catalogue_record(page, url, record_id)
-    except CatalogueImportError:
-        raise
-    except Exception as exc:
+        response = httpx.get(GOOGLE_BOOKS_SEARCH_URL, params=params, timeout=10)
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
         raise CatalogueImportError(
-            "The catalogue record could not be read."
+            "Book search is currently unavailable. Try again shortly."
         ) from exc
+
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise CatalogueImportError(
+            "Book search is currently unavailable. Try again shortly."
+        ) from exc
+
+    items = data.get("items") or []
+    return [
+        _parse_volume(item)
+        for item in items
+        if item and (item.get("volumeInfo") or {}).get("title")
+    ]

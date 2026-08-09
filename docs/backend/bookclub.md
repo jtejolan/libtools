@@ -15,7 +15,7 @@ Multi-tenant book club manager. Every club-owned table is scoped by
 | `BookClubBook` | `bookclub_books` | A book the club has read/will read; unique per `(club_id, isbn)`; can be flagged as an undated past selection |
 | `BookClubMeeting` | `bookclub_meetings` | A dated session tied to one book, with `meeting_duration_minutes`, an `archived_at` display-mode flag, and discussion notes; `book_title`/`book_author` are denormalized copies kept in sync on write. `starts_at`/`ends_at` are computed `@property`s (not columns), from `bookclub/scheduling.py` |
 | `BookClubParticipation` | `bookclub_participation` | Member roster for one meeting (`attended`, participant-set `rsvp_status`, and a session-only note); unique per `(meeting_id, member_id)`. RSVP and attendance intentionally share this record. |
-| `BookClubAnnouncement` | `bookclub_announcements` | Portal announcement scoped to one club, with title/body, timestamps, and optional pinned priority. |
+| `BookClubAnnouncement` | `bookclub_announcements` | Community announcement scoped to one club, with title/body, timestamps, and optional pinned priority. |
 | `BookClubReadingProgress` | `bookclub_reading_progress` | Optional private reading state (`not_started`/`reading`/`finished`) for one roster member and club book; no row means the participant chose not to track it. |
 | `BookClubNotificationPreference` | `bookclub_notification_preferences` | Per-membership preferences for announcements, polls, meeting reminders, and future discussion replies. |
 | `BookClubTemplate` | `bookclub_templates` | Editable email template; unique per `(club_id, key)` |
@@ -49,6 +49,13 @@ and can link to roster entries in multiple clubs. The participant session
 stores both the global account ID and the currently entered roster member ID.
 Unsubscribe state is per roster membership, not global, so leaving one club's
 broadcasts does not silence another club.
+
+The manager member directory gets its bulk, derived access state from
+`GET /bookclub/members/community-access`: Community active, Verification
+pending, Invitation not accepted, Account disabled, or Inactive member, plus
+the per-membership announcement subscription flag. Facilitators can issue a
+fresh verification email through `POST /bookclub/members/{member_id}/verification`;
+the endpoint refuses unlinked, disabled, or already-verified accounts.
 
 Community management routes live at `/bookclub/community/*` on the primary
 app and use `require_selected_club`. Participant routes remain on the
@@ -98,7 +105,7 @@ clubs to `open` for backward compatibility.
 | `router` | `/bookclub/clubs` | `club_routes.py` | 5 | Club CRUD, select-into-session, list accessible clubs |
 | `public_router` | `/api/public/clubs` | `club_routes.py` | 2 | `GET /{slug}` public club data plus public upcoming-meeting `.ics` download |
 | `router` | `/participant/auth` | `participant_routes.py` | 12 | Global and club-scoped participant registration/login, enrollment-aware joining, club listing/selection, session, verification, and password reset |
-| `router` | `/bookclub` | `routes.py` | 45 | Members, books (incl. catalogue import and read-only `/{book_id}/insights` aggregation), meetings, roster/participation, onboarding/arrival email preview/send/**mark-sent** and reminder preview/send, giveaway draw, templates, transit labels, discussion questions — whole router requires `require_selected_club` |
+| `router` | `/bookclub` | `routes.py` | 47 | Members (including bulk community-access state and verification resend), books (incl. Google Books search and read-only `/{book_id}/insights` aggregation), meetings, roster/participation, onboarding/arrival email preview/send/**mark-sent** and reminder preview/send, giveaway draw, templates, transit labels, discussion questions — whole router requires `require_selected_club` |
 | `router` | `/bookclub/community` | `facilitator_routes.py` | — | Community overview, announcements, book/date polls, plus supporting scoped endpoints |
 | `router` | `/participant` | `participant_community_routes.py` | — | Announcements, next meeting/RSVP/calendar, optional reading progress, notification preferences, and personal activity |
 
@@ -110,14 +117,21 @@ clubs to `open` for backward compatibility.
   `require_selected_club` (reads `bookclub_id` from the session, 409s if
   none selected, 403s if the user can't access it — exported as the
   `SelectedClub` dependency type).
-- `catalogue.py` — scrapes Vaughan PL (BiblioCommons) pages to autofill book
-  metadata (title/author/ISBN/cover/etc). `lendery/catalogue.py` does the
-  same kind of scraping for item metadata but is a **separate, unshared**
-  implementation — a markup/parsing fix here does not automatically apply
-  there. See `docs/backend/lendery.md`.
+- `catalogue.py` — `search_catalogue_books(query)` searches the Google Books
+  API (`GET https://www.googleapis.com/books/v1/volumes`, optional
+  `GOOGLE_BOOKS_API_KEY` env var to raise the quota) to autofill book
+  metadata (title/author/ISBN/cover/etc) for the "Fill book details" search
+  in the book dialog. This module also still owns the Vaughan PL
+  (BiblioCommons) HTTP-fetch/JSON-state-extraction primitives
+  (`fetch_catalogue_page`, `parse_catalogue_state`, `clean_catalogue_text`,
+  `CatalogueImportError`) — `lendery/catalogue.py` imports and reuses these
+  for its own item-metadata scraping, even though its field-level parsing
+  (`parse_catalogue_item`) is separate from this module's book-field
+  parsing. Don't remove/rename these primitives without checking
+  `lendery/catalogue.py`. See `docs/backend/lendery.md`.
 - `facilitator_routes.py` also serves an authenticated, no-store SVG invitation
   QR code for the selected public club at `/bookclub/community/invite-qr.svg`.
-  The encoded destination always uses the participant portal origin; private
+  The encoded destination always uses the participant subdomain origin; private
   clubs receive `409` until their public page is enabled.
 - `scheduling.py` (34 lines) — `parse_meeting_time()` (free-text, 5 known
   formats) and `meeting_datetime_range()`. Lives outside both `models.py`
@@ -272,7 +286,8 @@ clubs to `open` for backward compatibility.
 | Add a new club-scoped entity | `bookclub/models.py` (remember `club_id` FK + per-club `UniqueConstraint`), `schemas.py`, `crud.py`, `routes.py` |
 | Change what's visible on the public club page | `bookclub/club_routes.py` (`public_router`), `schemas.py` (`PublicClubResponse`) |
 | Add a new email template kind | `bookclub/models.py` (`BookClubTemplate.kind`), `crud.py`, `routes.py`, `email_delivery.py` |
-| Change catalogue import parsing | `bookclub/catalogue.py` — remember `lendery/catalogue.py` does its own separate scraping and won't pick up the fix |
+| Change book search field mapping | `bookclub/catalogue.py`'s `_parse_volume`/`_extract_isbn` (Google Books) |
+| Change the shared BiblioCommons fetch/parse primitives | `bookclub/catalogue.py`'s `fetch_catalogue_page`/`parse_catalogue_state` — `lendery/catalogue.py` imports these directly, so a signature change affects both; its own field-level parsing (`parse_catalogue_item`) is separate and won't pick up book-field fixes |
 | Change how meeting time/duration is parsed or computed | `bookclub/scheduling.py` (used by both `models.py` and `crud.py`) |
 | Add a manual "mark as sent" action for a new email type | `bookclub/crud.py` (mirror `mark_onboarding_email_sent`), `routes.py` (mirror the `.../mark-sent` route) |
 | Expose a community-management capability | `bookclub/facilitator_routes.py` under `/bookclub/community`, using regular selected-club authorization |

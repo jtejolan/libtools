@@ -92,8 +92,10 @@ def community_overview(club: SelectedClub, db: DatabaseSession):
         account_status = (
             "not_registered"
             if account is None
+            else "account_disabled"
+            if not account.active
             else "active"
-            if account.active and account.email_verified_at is not None
+            if account.email_verified_at is not None
             else "pending_verification"
         )
         accounts.append(
@@ -108,6 +110,7 @@ def community_overview(club: SelectedClub, db: DatabaseSession):
     linked = sum(item.status != "not_registered" for item in accounts)
     verified = sum(item.status == "active" for item in accounts)
     pending = sum(item.status == "pending_verification" for item in accounts)
+    disabled = sum(item.status == "account_disabled" for item in accounts)
     upcoming = db.scalar(
         select(models.BookClubMeeting)
         .options(selectinload(models.BookClubMeeting.book))
@@ -160,6 +163,7 @@ def community_overview(club: SelectedClub, db: DatabaseSession):
         linked_account_count=linked,
         verified_account_count=verified,
         pending_verification_count=pending,
+        disabled_account_count=disabled,
         unlinked_member_count=len(accounts) - linked,
         accounts=accounts,
         next_meeting=upcoming,
@@ -251,12 +255,13 @@ def list_books(db: DatabaseSession, search: str | None = None, offset: Offset = 
     return crud.list_books(db, search=search, offset=offset, limit=limit)
 
 
-@router.post("/books/import", response_model=schemas.BookImportResponse)
-def import_book(value: schemas.BookImportRequest):
+@router.post("/books/search", response_model=schemas.BookSearchResponse)
+def search_books(value: schemas.BookSearchRequest):
     try:
-        return catalogue.fetch_catalogue_book(str(value.catalogue_url))
+        results = catalogue.search_catalogue_books(value.query)
     except catalogue.CatalogueImportError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
+    return schemas.BookSearchResponse(results=results)
 
 
 @router.get("/books/{book_id}", response_model=schemas.BookResponse)

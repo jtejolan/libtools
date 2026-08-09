@@ -32,6 +32,11 @@ workflow and provides:
   monthly reminder text; and
 - an optional blank space for meeting logistics and book-club notes.
 
+Adding a book can search Google Books by title/author to autofill its details
+(cover, description, ISBN, publisher, etc.) instead of typing them in by hand.
+This works without any setup; set `GOOGLE_BOOKS_API_KEY` to raise the search
+quota if you expect heavy use.
+
 Creating a meeting adds all active members to its roster. Use
 `POST /bookclub/meetings/{meeting_id}/roster/sync` to add active members who
 joined later. Existing meetings are automatically linked to book records when
