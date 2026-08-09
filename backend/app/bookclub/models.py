@@ -235,12 +235,33 @@ class BookClubParticipation(Base):
     attended: Mapped[bool] = mapped_column(
         Boolean(), default=False, server_default="0"
     )
+    rsvp_status: Mapped[str | None] = mapped_column(String(20))
     notes: Mapped[str | None] = mapped_column(Text())
 
     meeting: Mapped[BookClubMeeting] = relationship(
         back_populates="participants"
     )
     member: Mapped[BookClubMember] = relationship()
+
+
+class BookClubAnnouncement(Base):
+    __tablename__ = "bookclub_announcements"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    club_id: Mapped[int] = mapped_column(
+        ForeignKey("book_clubs.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(Text())
+    pinned: Mapped[bool] = mapped_column(Boolean(), default=False, server_default="0")
+    published_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    club: Mapped[BookClub] = relationship()
 
 
 class BookClubTemplate(Base):

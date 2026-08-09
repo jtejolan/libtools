@@ -340,6 +340,7 @@ class MeetingResponse(MeetingBase):
 class ParticipationUpdate(BaseModel):
     attended: bool | None = None
     notes: str | None = None
+    rsvp_status: Literal["attending", "maybe", "not_attending"] | None = None
 
 
 class ParticipationResponse(BaseModel):
@@ -347,6 +348,7 @@ class ParticipationResponse(BaseModel):
     meeting_id: int
     member_id: int
     attended: bool
+    rsvp_status: str | None = None
     notes: str | None = None
     member: MemberResponse
     model_config = ConfigDict(from_attributes=True)

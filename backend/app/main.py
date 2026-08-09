@@ -30,6 +30,7 @@ from bookclub.club_routes import router as bookclub_club_router
 from bookclub.date_poll_routes import router as bookclub_date_poll_router
 from bookclub.facilitator_routes import router as bookclub_facilitator_router
 from bookclub.participant_routes import router as bookclub_participant_router
+from bookclub.participant_community_routes import router as bookclub_participant_community_router
 from bookclub.participant_session import ParticipantSessionMiddleware
 from bookclub.rating_routes import router as bookclub_rating_router
 from bookclub.routes import router as bookclub_router
@@ -312,6 +313,7 @@ bookclub_public_app.add_middleware(
 )
 bookclub_public_app.include_router(public_bookclub_router)
 bookclub_public_app.include_router(bookclub_participant_router)
+bookclub_public_app.include_router(bookclub_participant_community_router)
 bookclub_public_app.include_router(bookclub_rating_router)
 bookclub_public_app.include_router(bookclub_voting_router)
 bookclub_public_app.include_router(bookclub_date_poll_router)

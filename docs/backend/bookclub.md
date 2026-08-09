@@ -14,7 +14,8 @@ Multi-tenant book club manager. Every club-owned table is scoped by
 | `BookClubMember` | `bookclub_members` | A club's member roster; unique per `(club_id, email)`; carries delivery details plus transit-label/email timestamps |
 | `BookClubBook` | `bookclub_books` | A book the club has read/will read; unique per `(club_id, isbn)`; can be flagged as an undated past selection |
 | `BookClubMeeting` | `bookclub_meetings` | A dated session tied to one book, with `meeting_duration_minutes`, an `archived_at` display-mode flag, and discussion notes; `book_title`/`book_author` are denormalized copies kept in sync on write. `starts_at`/`ends_at` are computed `@property`s (not columns), from `bookclub/scheduling.py` |
-| `BookClubParticipation` | `bookclub_participation` | Member roster for one meeting (`attended` flag plus session-only participant note); unique per `(meeting_id, member_id)` |
+| `BookClubParticipation` | `bookclub_participation` | Member roster for one meeting (`attended`, participant-set `rsvp_status`, and a session-only note); unique per `(meeting_id, member_id)`. RSVP and attendance intentionally share this record. |
+| `BookClubAnnouncement` | `bookclub_announcements` | Portal announcement scoped to one club, with title/body, timestamps, and optional pinned priority. |
 | `BookClubTemplate` | `bookclub_templates` | Editable email template; unique per `(club_id, key)` |
 | `BookClubDiscussionQuestion` | `bookclub_discussion_questions` | Legacy ordered questions retained for API compatibility; migration `e93f1a6b2c47` copies existing text into meeting discussion notes |
 | `BookClubRating` | `bookclub_ratings` | A participant's 1-5 rating (DB `CheckConstraint`) + optional review of a book; unique per `(book_id, participant_id)`, editable (upsert, not append). FK to `ParticipantAccount` is a plain string FK (`bookclub_participant_accounts.id`), not an ORM `relationship()` — `crud.py` joins in the participant's name explicitly instead, since that model lives in `participant_models.py` and there's no existing precedent in this package for a cross-module `relationship()`. |
@@ -34,8 +35,8 @@ paths redirect to the corresponding `libtools.app` account/manager flows.
 
 `BookClubMember` is the canonical roster record. It may have a nullable
 `participant_account_id`; unlinked members still support attendance, email,
-delivery, notes, and giveaways, while linked members can also use ratings,
-book voting, and date polling. Registration claims an existing same-email
+delivery, notes, and giveaways, while linked members can also use announcements,
+RSVP, ratings, book voting, and date polling. Registration claims an existing same-email
 roster row or creates a new one. A successful login can claim an unlinked
 same-email row in another club.
 
@@ -51,10 +52,22 @@ subdomain at `/participant/*`. Manager-added poll candidates use a null
 participant proposer and auto-approve; reader proposals enter the approval
 queue.
 
+`GET /bookclub/community/overview` is a read-only community-health aggregate:
+active roster totals, linked/verified/pending account status, the next meeting's
+RSVP counts, and pending participant book proposals. Activation is derived from
+the canonical roster link and `ParticipantAccount.email_verified_at`; there is
+no second activation table or community roster.
+
+Announcements are managed at `/bookclub/community/announcements` and read at
+`/participant/announcements`. The participant RSVP endpoints live under
+`/participant/meetings/*`; saving one creates or updates the same participation
+row staff later use to record attendance.
+
 Migration `7e4c2a1f9d30` removes obsolete test-only `self_serve` clubs and
 participant identities, makes participant email global, and adds the roster
 link and per-membership unsubscribe fields. No compatibility merge is
 attempted because the removed data was explicitly non-production test data.
+Migration `9b2f4d6a8c10` adds club announcements and nullable RSVP status.
 
 ## Routes
 
@@ -63,6 +76,8 @@ attempted because the removed data was explicitly non-production test data.
 | `router` | `/bookclub/clubs` | `club_routes.py` | 5 | Club CRUD, select-into-session, list accessible clubs |
 | `public_router` | `/api/public/clubs` | `club_routes.py` | 1 | `GET /{slug}` — public read-only club page |
 | `router` | `/bookclub` | `routes.py` | 45 | Members, books (incl. catalogue import and read-only `/{book_id}/insights` aggregation), meetings, roster/participation, onboarding/arrival email preview/send/**mark-sent** and reminder preview/send, giveaway draw, templates, transit labels, discussion questions — whole router requires `require_selected_club` |
+| `router` | `/bookclub/community` | `facilitator_routes.py` | — | Community overview, announcements, book/date polls, plus supporting scoped endpoints |
+| `router` | `/participant` | `participant_community_routes.py` | 3 | Participant announcement feed, next upcoming meeting, and RSVP update |
 
 ## Other modules
 

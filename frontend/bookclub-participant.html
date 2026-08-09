@@ -11,7 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/static/platform.css?v=9" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub-participant.js?v=4" defer></script>
+    <script src="/static/bookclub-participant.js?v=5" defer></script>
   </head>
   <body>
     <div class="shell">
@@ -38,6 +38,18 @@
             <p class="delivery-note" id="verification-delivery-note" hidden></p>
           </section>
         </div>
+
+        <section class="ratings-section" id="announcements-section">
+          <p class="eyebrow">From your facilitator</p>
+          <h2>Announcements</h2>
+          <div class="user-list" id="announcements-content"></div>
+        </section>
+
+        <section class="ratings-section" id="rsvp-section">
+          <p class="eyebrow">Your next gathering</p>
+          <h2 id="rsvp-heading">Upcoming meeting</h2>
+          <div id="rsvp-content"></div>
+        </section>
 
         <section class="ratings-section" id="voting-section">
           <p class="eyebrow">Vote on the next book</p>

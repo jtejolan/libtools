@@ -57,6 +57,65 @@ const render = (participant) => {
 
 const participantState = { participantId: null, books: [] };
 
+const formatTimestamp = (value) =>
+  new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
+
+const renderAnnouncements = (announcements) => {
+  $("#announcements-content").innerHTML = announcements.length
+    ? announcements
+        .map(
+          (item) => `<article class="user-card" style="align-items:start">
+            <div>
+              ${item.pinned ? '<p class="eyebrow" style="margin-bottom:4px">Pinned</p>' : ""}
+              <h3>${escapeHtml(item.title)}</h3>
+              <p class="user-meta">${escapeHtml(formatTimestamp(item.published_at))}</p>
+              <p style="white-space:pre-wrap;margin:.6rem 0 0">${escapeHtml(item.body)}</p>
+            </div>
+          </article>`,
+        )
+        .join("")
+    : '<p class="muted">No announcements right now.</p>';
+};
+
+const loadAnnouncements = async () => renderAnnouncements(await request("/participant/announcements"));
+
+const renderRsvp = (data) => {
+  const content = $("#rsvp-content");
+  if (!data) {
+    $("#rsvp-heading").textContent = "No meeting scheduled";
+    content.innerHTML = '<p class="muted">Your facilitator hasn’t scheduled the next gathering yet.</p>';
+    return;
+  }
+  const meeting = data.meeting;
+  $("#rsvp-heading").textContent = meeting.book.title;
+  const options = [
+    ["attending", "I’m attending"],
+    ["maybe", "Maybe"],
+    ["not_attending", "Can’t attend"],
+  ];
+  content.innerHTML = `<p>${escapeHtml(formatDate(meeting.meeting_date))}${meeting.meeting_time ? ` · ${escapeHtml(meeting.meeting_time)}` : ""}${meeting.location ? ` · ${escapeHtml(meeting.location)}` : ""}</p>
+    <div class="user-actions" style="justify-content:flex-start;margin-top:14px">
+      ${options.map(([status, label]) => `<button class="${data.rsvp_status === status ? "primary-button" : "secondary-button"}" data-rsvp="${status}" data-meeting-id="${meeting.id}">${label}</button>`).join("")}
+    </div>
+    <p class="muted" style="margin-top:10px">${data.rsvp_status ? "Your response is saved. You can change it anytime before the meeting." : "Let your facilitator know if you plan to join."}</p>`;
+};
+
+const loadRsvp = async () => renderRsvp(await request("/participant/meetings/upcoming"));
+
+$("#rsvp-content").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-rsvp]");
+  if (!button) return;
+  try {
+    renderRsvp(await request(`/participant/meetings/${button.dataset.meetingId}/rsvp`, {
+      method: "PUT",
+      body: JSON.stringify({ status: button.dataset.rsvp }),
+    }));
+    toast("RSVP saved.");
+  } catch (error) {
+    toast(error.message);
+  }
+});
+
 const renderVotingCandidate = (candidate, { showResults, myVoteId, isWinner }) => {
   const isMine = candidate.id === myVoteId;
   const countCopy = showResults && candidate.vote_count != null ? ` · ${candidate.vote_count} vote${candidate.vote_count === 1 ? "" : "s"}` : "";
@@ -327,7 +386,7 @@ $("#resend-verification").addEventListener("click", async () => {
     ratingsState.participantId = participant.id;
     participantState.participantId = participant.id;
     participantState.books = await request("/participant/books");
-    await Promise.all([loadVoting(), loadDatePoll(), loadRatings()]);
+    await Promise.all([loadAnnouncements(), loadRsvp(), loadVoting(), loadDatePoll(), loadRatings()]);
   } catch {
     location.href = "/";
   }

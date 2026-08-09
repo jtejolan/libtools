@@ -2,22 +2,31 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 
 from bookclub import catalogue, crud, models, participant_email_delivery, schemas
 from bookclub.date_poll_routes import build_poll_response
 from bookclub.access import SelectedClub, require_selected_club
 from bookclub.participant_schemas import (
     AddDateOptionRequest,
+    AnnouncementCreate,
+    AnnouncementResponse,
+    AnnouncementUpdate,
     BroadcastEmailRequest,
     BroadcastEmailResponse,
     CandidateResponse,
+    CommunityAccountStatus,
+    CommunityOverviewResponse,
     DatePollResponse,
     OpenDatePollRequest,
     OpenVotingRoundRequest,
     ProposeCandidateRequest,
     VotingRoundResponse,
+    RsvpCounts,
 )
+from bookclub.participant_models import ParticipantAccount
 from bookclub.participant_unsubscribe import issue_unsubscribe_token
 from bookclub.voting_routes import build_round_response
 from dependencies import DatabaseSession
@@ -38,6 +47,168 @@ Limit = Annotated[int, Query(ge=1, le=500)]
 
 def _not_found(detail: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+
+
+@router.get("/overview", response_model=CommunityOverviewResponse)
+def community_overview(club: SelectedClub, db: DatabaseSession):
+    account_rows = db.execute(
+        select(models.BookClubMember, ParticipantAccount)
+        .outerjoin(
+            ParticipantAccount,
+            ParticipantAccount.id == models.BookClubMember.participant_account_id,
+        )
+        .where(
+            models.BookClubMember.club_id == club.id,
+            models.BookClubMember.active.is_(True),
+        )
+        .order_by(models.BookClubMember.name)
+    ).all()
+    accounts = []
+    for member, account in account_rows:
+        account_status = (
+            "not_registered"
+            if account is None
+            else "active"
+            if account.active and account.email_verified_at is not None
+            else "pending_verification"
+        )
+        accounts.append(
+            CommunityAccountStatus(
+                member_id=member.id,
+                name=member.name,
+                email=member.email,
+                status=account_status,
+            )
+        )
+
+    linked = sum(item.status != "not_registered" for item in accounts)
+    verified = sum(item.status == "active" for item in accounts)
+    pending = sum(item.status == "pending_verification" for item in accounts)
+    upcoming = db.scalar(
+        select(models.BookClubMeeting)
+        .options(selectinload(models.BookClubMeeting.book))
+        .where(
+            models.BookClubMeeting.club_id == club.id,
+            models.BookClubMeeting.status == "planned",
+            models.BookClubMeeting.meeting_date >= date.today(),
+        )
+        .order_by(models.BookClubMeeting.meeting_date, models.BookClubMeeting.id)
+    )
+    rsvp_rows = []
+    if upcoming is not None:
+        rsvp_rows = list(
+            db.execute(
+                select(
+                    models.BookClubParticipation.member_id,
+                    models.BookClubParticipation.rsvp_status,
+                )
+                .join(models.BookClubMember)
+                .where(
+                    models.BookClubParticipation.meeting_id == upcoming.id,
+                    models.BookClubMember.active.is_(True),
+                )
+            )
+        )
+    rsvp_by_member = {member_id: value for member_id, value in rsvp_rows}
+    for account in accounts:
+        account.rsvp_status = rsvp_by_member.get(account.member_id)
+    rsvp_values = list(rsvp_by_member.values())
+    counts = RsvpCounts(
+        attending=rsvp_values.count("attending"),
+        maybe=rsvp_values.count("maybe"),
+        not_attending=rsvp_values.count("not_attending"),
+        no_response=max(0, len(accounts) - sum(value is not None for value in rsvp_values)),
+    )
+    pending_proposals = db.scalar(
+        select(func.count(models.BookClubBookCandidate.id))
+        .join(
+            models.BookClubVotingRound,
+            models.BookClubVotingRound.id == models.BookClubBookCandidate.voting_round_id,
+        )
+        .where(
+            models.BookClubVotingRound.club_id == club.id,
+            models.BookClubVotingRound.status == "open",
+            models.BookClubBookCandidate.status == "pending",
+        )
+    ) or 0
+    return CommunityOverviewResponse(
+        member_count=len(accounts),
+        linked_account_count=linked,
+        verified_account_count=verified,
+        pending_verification_count=pending,
+        unlinked_member_count=len(accounts) - linked,
+        accounts=accounts,
+        next_meeting=upcoming,
+        rsvp_counts=counts,
+        pending_book_proposals=pending_proposals,
+    )
+
+
+@router.get("/announcements", response_model=list[AnnouncementResponse])
+def list_announcements(club: SelectedClub, db: DatabaseSession):
+    return list(
+        db.scalars(
+            select(models.BookClubAnnouncement)
+            .where(models.BookClubAnnouncement.club_id == club.id)
+            .order_by(
+                models.BookClubAnnouncement.pinned.desc(),
+                models.BookClubAnnouncement.published_at.desc(),
+                models.BookClubAnnouncement.id.desc(),
+            )
+        )
+    )
+
+
+@router.post(
+    "/announcements",
+    response_model=AnnouncementResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_announcement(value: AnnouncementCreate, club: SelectedClub, db: DatabaseSession):
+    announcement = models.BookClubAnnouncement(club_id=club.id, **value.model_dump())
+    db.add(announcement)
+    db.commit()
+    db.refresh(announcement)
+    return announcement
+
+
+@router.patch("/announcements/{announcement_id}", response_model=AnnouncementResponse)
+def update_announcement(
+    announcement_id: int,
+    value: AnnouncementUpdate,
+    club: SelectedClub,
+    db: DatabaseSession,
+):
+    announcement = db.scalar(
+        select(models.BookClubAnnouncement).where(
+            models.BookClubAnnouncement.id == announcement_id,
+            models.BookClubAnnouncement.club_id == club.id,
+        )
+    )
+    if announcement is None:
+        raise _not_found("Announcement not found")
+    for field, field_value in value.model_dump(exclude_unset=True).items():
+        setattr(announcement, field, field_value)
+    db.commit()
+    db.refresh(announcement)
+    return announcement
+
+
+@router.delete("/announcements/{announcement_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_announcement(
+    announcement_id: int, club: SelectedClub, db: DatabaseSession
+) -> Response:
+    announcement = db.scalar(
+        select(models.BookClubAnnouncement).where(
+            models.BookClubAnnouncement.id == announcement_id,
+            models.BookClubAnnouncement.club_id == club.id,
+        )
+    )
+    if announcement is None:
+        raise _not_found("Announcement not found")
+    db.delete(announcement)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/books", response_model=schemas.BookResponse, status_code=status.HTTP_201_CREATED)

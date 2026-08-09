@@ -3,7 +3,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from accounts.schemas import EMAIL_PATTERN
-from bookclub.schemas import BookResponse
+from bookclub.schemas import BookResponse, MeetingResponse
 
 
 def _clean_name(value: str) -> str:
@@ -203,6 +203,89 @@ class BroadcastEmailResponse(BaseModel):
     sent_count: int
     delivery_configured: bool
     missing_variables: list[str] = Field(default_factory=list)
+
+
+class AnnouncementCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1, max_length=10000)
+    pinned: bool = False
+
+    @field_validator("title", "body")
+    @classmethod
+    def text_cannot_be_blank(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Text cannot be blank")
+        return cleaned
+
+
+class AnnouncementUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    body: str | None = Field(default=None, min_length=1, max_length=10000)
+    pinned: bool | None = None
+
+    @field_validator("title", "body")
+    @classmethod
+    def text_cannot_be_blank(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Text cannot be blank")
+        return cleaned
+
+
+class AnnouncementResponse(BaseModel):
+    id: int
+    title: str
+    body: str
+    pinned: bool
+    published_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CommunityAccountStatus(BaseModel):
+    member_id: int
+    name: str
+    email: str
+    status: str
+    rsvp_status: str | None = None
+
+
+class RsvpCounts(BaseModel):
+    attending: int = 0
+    maybe: int = 0
+    not_attending: int = 0
+    no_response: int = 0
+
+
+class CommunityOverviewResponse(BaseModel):
+    member_count: int
+    linked_account_count: int
+    verified_account_count: int
+    pending_verification_count: int
+    unlinked_member_count: int
+    accounts: list[CommunityAccountStatus]
+    next_meeting: MeetingResponse | None = None
+    rsvp_counts: RsvpCounts
+    pending_book_proposals: int = 0
+
+
+class RsvpUpdate(BaseModel):
+    status: str | None
+
+    @field_validator("status")
+    @classmethod
+    def valid_status(cls, value: str | None) -> str | None:
+        if value not in (None, "attending", "maybe", "not_attending"):
+            raise ValueError("Choose attending, maybe, or not attending")
+        return value
+
+
+class ParticipantMeetingResponse(BaseModel):
+    meeting: MeetingResponse
+    rsvp_status: str | None = None
 
 
 class UnsubscribeRequest(BaseModel):
