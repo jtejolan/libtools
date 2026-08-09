@@ -1134,7 +1134,7 @@ const memberPendingBadges = (member) => memberFollowupStages(member).map((stage)
 const COMMUNITY_ACCESS_LABELS = {
   community_active: "Community active",
   verification_pending: "Verification pending",
-  invitation_not_accepted: "Invitation not accepted",
+  invitation_not_accepted: "No account",
   account_disabled: "Account disabled",
   inactive_member: "Inactive member",
 };
@@ -1186,7 +1186,7 @@ const renderMembers = () => {
   ).length;
   const accessValues = state.members.map((member) => communityAccessFor(member));
   const communityActiveCount = accessValues.filter((item) => item.status === "community_active").length;
-  const invitationCount = accessValues.filter((item) => item.status === "invitation_not_accepted").length;
+  const noAccountCount = accessValues.filter((item) => item.status === "invitation_not_accepted").length;
   $("#member-stat-active").textContent = activeCount;
   $("#member-stat-attendance").textContent = totalMeetings
     ? `${Math.round((totalAttended / totalMeetings) * 100)}%`
@@ -1196,7 +1196,7 @@ const renderMembers = () => {
   const filtered = Boolean(query) || state.memberAccessFilter !== "all";
   $("#member-count").textContent = filtered
     ? `${members.length} shown · ${state.members.length} total · ${communityActiveCount} community active`
-    : `${activeCount} active · ${communityActiveCount} community active · ${invitationCount} invitation${invitationCount === 1 ? "" : "s"} not accepted`;
+    : `${activeCount} active · ${communityActiveCount} community active · ${noAccountCount} without an account`;
   $("#members-grid").innerHTML = members.length
     ? members
         .map((member) => {
@@ -1243,7 +1243,7 @@ const renderMembers = () => {
           </article>`;
         })
         .join("")
-    : `<div class="empty-card member-directory-empty"><span>◎</span><h3>${filtered ? "No matching members" : "No members yet"}</h3><p>${filtered ? "Try a different search or Community access filter." : "Add the first person to begin building your club community."}</p></div>`;
+    : `<div class="empty-card member-directory-empty"><span>◎</span><h3>${filtered ? "No matching members" : "No members yet"}</h3><p>${filtered ? "Try a different search or Community access filter." : "Add the first person to begin your member list."}</p></div>`;
 };
 
 const openFollowupDialog = (memberId, stage) => {

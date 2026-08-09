@@ -46,7 +46,9 @@ def participant_response(
         club_id=club.id,
         club_name=club.name,
         club_slug=club.slug,
-        name=participant.name,
+        # Display names are membership-specific so a reader can use the name
+        # that fits each club without changing their global login identity.
+        name=member.name,
         email=participant.email,
         email_verified=participant.email_verified_at is not None,
         role="member",

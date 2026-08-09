@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -261,6 +262,7 @@ class AnnouncementResponse(BaseModel):
     pinned: bool
     published_at: datetime
     updated_at: datetime
+    read: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -308,6 +310,8 @@ class ParticipantMeetingResponse(BaseModel):
     rsvp_status: str | None = None
     google_calendar_url: str
     ics_calendar_url: str
+    video_call_url: str | None = None
+    discussion_questions: list[str] = Field(default_factory=list)
 
 
 class ReadingProgressUpdate(BaseModel):
@@ -332,6 +336,14 @@ class NotificationPreferencesUpdate(BaseModel):
     polls: bool
     meeting_reminders: bool
     discussion_replies: bool
+    delivery_frequency: str = "immediate"
+
+    @field_validator("delivery_frequency")
+    @classmethod
+    def valid_delivery_frequency(cls, value: str) -> str:
+        if value not in ("immediate", "daily_digest"):
+            raise ValueError("Choose immediate delivery or a daily digest")
+        return value
 
 
 class NotificationPreferencesResponse(NotificationPreferencesUpdate):
@@ -352,6 +364,71 @@ class PersonalActivityResponse(BaseModel):
     proposals_count: int
     attended_meetings_count: int
     recent: list[PersonalActivityItem]
+
+
+class ParticipantProfileUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    bio: str | None = Field(default=None, max_length=1000)
+    avatar_url: str | None = Field(default=None, max_length=500)
+    directory_visible: bool = False
+
+    @field_validator("name")
+    @classmethod
+    def clean_profile_name(cls, value: str) -> str:
+        return _clean_name(value)
+
+    @field_validator("bio", "avatar_url")
+    @classmethod
+    def blank_profile_values_are_null(cls, value: str | None) -> str | None:
+        return value.strip() or None if value else None
+
+    @field_validator("avatar_url")
+    @classmethod
+    def profile_photo_must_be_web_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parsed = urlsplit(value)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError("Photo URL must start with http:// or https://")
+        return value
+
+
+class ParticipantProfileResponse(BaseModel):
+    member_id: int
+    name: str
+    bio: str | None = None
+    avatar_url: str | None = None
+    directory_visible: bool = False
+    is_self: bool = False
+
+
+class DiscussionPostCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+    parent_id: int | None = Field(default=None, ge=1)
+
+    @field_validator("body")
+    @classmethod
+    def clean_discussion_body(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Post cannot be blank")
+        return cleaned
+
+
+class DiscussionPostResponse(BaseModel):
+    id: int
+    book_id: int
+    parent_id: int | None = None
+    body: str
+    author: ParticipantProfileResponse
+    created_at: datetime
+    updated_at: datetime
+
+
+class ParticipantLibraryResponse(BaseModel):
+    current: list[BookResponse] = Field(default_factory=list)
+    up_next: list[BookResponse] = Field(default_factory=list)
+    previously_read: list[BookResponse] = Field(default_factory=list)
 
 
 class UnsubscribeRequest(BaseModel):

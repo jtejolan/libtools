@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/static/bookclub.css?v=38" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub.js?v=39" defer></script>
+    <script src="/static/bookclub.js?v=40" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -215,7 +215,7 @@
         <section class="view" id="view-members">
           <div class="content">
             <header class="page-heading">
-              <div><p class="eyebrow"><span></span> People &amp; participation</p><h1>Club community</h1><p class="intro">Member records and engagement history, together in one view.</p></div>
+              <div><p class="eyebrow"><span></span> Club membership</p><h1>Members</h1><p class="intro">Everyone participating in your book club appears here, whether or not they use an online account. Accounts are optional and give members access to announcements, RSVPs, polls, ratings, and reading tools.</p></div>
               <button class="primary-button" id="add-member" type="button"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg></span> Add member</button>
             </header>
             <section class="stats-grid member-stats" aria-label="Member overview">
@@ -229,11 +229,11 @@
                 <div><p class="eyebrow"><span></span> The whole club</p><h2>Member directory</h2><p class="panel-description" id="member-count">—</p></div>
                 <div class="member-directory-tools">
                   <label class="search-box"><span>⌕</span><span class="sr-only">Search all members</span><input id="member-search" type="search" placeholder="Search name or email…" /></label>
-                  <label class="member-sort-control"><span>Community access</span><select id="member-access-filter"><option value="all">All members</option><option value="community_active">Community active</option><option value="verification_pending">Verification pending</option><option value="invitation_not_accepted">Invitation not accepted</option><option value="account_disabled">Account disabled</option><option value="inactive_member">Inactive members</option></select></label>
+                  <label class="member-sort-control"><span>Community access</span><select id="member-access-filter"><option value="all">All members</option><option value="community_active">Community active</option><option value="verification_pending">Verification pending</option><option value="invitation_not_accepted">No account</option><option value="account_disabled">Account disabled</option><option value="inactive_member">Inactive members</option></select></label>
                   <label class="member-sort-control"><span>Sort by</span><select id="member-sort"><option value="name">Name</option><option value="attendance">Attendance</option><option value="pages">Pages read</option><option value="last_attended">Last attended</option><option value="joined">Recently joined</option></select></label>
                 </div>
               </div>
-              <div class="member-card-grid" id="members-grid"><div class="empty-card member-grid-loading"><span>◎</span><p>Loading the club community…</p></div></div>
+              <div class="member-card-grid" id="members-grid"><div class="empty-card member-grid-loading"><span>◎</span><p>Loading members…</p></div></div>
             </section>
           </div>
         </section>

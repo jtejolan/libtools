@@ -11,13 +11,15 @@ Multi-tenant book club manager. Every club-owned table is scoped by
 |---|---|---|
 | `BookClub` | `book_clubs` | A club: name, slug, `public` page flag, independent `enrollment_policy` (`open`/`invite_only`/`closed`), organizer info, and `club_type` (`library`/`private`, presentation/defaults only) |
 | `BookClubAccess` | `book_club_access` | User-to-club grant (`role`, e.g. owner) |
-| `BookClubMember` | `bookclub_members` | A club's member roster; unique per `(club_id, email)`; carries delivery details plus transit-label/email timestamps |
+| `BookClubMember` | `bookclub_members` | A club's member roster; unique per `(club_id, email)`; carries delivery details, transit-label/email timestamps, and an optional participant-controlled directory profile (`bio`, `avatar_url`, `directory_visible`) |
 | `BookClubBook` | `bookclub_books` | A book the club has read/will read; unique per `(club_id, isbn)`; can be flagged as an undated past selection |
 | `BookClubMeeting` | `bookclub_meetings` | A dated session tied to one book, with `meeting_duration_minutes`, an `archived_at` display-mode flag, and discussion notes; `book_title`/`book_author` are denormalized copies kept in sync on write. `starts_at`/`ends_at` are computed `@property`s (not columns), from `bookclub/scheduling.py` |
 | `BookClubParticipation` | `bookclub_participation` | Member roster for one meeting (`attended`, participant-set `rsvp_status`, and a session-only note); unique per `(meeting_id, member_id)`. RSVP and attendance intentionally share this record. |
 | `BookClubAnnouncement` | `bookclub_announcements` | Community announcement scoped to one club, with title/body, timestamps, and optional pinned priority. |
+| `BookClubAnnouncementRead` | `bookclub_announcement_reads` | Per-member acknowledgement/read state for an announcement; unique per `(announcement_id, member_id)`. |
 | `BookClubReadingProgress` | `bookclub_reading_progress` | Optional private reading state (`not_started`/`reading`/`finished`) for one roster member and club book; no row means the participant chose not to track it. |
-| `BookClubNotificationPreference` | `bookclub_notification_preferences` | Per-membership preferences for announcements, polls, meeting reminders, and future discussion replies. |
+| `BookClubNotificationPreference` | `bookclub_notification_preferences` | Per-membership preferences for announcements, polls, meeting reminders, discussion replies, and immediate versus daily-digest delivery. |
+| `BookClubDiscussionPost` | `bookclub_discussion_posts` | Participant book discussion post or one-level reply, scoped to a club/book and attributed to the canonical roster member. |
 | `BookClubTemplate` | `bookclub_templates` | Editable email template; unique per `(club_id, key)` |
 | `BookClubDiscussionQuestion` | `bookclub_discussion_questions` | Legacy ordered questions retained for API compatibility; migration `e93f1a6b2c47` copies existing text into meeting discussion notes |
 | `BookClubRating` | `bookclub_ratings` | A participant's 1-5 rating (DB `CheckConstraint`) + optional review of a book; unique per `(book_id, participant_id)`, editable (upsert, not append). FK to `ParticipantAccount` is a plain string FK (`bookclub_participant_accounts.id`), not an ORM `relationship()` — `crud.py` joins in the participant's name explicitly instead, since that model lives in `participant_models.py` and there's no existing precedent in this package for a cross-module `relationship()`. |
@@ -52,7 +54,7 @@ broadcasts does not silence another club.
 
 The manager member directory gets its bulk, derived access state from
 `GET /bookclub/members/community-access`: Community active, Verification
-pending, Invitation not accepted, Account disabled, or Inactive member, plus
+pending, No account, Account disabled, or Inactive member, plus
 the per-membership announcement subscription flag. Facilitators can issue a
 fresh verification email through `POST /bookclub/members/{member_id}/verification`;
 the endpoint refuses unlinked, disabled, or already-verified accounts.
@@ -69,14 +71,17 @@ RSVP counts, and pending participant book proposals. Activation is derived from
 the canonical roster link and `ParticipantAccount.email_verified_at`; there is
 no second activation table or community roster.
 
-Announcements are managed at `/bookclub/community/announcements` and read at
-`/participant/announcements`. The participant RSVP endpoints live under
+Announcements are managed at `/bookclub/community/announcements`, read at
+`/participant/announcements`, and acknowledged per member through
+`PUT /participant/announcements/{id}/read`. The participant RSVP endpoints live under
 `/participant/meetings/*`; saving one creates or updates the same participation
 row staff later use to record attendance.
 
-Participant community routes also expose optional reading progress, per-club
-notification preferences, a personal activity aggregate, a Google Calendar
-link, and an authenticated `.ics` meeting download. Activity is derived from
+Participant community routes also expose the grouped club library, the latest
+completed meeting, opt-in member profiles/directory, book discussions and
+one-level replies, optional reading progress, per-club notification preferences,
+a personal activity aggregate, a Google Calendar link, and an authenticated
+`.ics` meeting download. Activity is derived from
 existing ratings, votes, proposals, attendance, and reading-progress records;
 it is not a second append-only audit log.
 
@@ -97,6 +102,8 @@ Migration `9b2f4d6a8c10` adds club announcements and nullable RSVP status.
 Migration `b4d7f1a3c920` adds optional reading progress and notification preferences.
 Migration `e8a1c4d72f60` adds the separate enrollment policy, defaulting existing
 clubs to `open` for backward compatibility.
+Migration `f9a2d4c6e810` adds participant profiles, announcement reads,
+discussion posts, and notification delivery frequency.
 
 ## Routes
 
@@ -107,7 +114,7 @@ clubs to `open` for backward compatibility.
 | `router` | `/participant/auth` | `participant_routes.py` | 12 | Global and club-scoped participant registration/login, enrollment-aware joining, club listing/selection, session, verification, and password reset |
 | `router` | `/bookclub` | `routes.py` | 47 | Members (including bulk community-access state and verification resend), books (incl. Google Books search and read-only `/{book_id}/insights` aggregation), meetings, roster/participation, onboarding/arrival email preview/send/**mark-sent** and reminder preview/send, giveaway draw, templates, transit labels, discussion questions — whole router requires `require_selected_club` |
 | `router` | `/bookclub/community` | `facilitator_routes.py` | — | Community overview, announcements, book/date polls, plus supporting scoped endpoints |
-| `router` | `/participant` | `participant_community_routes.py` | — | Announcements, next meeting/RSVP/calendar, optional reading progress, notification preferences, and personal activity |
+| `router` | `/participant` | `participant_community_routes.py` | — | Announcements/read state, meeting preparation/RSVP/calendar, grouped library, discussions, member profiles/directory, reading progress, notification preferences, and personal activity |
 
 ## Other modules
 

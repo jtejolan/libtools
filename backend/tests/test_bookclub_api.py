@@ -138,7 +138,7 @@ class BookClubApiTests(unittest.TestCase):
         entrypoint = self.client.get("/bookclub")
         self.assertEqual(entrypoint.status_code, 200)
         self.assertIn("Book Club Manager", entrypoint.text)
-        self.assertIn('/static/bookclub.js?v=39', entrypoint.text)
+        self.assertIn('/static/bookclub.js?v=40', entrypoint.text)
         self.assertIn('/static/bookclub.css?v=38', entrypoint.text)
         self.assertNotIn('data-view="messages"', entrypoint.text)
         self.assertIn('id="open-reminder-dialog"', entrypoint.text)
@@ -157,7 +157,7 @@ class BookClubApiTests(unittest.TestCase):
         self.assertIn('aria-current="page">', community.text)
         self.assertIn('/static/bookclub.css?v=37', community.text)
         self.assertIn('/static/bookclub-manage.css?v=3', community.text)
-        self.assertIn('/static/bookclub-manage.js?v=9', community.text)
+        self.assertIn('/static/bookclub-manage.js?v=10', community.text)
         self.assertIn('id="invite-readers"', community.text)
         self.assertEqual(community.headers["cache-control"], "no-store")
 

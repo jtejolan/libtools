@@ -255,6 +255,71 @@ class BookClubCommunityTests(unittest.TestCase):
         for key, value in preferences.items():
             self.assertEqual(current[key], value)
 
+    def test_participant_member_experience_profile_library_discussion_and_read_state(self) -> None:
+        meeting = self.create_meeting()
+        question = self.facilitator.post(
+            f"/bookclub/meetings/{meeting['id']}/questions",
+            json={"text": "Which choice changed the story?"},
+        )
+        self.assertEqual(question.status_code, 201, question.text)
+        upcoming = self.reader.get("/participant/meetings/upcoming")
+        self.assertEqual(
+            upcoming.json()["discussion_questions"],
+            ["Which choice changed the story?"],
+        )
+
+        library = self.reader.get("/participant/books/library")
+        self.assertEqual(library.status_code, 200, library.text)
+        self.assertEqual(library.json()["current"][0]["title"], "Dune")
+        self.assertEqual(library.json()["previously_read"], [])
+
+        profile = self.reader.put("/participant/profile", json={
+            "name": "Reader R.",
+            "bio": "Mysteries, science fiction, and very long footnotes.",
+            "avatar_url": "https://example.com/reader.jpg",
+            "directory_visible": True,
+        })
+        self.assertEqual(profile.status_code, 200, profile.text)
+        self.assertTrue(profile.json()["is_self"])
+        self.assertEqual(self.reader.get("/participant/auth/me").json()["name"], "Reader R.")
+        directory = self.reader.get("/participant/members")
+        self.assertEqual(directory.status_code, 200, directory.text)
+        self.assertEqual(directory.json()[0]["name"], "Reader R.")
+        self.assertNotIn("email", directory.json()[0])
+
+        book_id = meeting["book_id"]
+        post = self.reader.post(f"/participant/books/{book_id}/discussion", json={
+            "body": "The setting feels like another character."
+        })
+        self.assertEqual(post.status_code, 201, post.text)
+        reply = self.reader.post(f"/participant/books/{book_id}/discussion", json={
+            "body": "Especially in the opening chapters.",
+            "parent_id": post.json()["id"],
+        })
+        self.assertEqual(reply.status_code, 201, reply.text)
+        discussion = self.reader.get(f"/participant/books/{book_id}/discussion")
+        self.assertEqual(len(discussion.json()), 2)
+        self.assertTrue(discussion.json()[0]["author"]["is_self"])
+
+        announcement = self.facilitator.post("/bookclub/community/announcements", json={
+            "title": "Room update", "body": "We are upstairs.", "pinned": False,
+        })
+        announcement_id = announcement.json()["id"]
+        self.assertFalse(self.reader.get("/participant/announcements").json()[0]["read"])
+        marked = self.reader.put(f"/participant/announcements/{announcement_id}/read")
+        self.assertTrue(marked.json()["read"])
+        self.assertTrue(self.reader.get("/participant/announcements").json()[0]["read"])
+
+        preferences = self.reader.put("/participant/notification-preferences", json={
+            "announcements": True,
+            "polls": True,
+            "meeting_reminders": True,
+            "discussion_replies": True,
+            "delivery_frequency": "daily_digest",
+        })
+        self.assertEqual(preferences.status_code, 200, preferences.text)
+        self.assertEqual(preferences.json()["delivery_frequency"], "daily_digest")
+
 
 if __name__ == "__main__":
     unittest.main()

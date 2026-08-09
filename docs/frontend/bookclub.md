@@ -126,11 +126,13 @@ call link/public toggle) with the "Email & label templates" editor that used
 to be its own separate "Templates" nav item — there is no standalone
 Templates page anymore.
 
-Members and participation share one card-based community view. Each member
+Members and participation share one card-based directory. Its heading explains
+that every participant belongs here while an online account remains optional.
+Each member
 card shows a prominent, copyable email (`.copy-email-button`, clipboard copy
 via a `data-copy-email` click-delegate branch) alongside attendance and pages
 read. Every card also has a plain-language **Community access** row: Community
-active, Verification pending, Invitation not accepted, Account disabled, or
+active, Verification pending, No account, Account disabled, or
 Inactive member. The directory can filter on the same states and flags when
 announcements are off. Context actions copy the public invitation, resend email
 verification, or reactivate an inactive roster member when that action applies;
@@ -183,12 +185,16 @@ action and supports joining a second open club without another account.
   calendar actions on the subdomain.
 - `bookclub-account.html` handles participant registration, login, recovery,
   and verification only; the old facilitator creation card is removed.
-- `bookclub-participant.html` is a participant-first dashboard organized around
-  the next meeting, current book, latest announcement, and open decisions. It
-  includes RSVP and Google/`.ics` calendar actions, optional private reading
-  progress, notification preferences, a personal activity summary, collapsed
-  rating/review cards, book proposals/votes, and meeting-date votes. It has no facilitator role
-  or management link.
+- `bookclub-participant.html` is an action-first participant dashboard. Its
+  attention queue derives pending verification, RSVP, poll, and post-meeting
+  rating work from the data already loaded on the page. The richer meeting hub
+  includes online/calendar actions, facilitator preparation notes, and ordered
+  discussion questions. It also provides a club switcher, announcement archive
+  with read state, current-book detail/progress, post-meeting follow-up, book
+  discussions/replies, a grouped searchable library, immediate/digest
+  notification preferences, personal activity, and an opt-in member directory
+  whose responses never expose roster email or staff notes. It has no
+  facilitator role or management link.
 - `bookclub-manage.html` is now served from
   `libtools.app/bookclub/community`, authenticated by the regular Libtools
   session and selected club. It shares the Book Club Manager's green sidebar,

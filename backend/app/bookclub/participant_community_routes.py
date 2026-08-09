@@ -1,17 +1,22 @@
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from bookclub import crud, models, participant_auth
 from bookclub.participant_schemas import (
     AnnouncementResponse,
+    DiscussionPostCreate,
+    DiscussionPostResponse,
     NotificationPreferencesResponse,
     NotificationPreferencesUpdate,
     PersonalActivityItem,
     PersonalActivityResponse,
     ParticipantMeetingResponse,
+    ParticipantLibraryResponse,
+    ParticipantProfileResponse,
+    ParticipantProfileUpdate,
     ReadingProgressResponse,
     ReadingProgressUpdate,
     RsvpUpdate,
@@ -34,24 +39,69 @@ def _meeting_response(meeting, club, member, db) -> ParticipantMeetingResponse:
         rsvp_status=participation.rsvp_status if participation else None,
         google_calendar_url=crud.build_calendar_link(meeting, club.video_call_url),
         ics_calendar_url=f"/participant/meetings/{meeting.id}/calendar.ics",
+        video_call_url=club.video_call_url,
+        discussion_questions=[question.text for question in meeting.discussion_questions],
     )
 
 
 @router.get("/announcements", response_model=list[AnnouncementResponse])
 def list_announcements(
     club: participant_auth.CurrentParticipantClub,
+    member: participant_auth.CurrentParticipantMember,
     db: DatabaseSession,
 ):
-    return list(
-        db.scalars(
-            select(models.BookClubAnnouncement)
-            .where(models.BookClubAnnouncement.club_id == club.id)
-            .order_by(
-                models.BookClubAnnouncement.pinned.desc(),
-                models.BookClubAnnouncement.published_at.desc(),
-                models.BookClubAnnouncement.id.desc(),
+    rows = db.execute(
+        select(models.BookClubAnnouncement, models.BookClubAnnouncementRead.id)
+        .outerjoin(
+            models.BookClubAnnouncementRead,
+            (models.BookClubAnnouncementRead.announcement_id == models.BookClubAnnouncement.id)
+            & (models.BookClubAnnouncementRead.member_id == member.id),
+        )
+        .where(models.BookClubAnnouncement.club_id == club.id)
+        .order_by(
+            models.BookClubAnnouncement.pinned.desc(),
+            models.BookClubAnnouncement.published_at.desc(),
+            models.BookClubAnnouncement.id.desc(),
+        )
+    ).all()
+    return [
+        AnnouncementResponse.model_validate(announcement).model_copy(
+            update={"read": read_id is not None}
+        )
+        for announcement, read_id in rows
+    ]
+
+
+@router.put("/announcements/{announcement_id}/read", response_model=AnnouncementResponse)
+def mark_announcement_read(
+    announcement_id: int,
+    club: participant_auth.CurrentParticipantClub,
+    member: participant_auth.CurrentParticipantMember,
+    db: DatabaseSession,
+):
+    announcement = db.scalar(
+        select(models.BookClubAnnouncement).where(
+            models.BookClubAnnouncement.id == announcement_id,
+            models.BookClubAnnouncement.club_id == club.id,
+        )
+    )
+    if announcement is None:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+    existing = db.scalar(
+        select(models.BookClubAnnouncementRead).where(
+            models.BookClubAnnouncementRead.announcement_id == announcement_id,
+            models.BookClubAnnouncementRead.member_id == member.id,
+        )
+    )
+    if existing is None:
+        db.add(
+            models.BookClubAnnouncementRead(
+                announcement_id=announcement_id, member_id=member.id
             )
         )
+        db.commit()
+    return AnnouncementResponse.model_validate(announcement).model_copy(
+        update={"read": True}
     )
 
 
@@ -63,7 +113,10 @@ def upcoming_meeting(
 ):
     meeting = db.scalar(
         select(models.BookClubMeeting)
-        .options(selectinload(models.BookClubMeeting.book))
+        .options(
+            selectinload(models.BookClubMeeting.book),
+            selectinload(models.BookClubMeeting.discussion_questions),
+        )
         .where(
             models.BookClubMeeting.club_id == club.id,
             models.BookClubMeeting.status == "planned",
@@ -76,6 +129,27 @@ def upcoming_meeting(
     return _meeting_response(meeting, club, member, db)
 
 
+@router.get("/meetings/latest-completed", response_model=ParticipantMeetingResponse | None)
+def latest_completed_meeting(
+    club: participant_auth.CurrentParticipantClub,
+    member: participant_auth.CurrentParticipantMember,
+    db: DatabaseSession,
+):
+    meeting = db.scalar(
+        select(models.BookClubMeeting)
+        .options(
+            selectinload(models.BookClubMeeting.book),
+            selectinload(models.BookClubMeeting.discussion_questions),
+        )
+        .where(
+            models.BookClubMeeting.club_id == club.id,
+            models.BookClubMeeting.status == "completed",
+        )
+        .order_by(models.BookClubMeeting.meeting_date.desc(), models.BookClubMeeting.id.desc())
+    )
+    return _meeting_response(meeting, club, member, db) if meeting else None
+
+
 @router.put("/meetings/{meeting_id}/rsvp", response_model=ParticipantMeetingResponse)
 def save_rsvp(
     meeting_id: int,
@@ -86,7 +160,10 @@ def save_rsvp(
 ):
     meeting = db.scalar(
         select(models.BookClubMeeting)
-        .options(selectinload(models.BookClubMeeting.book))
+        .options(
+            selectinload(models.BookClubMeeting.book),
+            selectinload(models.BookClubMeeting.discussion_questions),
+        )
         .where(
             models.BookClubMeeting.id == meeting_id,
             models.BookClubMeeting.club_id == club.id,
@@ -246,9 +323,216 @@ def get_notification_preferences(
     )
     if preference is None:
         return NotificationPreferencesResponse(
-            announcements=True, polls=True, meeting_reminders=True, discussion_replies=True
+            announcements=True,
+            polls=True,
+            meeting_reminders=True,
+            discussion_replies=True,
+            delivery_frequency="immediate",
         )
     return preference
+
+
+def _profile_response(member, *, is_self: bool = False) -> ParticipantProfileResponse:
+    return ParticipantProfileResponse(
+        member_id=member.id,
+        name=member.name,
+        bio=member.bio,
+        avatar_url=member.avatar_url,
+        directory_visible=member.directory_visible,
+        is_self=is_self,
+    )
+
+
+@router.get("/profile", response_model=ParticipantProfileResponse)
+def get_profile(member: participant_auth.CurrentParticipantMember):
+    return _profile_response(member, is_self=True)
+
+
+@router.put("/profile", response_model=ParticipantProfileResponse)
+def save_profile(
+    value: ParticipantProfileUpdate,
+    member: participant_auth.CurrentParticipantMember,
+    db: DatabaseSession,
+):
+    for field, field_value in value.model_dump().items():
+        setattr(member, field, field_value)
+    db.commit()
+    db.refresh(member)
+    return _profile_response(member, is_self=True)
+
+
+@router.get("/members", response_model=list[ParticipantProfileResponse])
+def member_directory(
+    club: participant_auth.CurrentParticipantClub,
+    member: participant_auth.CurrentParticipantMember,
+    db: DatabaseSession,
+):
+    members = list(
+        db.scalars(
+            select(models.BookClubMember)
+            .where(
+                models.BookClubMember.club_id == club.id,
+                models.BookClubMember.active.is_(True),
+                (
+                    (models.BookClubMember.directory_visible.is_(True))
+                    | (models.BookClubMember.id == member.id)
+                ),
+            )
+            .order_by(models.BookClubMember.name, models.BookClubMember.id)
+        )
+    )
+    return [_profile_response(item, is_self=item.id == member.id) for item in members]
+
+
+@router.get("/books/library", response_model=ParticipantLibraryResponse)
+def participant_library(
+    club: participant_auth.CurrentParticipantClub,
+    db: DatabaseSession,
+):
+    books = list(
+        db.scalars(
+            select(models.BookClubBook)
+            .where(models.BookClubBook.club_id == club.id)
+            .order_by(models.BookClubBook.title, models.BookClubBook.id)
+        )
+    )
+    meetings = list(
+        db.scalars(
+            select(models.BookClubMeeting)
+            .where(models.BookClubMeeting.club_id == club.id)
+            .order_by(models.BookClubMeeting.meeting_date, models.BookClubMeeting.id)
+        )
+    )
+    upcoming_ids = []
+    completed_ids = set()
+    for meeting in meetings:
+        if meeting.status == "completed":
+            completed_ids.add(meeting.book_id)
+        elif meeting.status == "planned" and meeting.meeting_date >= date.today():
+            upcoming_ids.append(meeting.book_id)
+    current_ids = set(upcoming_ids[:1])
+    up_next_ids = set(upcoming_ids[1:])
+    winning_ids = set(
+        db.scalars(
+            select(models.BookClubVotingRound.winning_book_id).where(
+                models.BookClubVotingRound.club_id == club.id,
+                models.BookClubVotingRound.status == "closed",
+                models.BookClubVotingRound.winning_book_id.is_not(None),
+            )
+        )
+    )
+    up_next_ids.update(winning_ids - current_ids - completed_ids)
+    previous_ids = completed_ids | {book.id for book in books if book.is_past_selection}
+    return ParticipantLibraryResponse(
+        current=[book for book in books if book.id in current_ids],
+        up_next=[book for book in books if book.id in up_next_ids],
+        previously_read=[book for book in books if book.id in previous_ids],
+    )
+
+
+def _discussion_response(post, current_member_id: int) -> DiscussionPostResponse:
+    return DiscussionPostResponse(
+        id=post.id,
+        book_id=post.book_id,
+        parent_id=post.parent_id,
+        body=post.body,
+        author=_profile_response(post.member, is_self=post.member_id == current_member_id),
+        created_at=post.created_at,
+        updated_at=post.updated_at,
+    )
+
+
+def _participant_book(db, club_id: int, book_id: int):
+    book = db.scalar(
+        select(models.BookClubBook).where(
+            models.BookClubBook.id == book_id,
+            models.BookClubBook.club_id == club_id,
+        )
+    )
+    if book is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+    return book
+
+
+@router.get("/books/{book_id}/discussion", response_model=list[DiscussionPostResponse])
+def list_discussion_posts(
+    book_id: int,
+    club: participant_auth.CurrentParticipantClub,
+    member: participant_auth.CurrentParticipantMember,
+    db: DatabaseSession,
+):
+    _participant_book(db, club.id, book_id)
+    posts = list(
+        db.scalars(
+            select(models.BookClubDiscussionPost)
+            .options(selectinload(models.BookClubDiscussionPost.member))
+            .where(
+                models.BookClubDiscussionPost.club_id == club.id,
+                models.BookClubDiscussionPost.book_id == book_id,
+            )
+            .order_by(models.BookClubDiscussionPost.created_at, models.BookClubDiscussionPost.id)
+        )
+    )
+    return [_discussion_response(post, member.id) for post in posts]
+
+
+@router.post(
+    "/books/{book_id}/discussion",
+    response_model=DiscussionPostResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_discussion_post(
+    book_id: int,
+    value: DiscussionPostCreate,
+    club: participant_auth.CurrentParticipantClub,
+    member: participant_auth.CurrentParticipantMember,
+    db: DatabaseSession,
+):
+    _participant_book(db, club.id, book_id)
+    if value.parent_id is not None:
+        parent = db.scalar(
+            select(models.BookClubDiscussionPost).where(
+                models.BookClubDiscussionPost.id == value.parent_id,
+                models.BookClubDiscussionPost.club_id == club.id,
+                models.BookClubDiscussionPost.book_id == book_id,
+                models.BookClubDiscussionPost.parent_id.is_(None),
+            )
+        )
+        if parent is None:
+            raise HTTPException(status_code=404, detail="Discussion post not found")
+    post = models.BookClubDiscussionPost(
+        club_id=club.id,
+        book_id=book_id,
+        member_id=member.id,
+        parent_id=value.parent_id,
+        body=value.body,
+    )
+    db.add(post)
+    db.commit()
+    db.refresh(post)
+    post.member = member
+    return _discussion_response(post, member.id)
+
+
+@router.delete("/discussion/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_discussion_post(
+    post_id: int,
+    club: participant_auth.CurrentParticipantClub,
+    member: participant_auth.CurrentParticipantMember,
+    db: DatabaseSession,
+) -> Response:
+    post = db.scalar(
+        select(models.BookClubDiscussionPost).where(
+            models.BookClubDiscussionPost.id == post_id,
+            models.BookClubDiscussionPost.club_id == club.id,
+            models.BookClubDiscussionPost.member_id == member.id,
+        )
+    )
+    if post is None:
+        raise HTTPException(status_code=404, detail="Discussion post not found")
+    db.delete(post)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put("/notification-preferences", response_model=NotificationPreferencesResponse)

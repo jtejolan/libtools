@@ -108,6 +108,11 @@ class BookClubMember(Base):
     participant_unsubscribed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True)
     )
+    bio: Mapped[str | None] = mapped_column(Text())
+    avatar_url: Mapped[str | None] = mapped_column(String(500))
+    directory_visible: Mapped[bool] = mapped_column(
+        Boolean(), default=False, server_default="0"
+    )
 
     @property
     def participant_account_linked(self) -> bool:
@@ -269,6 +274,26 @@ class BookClubAnnouncement(Base):
     club: Mapped[BookClub] = relationship()
 
 
+class BookClubAnnouncementRead(Base):
+    __tablename__ = "bookclub_announcement_reads"
+    __table_args__ = (
+        UniqueConstraint(
+            "announcement_id", "member_id", name="uq_bookclub_announcement_member_read"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    announcement_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_announcements.id", ondelete="CASCADE"), index=True
+    )
+    member_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_members.id", ondelete="CASCADE"), index=True
+    )
+    read_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class BookClubReadingProgress(Base):
     __tablename__ = "bookclub_reading_progress"
     __table_args__ = (
@@ -304,9 +329,39 @@ class BookClubNotificationPreference(Base):
     polls: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
     meeting_reminders: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
     discussion_replies: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
+    delivery_frequency: Mapped[str] = mapped_column(
+        String(20), default="immediate", server_default="immediate"
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class BookClubDiscussionPost(Base):
+    __tablename__ = "bookclub_discussion_posts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    club_id: Mapped[int] = mapped_column(
+        ForeignKey("book_clubs.id", ondelete="CASCADE"), index=True
+    )
+    book_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_books.id", ondelete="CASCADE"), index=True
+    )
+    member_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_members.id", ondelete="CASCADE"), index=True
+    )
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("bookclub_discussion_posts.id", ondelete="CASCADE"), index=True
+    )
+    body: Mapped[str] = mapped_column(Text())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    member: Mapped[BookClubMember] = relationship()
 
 
 class BookClubTemplate(Base):
