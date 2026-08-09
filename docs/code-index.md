@@ -38,10 +38,10 @@ guaranteed exact) · **Purpose** (one clause) · **Detail in**.
 | Path | Lines | Purpose | Detail in |
 |---|---|---|---|
 | `backend/app/bookclub/models.py` | 454 | Club/member/book/meeting/participation/template/question/rating/voting/date-poll models; `BookClub.club_type` (library/self_serve); `BookClubMeeting.starts_at`/`.ends_at` are computed properties, not columns | `docs/backend/bookclub.md` |
-| `backend/app/bookclub/schemas.py` | 432 | Pydantic schemas incl. `PublicXResponse` subset types, `SelfServeClubSummary` (admin view) | `docs/backend/bookclub.md` |
-| `backend/app/bookclub/crud.py` | 1492 | DB ops for all bookclub entities incl. ratings, book voting, date polling (separate function sets), broadcast-email recipient selection, and `list_self_serve_clubs` (admin visibility); `ensure_default_templates` is `club_type`-aware (skips library defaults for self-serve clubs) | `docs/backend/bookclub.md` |
+| `backend/app/bookclub/schemas.py` | 461 | Pydantic schemas incl. `PublicXResponse` subset types, book-detail insights, `SelfServeClubSummary` (admin view) | `docs/backend/bookclub.md` |
+| `backend/app/bookclub/crud.py` | 1511 | DB ops for all bookclub entities incl. ratings, book-insight meeting history, book voting, date polling (separate function sets), broadcast-email recipient selection, and `list_self_serve_clubs` (admin visibility); `ensure_default_templates` is `club_type`-aware (skips library defaults for self-serve clubs) | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/admin_routes.py` | 37 | `GET /api/admin/bookclub/self-serve-clubs` — platform-admin-only, read-only, mounted on the primary `app` | `docs/backend/bookclub.md` |
-| `backend/app/bookclub/routes.py` | 613 | Members/books/meetings/roster/emails (incl. mark-sent)/giveaway/templates/questions (44 endpoints) | `docs/backend/bookclub.md` |
+| `backend/app/bookclub/routes.py` | 693 | Members/books (incl. detail insights)/meetings/roster/emails (incl. mark-sent)/giveaway/templates/questions (45 endpoints) | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/club_routes.py` | 199 | Club CRUD/switching + public `/api/public/clubs/{slug}` | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/access.py` | 57 | `require_selected_club`, club-scoping dependencies | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/catalogue.py` | 200 | Scrapes Vaughan PL (BiblioCommons) for book metadata | `docs/backend/bookclub.md` |
@@ -81,7 +81,7 @@ guaranteed exact) · **Purpose** (one clause) · **Detail in**.
 | `backend/tests/test_accounts.py` | 870 | Accounts API tests | `docs/backend/accounts.md` |
 | `backend/tests/test_auth.py` | 411 | Session/auth guard tests | `docs/backend/accounts.md` |
 | `backend/tests/test_availability.py` | 337 | Lendery availability-check tests | `docs/backend/lendery.md` |
-| `backend/tests/test_bookclub_api.py` | 912 | Bookclub API tests | `docs/backend/bookclub.md` |
+| `backend/tests/test_bookclub_api.py` | 1100 | Bookclub API tests | `docs/backend/bookclub.md` |
 | `backend/tests/test_bookclub_admin.py` | 147 | Admin self-serve-club visibility endpoint tests | `docs/backend/bookclub.md` |
 | `backend/tests/test_catalogue_import.py` | 87 | Bookclub catalogue-scraping tests | `docs/backend/bookclub.md` |
 | `backend/tests/test_lendery_api.py` | 962 | Lendery API tests | `docs/backend/lendery.md` |
@@ -113,7 +113,7 @@ from `backend/` — see root `CLAUDE.md` for full commands.
 | `frontend/admin-accounts.html` / `admin-accounts.js` | 70 / 178 | Platform-admin account management (canonical) | `docs/frontend/accounts.md` |
 | `frontend/admin-users.html` / `admin-users.js` | 2 / 12 | Minified LEGACY duplicate of admin-accounts — don't edit | `docs/frontend/accounts.md` |
 | `frontend/admin-bookclub.html` / `admin-bookclub.js` | 37 / 66 | Platform-admin, read-only list of self-serve clubs (support/abuse triage), at `/admin/bookclub` | `docs/backend/bookclub.md` |
-| `frontend/bookclub.html` / `bookclub.js` | 457 / 2298 | Book Club Manager app | `docs/frontend/bookclub.md` |
+| `frontend/bookclub.html` / `bookclub.js` | 468 / 2417 | Book Club Manager app | `docs/frontend/bookclub.md` |
 | `frontend/public-club.html` / `public-club.js` | 1 / 15 | Public read-only club page (minified), served on both `libtools.app` and `bookclub.libtools.app` | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-landing.html` / `bookclub-landing.js` | 1 / 20 | Root landing page for `bookclub.libtools.app` — "Start a club" goes to `/create` (in-subdomain), club-slug search | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-account.html` / `bookclub-account.js` | 114 / 214 | Facilitator create-club + participant join/login/forgot-password/verify-email/reset-password — one shared shell keyed by URL path, mirrors `account.html`/`account.js` | `docs/frontend/bookclub.md` |
@@ -127,7 +127,7 @@ from `backend/` — see root `CLAUDE.md` for full commands.
 | `frontend/quotes.js` | 614 | Static book-quote content data (not logic), used by index/dashboard | `docs/frontend/overview.md` |
 | `frontend/styles.css` | 1015 | `index.html`-only stylesheet | `docs/frontend/accounts.md` |
 | `frontend/platform.css` | 284 | Shared chrome across 10 pages | `docs/frontend/overview.md` |
-| `frontend/bookclub.css` | 654 | Bookclub app styles | `docs/frontend/bookclub.md` |
+| `frontend/bookclub.css` | 761 | Bookclub app styles | `docs/frontend/bookclub.md` |
 | `frontend/lendery.css` | 3280 | Lendery app styles — largest CSS file in repo | `docs/frontend/lendery.md` |
 | `frontend/lendery-export.css` | 350 | Lendery export UI styles | `docs/frontend/lendery.md` |
 | `frontend/check.css` | 70 | Quick-check page styles | `docs/frontend/lendery.md` |

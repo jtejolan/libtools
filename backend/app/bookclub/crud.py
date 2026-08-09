@@ -360,6 +360,25 @@ def list_meetings(
     return list(db.scalars(statement))
 
 
+def list_book_meetings(
+    db: Session, book_id: int
+) -> list[models.BookClubMeeting]:
+    return list(
+        db.scalars(
+            select(models.BookClubMeeting)
+            .options(selectinload(models.BookClubMeeting.participants))
+            .where(
+                models.BookClubMeeting.club_id == _club_id(db),
+                models.BookClubMeeting.book_id == book_id,
+            )
+            .order_by(
+                models.BookClubMeeting.meeting_date.desc(),
+                models.BookClubMeeting.id.desc(),
+            )
+        )
+    )
+
+
 def update_meeting(
     db: Session, meeting_id: int, changes: schemas.MeetingUpdate
 ) -> models.BookClubMeeting | None:

@@ -120,7 +120,7 @@ cookie-collision bug), `facilitator_auth.py` (`require_facilitator`/
 |---|---|---|---|---|
 | `router` | `/bookclub/clubs` | `club_routes.py` | 5 | Club CRUD, select-into-session, list accessible clubs |
 | `public_router` | `/api/public/clubs` | `club_routes.py` | 1 | `GET /{slug}` — public read-only club page |
-| `router` | `/bookclub` | `routes.py` | 44 | Members, books (incl. catalogue import), meetings, roster/participation, onboarding/arrival email preview/send/**mark-sent** and reminder preview/send, giveaway draw, templates, transit labels, discussion questions — whole router requires `require_selected_club` |
+| `router` | `/bookclub` | `routes.py` | 45 | Members, books (incl. catalogue import and read-only `/{book_id}/insights` aggregation), meetings, roster/participation, onboarding/arrival email preview/send/**mark-sent** and reminder preview/send, giveaway draw, templates, transit labels, discussion questions — whole router requires `require_selected_club` |
 
 ## Other modules
 
@@ -140,7 +140,7 @@ cookie-collision bug), `facilitator_auth.py` (`require_facilitator`/
   and `crud.py` so each can import it without a circular dependency;
   `models.py`'s `starts_at`/`ends_at` properties and `crud.py`'s
   `build_calendar_link()` both use it.
-- `crud.py` (1,492 lines) — DB operations for every model above, including
+- `crud.py` (1,511 lines) — DB operations for every model above, including
   ratings (`get_book_ratings`/`get_own_rating`/`upsert_rating`/`delete_rating`),
   book voting (`open_voting_round`/`add_candidate`/`set_candidate_status`/
   `cast_vote`/`close_voting_round`/etc), date polling (the
@@ -150,6 +150,10 @@ cookie-collision bug), `facilitator_auth.py` (`require_facilitator`/
   and `list_self_serve_clubs` (admin visibility — deliberately not scoped by
   `db.info["bookclub_id"]`, since it spans every self-serve club rather than
   one selected club).
+- `GET /bookclub/books/{book_id}/insights` is the staff Books-page detail
+  aggregate. It combines club-scoped meeting participation/discussion data
+  with participant-account ratings, returning per-meeting attendance and
+  reader-page impact without exposing participant email or authentication data.
 - `admin_routes.py` (37 lines) — the admin-only self-serve-club visibility
   router, see above.
 - `email_delivery.py` (26 lines) — thin plain-text wrapper over the shared

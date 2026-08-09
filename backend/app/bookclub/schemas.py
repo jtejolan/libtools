@@ -228,6 +228,35 @@ class BookResponse(BookBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class BookInsightRatingResponse(BaseModel):
+    participant_name: str
+    rating: int
+    review_text: str | None
+    updated_at: datetime
+
+
+class BookInsightMeetingResponse(BaseModel):
+    id: int
+    meeting_date: date
+    meeting_time: str | None
+    location: str | None
+    status: str
+    discussion_notes: str | None
+    roster_count: int
+    attendance_count: int
+    pages_read: int
+
+
+class BookInsightsResponse(BaseModel):
+    book_id: int
+    average_rating: float | None
+    rating_count: int
+    ratings: list[BookInsightRatingResponse]
+    meetings: list[BookInsightMeetingResponse]
+    total_attendance: int
+    reading_impact_pages: int
+
+
 class BookImportRequest(BaseModel):
     catalogue_url: HttpUrl
 

@@ -16,7 +16,9 @@ const state = {
   participation: [],
   memberSort: "name",
   bookSort: "title-asc",
+  bookDisplay: "list",
   bookUnscheduledOnly: false,
+  bookDetailId: null,
   memberQuery: "",
   meetingQuery: "",
   bookQuery: "",
@@ -512,6 +514,11 @@ const renderBooks = () => {
     : `${books.length} of ${state.books.length} books`;
   renderBookStats();
   const list = $("#book-list");
+  list.classList.toggle("display-list", state.bookDisplay === "list");
+  list.classList.toggle("compact-grid", state.bookDisplay === "grid");
+  $$('[data-book-display]').forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.bookDisplay === state.bookDisplay));
+  });
   if (!books.length) {
     list.innerHTML = `<div class="empty-collection"><span>▥</span><h2>${query || state.bookUnscheduledOnly ? "No matching books" : "Your book list is empty"}</h2><p>${query || state.bookUnscheduledOnly ? "Try a different title, author, ISBN, or genre." : "Add the first title selected for the club."}</p>${query || state.bookUnscheduledOnly ? "" : '<button class="primary-button" id="empty-add-book" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="M12 5v14" /></svg> Add book</button>'}</div>`;
     return;
@@ -526,9 +533,83 @@ const renderBooks = () => {
         : unscheduled
           ? '<span class="status-pill unscheduled-badge">Not yet scheduled</span>'
           : "";
-      return `<article class="book-card">${statusBadge}<div class="book-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="Cover of ${escapeHtml(book.title)}" loading="lazy" />` : escapeHtml(initials(book.title))}</div><div class="book-card-copy"><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author)}</p><p class="book-description">${escapeHtml(book.description || "No description has been added yet.")}</p><div class="book-meta">${publicationYear ? `<span>${escapeHtml(publicationYear)}</span>` : ""}${book.page_count ? `<span>${book.page_count} pages</span>` : ""}${book.genres ? `<span>${escapeHtml(book.genres)}</span>` : ""}</div></div><div class="book-card-actions"><button type="button" data-edit-book="${book.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg> Edit</button><button class="danger-text" type="button" data-delete-book="${book.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6" /><path d="M14 11v6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg> Delete</button></div></article>`;
+      return `<article class="book-card" data-open-book-detail="${book.id}" role="button" tabindex="0" aria-label="View details for ${escapeHtml(book.title)}">${statusBadge}<div class="book-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="Cover of ${escapeHtml(book.title)}" loading="lazy" />` : escapeHtml(initials(book.title))}</div><div class="book-card-copy"><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author)}</p><p class="book-description">${escapeHtml(book.description || "No description has been added yet.")}</p><div class="book-meta">${publicationYear ? `<span>${escapeHtml(publicationYear)}</span>` : ""}${book.page_count ? `<span>${book.page_count} pages</span>` : ""}${book.genres ? `<span>${escapeHtml(book.genres)}</span>` : ""}</div><span class="book-details-cue">View book details <b>→</b></span></div><div class="book-card-actions"><button type="button" data-edit-book="${book.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg> Edit</button><button class="danger-text" type="button" data-delete-book="${book.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6" /><path d="M14 11v6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg> Delete</button></div></article>`;
     })
     .join("");
+};
+
+const bookTimelineIds = () => {
+  const ids = [];
+  [...state.meetings]
+    .sort((left, right) => left.meeting_date.localeCompare(right.meeting_date) || left.id - right.id)
+    .forEach((meeting) => {
+      if (!ids.includes(meeting.book_id)) ids.push(meeting.book_id);
+    });
+  return ids;
+};
+
+const bookDetailNeighbors = (bookId) => {
+  let ids = bookTimelineIds();
+  if (!ids.includes(bookId)) {
+    ids = [...state.books]
+      .sort((left, right) => left.title.localeCompare(right.title, undefined, { sensitivity: "base" }))
+      .map((book) => book.id);
+  }
+  const index = ids.indexOf(bookId);
+  return {
+    previous: index > 0 ? ids[index - 1] : null,
+    next: index >= 0 && index < ids.length - 1 ? ids[index + 1] : null,
+  };
+};
+
+const updateBookDetailNavigation = () => {
+  const neighbors = bookDetailNeighbors(state.bookDetailId);
+  const previousButton = $("#book-detail-previous");
+  const nextButton = $("#book-detail-next");
+  previousButton.disabled = !neighbors.previous;
+  nextButton.disabled = !neighbors.next;
+  previousButton.dataset.bookId = neighbors.previous || "";
+  nextButton.dataset.bookId = neighbors.next || "";
+};
+
+const renderBookDetail = (book, insights) => {
+  const cover = safeImageUrl(book.cover_image_url);
+  const catalogueUrl = safeImageUrl(book.catalogue_url);
+  const publicationLabel = book.publication_date ? formatDate(book.publication_date) : "Not recorded";
+  const averageRating = insights.average_rating === null ? "—" : Number(insights.average_rating).toFixed(1);
+  const ratingStars = insights.average_rating === null
+    ? "No ratings yet"
+    : `${"★".repeat(Math.round(insights.average_rating))}${"☆".repeat(5 - Math.round(insights.average_rating))}`;
+  const meetings = insights.meetings.length
+    ? insights.meetings.map((meeting) => `<button class="book-history-entry" type="button" data-open-book-meeting="${meeting.id}"><span class="book-history-date">${escapeHtml(formatDate(meeting.meeting_date))}</span><div><strong>${meeting.status === "completed" ? "Completed session" : "Planned session"}</strong><p>${meeting.discussion_notes ? escapeHtml(meeting.discussion_notes) : "No discussion recap has been added."}</p><small>${meeting.attendance_count} of ${meeting.roster_count} attended${meeting.pages_read ? ` · ${meeting.pages_read.toLocaleString()} reader-pages` : ""}</small></div><b>→</b></button>`).join("")
+    : '<div class="book-detail-empty"><strong>No meetings yet</strong><p>This title is still waiting for its place in the club timeline.</p></div>';
+  const reviews = insights.ratings.length
+    ? insights.ratings.map((rating) => `<article class="book-review"><header><div class="review-avatar">${escapeHtml(initials(rating.participant_name))}</div><div><strong>${escapeHtml(rating.participant_name)}</strong><span aria-label="${rating.rating} out of 5 stars">${"★".repeat(rating.rating)}${"☆".repeat(5 - rating.rating)}</span></div></header><p>${escapeHtml(rating.review_text || "Rated without a written review.")}</p></article>`).join("")
+    : '<div class="book-detail-empty"><strong>No reader reviews yet</strong><p>Ratings submitted by club participants will appear here.</p></div>';
+  const genres = (book.genres || "").split(",").map((genre) => genre.trim()).filter(Boolean);
+
+  $("#book-detail-content").innerHTML = `<section class="book-detail-hero"><div class="book-detail-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="Cover of ${escapeHtml(book.title)}" />` : escapeHtml(initials(book.title))}</div><div class="book-detail-intro"><p class="eyebrow"><span></span> Book record</p><h2>${escapeHtml(book.title)}</h2><p class="book-detail-author">by ${escapeHtml(book.author)}</p><div class="book-detail-tags">${genres.map((genre) => `<span>${escapeHtml(genre)}</span>`).join("")}${book.page_count ? `<span>${book.page_count} pages</span>` : ""}</div><p class="book-detail-description">${escapeHtml(book.description || "No synopsis has been added yet.")}</p></div></section>
+    <section class="book-detail-metrics" aria-label="Book performance"><article><span>Average rating</span><strong>${averageRating}<small>/5</small></strong><p class="metric-stars">${ratingStars}</p></article><article><span>Club sessions</span><strong>${insights.meetings.length}</strong><p>${insights.meetings.length === 1 ? "meeting" : "meetings"} in the timeline</p></article><article><span>Total attendance</span><strong>${insights.total_attendance}</strong><p>reader visits</p></article><article><span>Reading impact</span><strong>${insights.reading_impact_pages.toLocaleString()}</strong><p>pages × attendees</p></article></section>
+    <div class="book-detail-grid"><section class="book-detail-panel"><div class="detail-section-heading"><div><p class="eyebrow"><span></span> Club history</p><h3>Meetings &amp; discussion</h3></div><span>${insights.meetings.length}</span></div><div class="book-history-list">${meetings}</div></section>
+    <section class="book-detail-panel"><div class="detail-section-heading"><div><p class="eyebrow"><span></span> Reader response</p><h3>Ratings &amp; reviews</h3></div><span>${insights.rating_count}</span></div><div class="book-review-list">${reviews}</div></section></div>
+    <div class="book-detail-grid book-detail-lower"><section class="book-detail-panel"><div class="detail-section-heading"><div><p class="eyebrow"><span></span> Edition details</p><h3>About this book</h3></div></div><dl class="book-facts"><div><dt>Published</dt><dd>${escapeHtml(publicationLabel)}</dd></div><div><dt>Publisher</dt><dd>${escapeHtml(book.publisher || "Not recorded")}</dd></div><div><dt>ISBN</dt><dd>${escapeHtml(book.isbn || "Not recorded")}</dd></div><div><dt>Series</dt><dd>${escapeHtml(book.series || "Not part of a recorded series")}</dd></div></dl>${catalogueUrl ? `<a class="book-catalogue-link" href="${escapeHtml(catalogueUrl)}" target="_blank" rel="noopener">View library catalogue record ↗</a>` : ""}</section>
+    <section class="book-detail-panel book-notes-panel"><div class="detail-section-heading"><div><p class="eyebrow"><span></span> Facilitator notes</p><h3>Ideas worth returning to</h3></div></div><p>${escapeHtml(book.discussion_notes || "No book-club notes have been added yet. Use Edit book to capture themes, context, or discussion ideas.")}</p></section></div>`;
+};
+
+const openBookDetail = async (bookId) => {
+  const book = state.books.find((entry) => entry.id === Number(bookId));
+  if (!book) return;
+  state.bookDetailId = book.id;
+  updateBookDetailNavigation();
+  const dialog = $("#book-detail-dialog");
+  $("#book-detail-content").innerHTML = '<div class="book-detail-loading"><span></span><p>Opening the book record…</p></div>';
+  if (!dialog.open) dialog.showModal();
+  try {
+    const insights = await request(`/bookclub/books/${book.id}/insights`);
+    if (state.bookDetailId === book.id) renderBookDetail(book, insights);
+  } catch (error) {
+    $("#book-detail-content").innerHTML = `<div class="book-detail-empty large"><strong>Could not open this book</strong><p>${escapeHtml(error.message)}</p></div>`;
+  }
 };
 
 const renderMeetingView = () => {
@@ -1822,6 +1903,19 @@ document.addEventListener("click", async (event) => {
     return setView("meeting");
   }
 
+  const bookMeetingButton = event.target.closest("[data-open-book-meeting]");
+  if (bookMeetingButton) {
+    state.meetingId = Number(bookMeetingButton.dataset.openBookMeeting);
+    $("#book-detail-dialog").close();
+    await loadSelectedMeeting();
+    return setView("meeting");
+  }
+
+  const bookDetailCard = event.target.closest("[data-open-book-detail]");
+  if (bookDetailCard && !event.target.closest(".book-card-actions")) {
+    return openBookDetail(Number(bookDetailCard.dataset.openBookDetail));
+  }
+
   const editBook = event.target.closest("[data-edit-book]");
   if (editBook) {
     return openBookDialog(
@@ -2040,6 +2134,12 @@ $("#book-sort").addEventListener("change", (event) => {
   state.bookSort = event.target.value;
   renderBooks();
 });
+$$('[data-book-display]').forEach((button) => {
+  button.addEventListener("click", () => {
+    state.bookDisplay = button.dataset.bookDisplay;
+    renderBooks();
+  });
+});
 $("#add-member").addEventListener("click", () => openMemberDialog());
 const openDefaultMeeting = async () => {
   state.meetingId = chooseDefaultMeeting();
@@ -2050,6 +2150,25 @@ $("#open-next-meeting").addEventListener("click", openDefaultMeeting);
 $("#add-book").addEventListener("click", () => openBookDialog());
 $("#book-list").addEventListener("click", (event) => {
   if (event.target.closest("#empty-add-book")) openBookDialog();
+});
+$("#book-list").addEventListener("keydown", (event) => {
+  if (!["Enter", " "].includes(event.key) || event.target.closest(".book-card-actions")) return;
+  const card = event.target.closest("[data-open-book-detail]");
+  if (!card || event.target !== card) return;
+  event.preventDefault();
+  openBookDetail(Number(card.dataset.openBookDetail));
+});
+$("#book-detail-edit").addEventListener("click", () => {
+  const book = state.books.find((entry) => entry.id === state.bookDetailId);
+  if (!book) return;
+  $("#book-detail-dialog").close();
+  openBookDialog(book);
+});
+$("#book-detail-previous").addEventListener("click", (event) => {
+  if (event.currentTarget.dataset.bookId) openBookDetail(Number(event.currentTarget.dataset.bookId));
+});
+$("#book-detail-next").addEventListener("click", (event) => {
+  if (event.currentTarget.dataset.bookId) openBookDetail(Number(event.currentTarget.dataset.bookId));
 });
 $("#edit-meeting").addEventListener("click", () => openMeetingDialog(currentMeeting()));
 $("#delete-meeting").addEventListener("click", async () => {

@@ -8,7 +8,8 @@ from sqlalchemy.pool import StaticPool
 
 from database import Base
 from accounts.models import LibtoolsUser
-from bookclub.models import BookClub, BookClubAccess, BookClubMeeting
+from bookclub.models import BookClub, BookClubAccess, BookClubMeeting, BookClubRating
+from bookclub.participant_models import ParticipantAccount
 from lendery.routes import get_db
 from main import app
 from security import hash_password
@@ -137,8 +138,8 @@ class BookClubApiTests(unittest.TestCase):
         entrypoint = self.client.get("/bookclub")
         self.assertEqual(entrypoint.status_code, 200)
         self.assertIn("Book Club Manager", entrypoint.text)
-        self.assertIn('/static/bookclub.js?v=30', entrypoint.text)
-        self.assertIn('/static/bookclub.css?v=31', entrypoint.text)
+        self.assertIn('/static/bookclub.js?v=34', entrypoint.text)
+        self.assertIn('/static/bookclub.css?v=36', entrypoint.text)
         self.assertNotIn('data-view="messages"', entrypoint.text)
         self.assertIn('id="open-reminder-dialog"', entrypoint.text)
         self.assertIn('id="send-book-dialog"', entrypoint.text)
@@ -227,6 +228,66 @@ class BookClubApiTests(unittest.TestCase):
         self.assertEqual(deleted_meeting.status_code, 204)
         deleted_book = self.client.delete(f"/bookclub/books/{book['id']}")
         self.assertEqual(deleted_book.status_code, 204)
+
+    def test_book_insights_combine_meetings_attendance_and_reader_reviews(self) -> None:
+        book = self.create_book("The Dispossessed")
+        meeting = self.client.post(
+            "/bookclub/meetings",
+            json={
+                "meeting_date": "2026-08-08",
+                "meeting_time": "7:00 PM",
+                "location": "PBRL",
+                "book_id": book["id"],
+            },
+        ).json()
+        member = self.create_member("Alex Reader", "alex-reader@example.com")
+        attended = self.client.put(
+            f"/bookclub/meetings/{meeting['id']}/members/{member['id']}",
+            json={"attended": True},
+        )
+        self.assertEqual(attended.status_code, 200, attended.text)
+        updated_meeting = self.client.patch(
+            f"/bookclub/meetings/{meeting['id']}",
+            json={
+                "status": "completed",
+                "discussion_notes": "The group debated freedom and responsibility.",
+            },
+        )
+        self.assertEqual(updated_meeting.status_code, 200, updated_meeting.text)
+
+        with self.sessions() as db:
+            participant = ParticipantAccount(
+                club_id=1,
+                name="Jamie Reviewer",
+                email="jamie-reviewer@example.com",
+                password_hash=hash_password("participant-password"),
+                role="member",
+            )
+            db.add(participant)
+            db.flush()
+            db.add(
+                BookClubRating(
+                    club_id=1,
+                    book_id=book["id"],
+                    participant_id=participant.id,
+                    rating=5,
+                    review_text="Ambitious and beautifully argued.",
+                )
+            )
+            db.commit()
+
+        response = self.client.get(f"/bookclub/books/{book['id']}/insights")
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual(body["average_rating"], 5)
+        self.assertEqual(body["rating_count"], 1)
+        self.assertEqual(body["ratings"][0]["participant_name"], "Jamie Reviewer")
+        self.assertEqual(body["meetings"][0]["attendance_count"], 1)
+        self.assertEqual(body["meetings"][0]["roster_count"], 1)
+        self.assertEqual(body["meetings"][0]["pages_read"], 304)
+        self.assertEqual(body["total_attendance"], 1)
+        self.assertEqual(body["reading_impact_pages"], 304)
+        self.assertIn("freedom", body["meetings"][0]["discussion_notes"])
 
     def test_roster_is_built_manually_and_tracks_attendance_and_giveaway(self) -> None:
         alex = self.create_member("Alex Reader", "ALEX@example.com")

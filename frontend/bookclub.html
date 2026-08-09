@@ -10,9 +10,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/bookclub.css?v=35" />
+    <link rel="stylesheet" href="/static/bookclub.css?v=36" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub.js?v=33" defer></script>
+    <script src="/static/bookclub.js?v=34" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -209,6 +209,7 @@
               <label class="search-box"><span>⌕</span><span class="sr-only">Search books</span><input id="book-search" type="search" placeholder="Search title, author, ISBN, or genre…" /></label>
               <label class="check-wrap"><input type="checkbox" id="book-unscheduled-filter" /><span>Not yet scheduled only</span></label>
               <label class="book-sort-control"><span>Sort by</span><select id="book-sort"><option value="title-asc">Title: A–Z</option><option value="title-desc">Title: Z–A</option><option value="pages-asc">Shortest to longest</option><option value="pages-desc">Longest to shortest</option><option value="year-asc">Oldest to newest</option><option value="year-desc">Newest to oldest</option><option value="author-asc">Author: A–Z</option></select></label>
+              <div class="book-view-toggle" role="group" aria-label="Book display"><button type="button" data-book-display="list" aria-pressed="true"><span aria-hidden="true">☷</span> List</button><button type="button" data-book-display="grid" aria-pressed="false"><span aria-hidden="true">▦</span> Compact</button></div>
               <p id="book-count">—</p>
             </section>
             <div class="book-list" id="book-list"></div>
@@ -324,6 +325,16 @@
         <p class="form-error" id="meeting-error"></p>
         <div class="dialog-actions"><button class="text-button danger-text" id="delete-meeting" type="button" hidden>Delete meeting</button><div class="dialog-action-group"><button class="text-button" type="button" data-close="meeting-dialog">Cancel</button><button class="primary-button" type="submit">Save meeting</button></div></div>
       </form>
+    </dialog>
+
+    <dialog class="book-detail-dialog" id="book-detail-dialog">
+      <div class="book-detail-shell">
+        <div class="book-detail-topbar">
+          <div class="book-detail-navigation"><button class="quiet-button" id="book-detail-previous" type="button">← Previous</button><button class="quiet-button" id="book-detail-next" type="button">Next →</button></div>
+          <div class="book-detail-actions"><button class="secondary-button" id="book-detail-edit" type="button">Edit book</button><button class="icon-button" type="button" data-close="book-detail-dialog" aria-label="Close book details"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button></div>
+        </div>
+        <div id="book-detail-content" aria-live="polite"><div class="book-detail-loading"><span></span><p>Opening the book record…</p></div></div>
+      </div>
     </dialog>
 
     <dialog class="form-dialog book-dialog" id="book-dialog">

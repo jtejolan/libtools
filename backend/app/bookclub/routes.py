@@ -157,6 +157,61 @@ def get_book(book_id: int, db: DatabaseSession):
     return book
 
 
+@router.get(
+    "/books/{book_id}/insights",
+    response_model=schemas.BookInsightsResponse,
+)
+def get_book_insights(book_id: int, db: DatabaseSession):
+    book = crud.get_book(db, book_id)
+    if book is None:
+        raise _not_found("Book not found")
+
+    meetings = crud.list_book_meetings(db, book_id)
+    meeting_items = []
+    total_attendance = 0
+    for meeting in meetings:
+        attendance_count = sum(1 for entry in meeting.participants if entry.attended)
+        total_attendance += attendance_count
+        meeting_items.append(
+            schemas.BookInsightMeetingResponse(
+                id=meeting.id,
+                meeting_date=meeting.meeting_date,
+                meeting_time=meeting.meeting_time,
+                location=meeting.location,
+                status=meeting.status,
+                discussion_notes=meeting.discussion_notes,
+                roster_count=len(meeting.participants),
+                attendance_count=attendance_count,
+                pages_read=attendance_count * (book.page_count or 0),
+            )
+        )
+
+    rating_rows = crud.get_book_ratings(db, book_id)
+    ratings = [
+        schemas.BookInsightRatingResponse(
+            participant_name=name,
+            rating=rating.rating,
+            review_text=rating.review_text,
+            updated_at=rating.updated_at,
+        )
+        for rating, name in rating_rows
+    ]
+    average_rating = (
+        round(sum(item.rating for item in ratings) / len(ratings), 2)
+        if ratings
+        else None
+    )
+    return schemas.BookInsightsResponse(
+        book_id=book.id,
+        average_rating=average_rating,
+        rating_count=len(ratings),
+        ratings=ratings,
+        meetings=meeting_items,
+        total_attendance=total_attendance,
+        reading_impact_pages=total_attendance * (book.page_count or 0),
+    )
+
+
 @router.patch("/books/{book_id}", response_model=schemas.BookResponse)
 def update_book(
     book_id: int, changes: schemas.BookUpdate, db: DatabaseSession
