@@ -194,7 +194,10 @@ def account_page() -> FileResponse:
 
 @app.get("/dashboard", include_in_schema=False)
 def dashboard_page() -> FileResponse:
-    return FileResponse(FRONTEND_DIR / "dashboard.html")
+    return FileResponse(
+        FRONTEND_DIR / "dashboard.html",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.get("/admin/accounts", include_in_schema=False)
