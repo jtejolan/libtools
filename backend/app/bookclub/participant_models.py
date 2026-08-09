@@ -34,6 +34,11 @@ class ParticipantAccount(Base):
     role: Mapped[str] = mapped_column(String(20), default="member", server_default="member")
     session_version: Mapped[int] = mapped_column(Integer(), default=1, server_default="1")
     active: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="1")
+    # Set via a signed, no-login-required unsubscribe link (see
+    # participant_unsubscribe.py) — excludes this participant from future
+    # facilitator broadcast emails. Doesn't affect transactional email
+    # (verify/reset), only crud.list_broadcastable_participants.
+    unsubscribed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

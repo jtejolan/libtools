@@ -4,7 +4,7 @@ Reference doc for the files every package (`accounts/`, `bookclub/`,
 `lendery/`) can depend on. See `docs/architecture.md` for how they fit
 together narratively; this file is the module → symbol lookup.
 
-## `main.py` (366 lines)
+## `main.py` (402 lines)
 
 App wiring only — no business logic. `lifespan()` runs Alembic migrations to
 `head` (`_run_migrations()`) then seeds/repairs platform accounts

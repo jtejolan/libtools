@@ -25,12 +25,18 @@ from accounts.bootstrap import (
 from accounts.routes import admin_router as account_admin_router
 from accounts.routes import router as account_router
 from bookclub import models as bookclub_models
+from bookclub.admin_routes import router as bookclub_admin_router
 from bookclub.club_routes import public_router as public_bookclub_router
 from bookclub.club_routes import router as bookclub_club_router
+from bookclub.date_poll_routes import router as bookclub_date_poll_router
+from bookclub.facilitator_routes import router as bookclub_facilitator_router
 from bookclub.participant_routes import club_router as bookclub_participant_club_router
 from bookclub.participant_routes import router as bookclub_participant_router
 from bookclub.participant_session import ParticipantSessionMiddleware
+from bookclub.rating_routes import router as bookclub_rating_router
 from bookclub.routes import router as bookclub_router
+from bookclub.unsubscribe_routes import router as bookclub_unsubscribe_router
+from bookclub.voting_routes import router as bookclub_voting_router
 from lendery import models
 from lendery.routes import public_router as public_lendery_router
 from lendery.routes import router as lendery_router
@@ -95,6 +101,7 @@ app.include_router(account_admin_router)
 app.include_router(lendery_router)
 app.include_router(bookclub_club_router)
 app.include_router(bookclub_router)
+app.include_router(bookclub_admin_router)
 app.include_router(public_bookclub_router)
 app.include_router(public_lendery_router)
 app.mount(
@@ -201,6 +208,14 @@ def users_admin_page() -> RedirectResponse:
     )
 
 
+@app.get("/admin/bookclub", include_in_schema=False)
+def bookclub_admin_page() -> FileResponse:
+    return FileResponse(
+        FRONTEND_DIR / "admin-bookclub.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @app.get("/clubs/{slug}", include_in_schema=False)
 def public_club_page(slug: str) -> FileResponse:
     return FileResponse(FRONTEND_DIR / "public-club.html")
@@ -297,6 +312,11 @@ bookclub_public_app.add_middleware(
 bookclub_public_app.include_router(public_bookclub_router)
 bookclub_public_app.include_router(bookclub_participant_router)
 bookclub_public_app.include_router(bookclub_participant_club_router)
+bookclub_public_app.include_router(bookclub_rating_router)
+bookclub_public_app.include_router(bookclub_voting_router)
+bookclub_public_app.include_router(bookclub_date_poll_router)
+bookclub_public_app.include_router(bookclub_unsubscribe_router)
+bookclub_public_app.include_router(bookclub_facilitator_router)
 bookclub_public_app.mount(
     "/static",
     StaticFiles(directory=FRONTEND_DIR),
@@ -369,6 +389,22 @@ def bookclub_participant_reset_password_page() -> FileResponse:
 def bookclub_participant_dashboard_page() -> FileResponse:
     return FileResponse(
         FRONTEND_DIR / "bookclub-participant.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@bookclub_public_app.get("/manage", include_in_schema=False)
+def bookclub_facilitator_console_page() -> FileResponse:
+    return FileResponse(
+        FRONTEND_DIR / "bookclub-manage.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@bookclub_public_app.get("/unsubscribe", include_in_schema=False)
+def bookclub_unsubscribe_page() -> FileResponse:
+    return FileResponse(
+        FRONTEND_DIR / "bookclub-unsubscribe.html",
         headers={"Cache-Control": "no-store"},
     )
 

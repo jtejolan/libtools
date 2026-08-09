@@ -2,6 +2,7 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
@@ -274,4 +275,180 @@ class BookClubDiscussionQuestion(Base):
 
     meeting: Mapped[BookClubMeeting] = relationship(
         back_populates="discussion_questions"
+    )
+
+
+class BookClubRating(Base):
+    """A participant's rating of a book, visible to every participant in
+    the club (not just an aggregate) — see docs/backend/bookclub.md. FK to
+    ParticipantAccount is string-based (bookclub_participant_accounts.id)
+    rather than an ORM relationship, since that model lives in
+    participant_models.py — crud.py joins in the participant's name
+    explicitly rather than via a cross-module relationship() (no existing
+    precedent for that in this package).
+    """
+
+    __tablename__ = "bookclub_ratings"
+    __table_args__ = (
+        UniqueConstraint("book_id", "participant_id", name="uq_bookclub_rating_book_participant"),
+        CheckConstraint("rating BETWEEN 1 AND 5", name="ck_bookclub_rating_range"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    club_id: Mapped[int] = mapped_column(
+        ForeignKey("book_clubs.id", ondelete="CASCADE"), index=True
+    )
+    book_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_books.id", ondelete="CASCADE"), index=True
+    )
+    participant_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_participant_accounts.id", ondelete="CASCADE"), index=True
+    )
+    rating: Mapped[int] = mapped_column(Integer())
+    review_text: Mapped[str | None] = mapped_column(Text())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class BookClubVotingRound(Base):
+    """A poll for "what should we read next". Simplified from the original
+    draft/open/closed design to just open/closed: since facilitators are
+    now ParticipantAccounts (role="owner") rather than a separate
+    LibtoolsUser-based flow, there's no longer a reason for a candidate to
+    reference two different proposer types, and no strong need for a
+    prep-only "draft" stage before participants can see it — a facilitator
+    opens a round with an initial candidate list already in hand. One open
+    round per club at a time, enforced at the application layer in crud.py
+    (not a DB constraint — SQLite's partial-unique-index support is
+    inconsistent across the sqlite/Postgres backends this app supports).
+    """
+
+    __tablename__ = "bookclub_voting_rounds"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    club_id: Mapped[int] = mapped_column(
+        ForeignKey("book_clubs.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default="open", server_default="open")
+    winning_book_id: Mapped[int | None] = mapped_column(
+        ForeignKey("bookclub_books.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class BookClubBookCandidate(Base):
+    """A book nominated for a voting round. `proposed_by_participant_id` is
+    always a ParticipantAccount — a facilitator's own proposals are just an
+    owner-role participant proposing (auto-approved); a member's proposal
+    starts "pending" until a facilitator approves or rejects it.
+    """
+
+    __tablename__ = "bookclub_book_candidates"
+    __table_args__ = (
+        UniqueConstraint("voting_round_id", "book_id", name="uq_bookclub_candidate_round_book"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    voting_round_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_voting_rounds.id", ondelete="CASCADE"), index=True
+    )
+    book_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_books.id", ondelete="CASCADE"), index=True
+    )
+    proposed_by_participant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("bookclub_participant_accounts.id", ondelete="SET NULL")
+    )
+    status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    book: Mapped[BookClubBook] = relationship()
+
+
+class BookClubVote(Base):
+    __tablename__ = "bookclub_votes"
+    __table_args__ = (
+        UniqueConstraint("voting_round_id", "participant_id", name="uq_bookclub_vote_round_participant"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    voting_round_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_voting_rounds.id", ondelete="CASCADE"), index=True
+    )
+    candidate_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_book_candidates.id", ondelete="CASCADE"), index=True
+    )
+    participant_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_participant_accounts.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class BookClubDatePoll(Base):
+    """A "when should we meet next" poll — deliberately a separate,
+    independent system from BookClubVotingRound/BookClubBookCandidate/
+    BookClubVote (not a shared generalized poll), per an explicit product
+    choice: each can change shape later without the other compromising it.
+    Simpler than book voting in one respect — date options are
+    facilitator-only, so there's no candidate approval queue here at all.
+    """
+
+    __tablename__ = "bookclub_date_polls"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    club_id: Mapped[int] = mapped_column(
+        ForeignKey("book_clubs.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default="open", server_default="open")
+    winning_date: Mapped[date | None] = mapped_column(Date())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class BookClubDatePollOption(Base):
+    __tablename__ = "bookclub_date_poll_options"
+    __table_args__ = (
+        UniqueConstraint("poll_id", "option_date", name="uq_bookclub_date_poll_option"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    poll_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_date_polls.id", ondelete="CASCADE"), index=True
+    )
+    option_date: Mapped[date] = mapped_column(Date())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class BookClubDatePollVote(Base):
+    __tablename__ = "bookclub_date_poll_votes"
+    __table_args__ = (
+        UniqueConstraint("poll_id", "participant_id", name="uq_bookclub_date_poll_vote"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    poll_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_date_polls.id", ondelete="CASCADE"), index=True
+    )
+    option_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_date_poll_options.id", ondelete="CASCADE"), index=True
+    )
+    participant_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_participant_accounts.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
     )

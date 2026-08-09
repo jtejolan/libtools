@@ -87,3 +87,21 @@ def end_participant_session(request: Request) -> None:
     session = get_participant_session(request)
     session.pop(SESSION_PARTICIPANT_ID, None)
     session.pop(SESSION_PARTICIPANT_VERSION, None)
+
+
+def require_participant_club(participant: CurrentParticipant, db: DatabaseSession) -> BookClub:
+    """Resolve the signed-in participant's club and set db.info["bookclub_id"]
+    the same way access.py's require_selected_club does for staff — lets any
+    signed-in participant (member or owner) call club-scoped crud.py reads
+    (e.g. listing books to rate). facilitator_auth.require_facilitator layers
+    the owner-only check on top of this for write access.
+    """
+    club = db.get(BookClub, participant.club_id)
+    if club is None:
+        raise HTTPException(status_code=404, detail="Book club not found")
+    db.info["bookclub_id"] = club.id
+    db.info["bookclub"] = club
+    return club
+
+
+CurrentParticipantClub = Annotated[BookClub, Depends(require_participant_club)]

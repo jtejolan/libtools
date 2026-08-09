@@ -420,3 +420,13 @@ class DiscussionQuestionResponse(BaseModel):
     position: int
     text: str
     model_config = ConfigDict(from_attributes=True)
+
+
+class SelfServeClubSummary(BaseModel):
+    id: int
+    name: str
+    slug: str
+    facilitator_name: str | None
+    facilitator_email: str | None
+    participant_count: int
+    created_at: datetime | None

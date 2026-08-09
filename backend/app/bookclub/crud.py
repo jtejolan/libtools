@@ -11,6 +11,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from bookclub import email_delivery, models, schemas
+from bookclub.participant_models import ParticipantAccount
+from bookclub.participant_schemas import RatingSubmit
 from bookclub.scheduling import meeting_datetime_range, parse_meeting_time
 
 DEFAULT_TEMPLATES = (
@@ -812,6 +814,15 @@ def render_reminder_email(
 
 def ensure_default_templates(db: Session) -> None:
     club_id = _club_id(db)
+    club = db.get(models.BookClub, club_id)
+    # DEFAULT_TEMPLATES is hardcoded library-specific content (physical
+    # pickup/transfer copy, a named organizer) — meaningless, confusing
+    # content for a self-serve club, so it's never auto-seeded there.
+    # Self-serve clubs start with zero templates; facilitators create their
+    # own. This is called from list_templates/get_template (and therefore
+    # update_template), so guarding here covers every read path.
+    if club is not None and club.club_type != "library":
+        return
     existing = set(
         db.scalars(
             select(models.BookClubTemplate.key).where(
@@ -1105,3 +1116,377 @@ def delete_question(db: Session, question_id: int) -> bool:
         db.rollback()
         raise
     return True
+
+
+def get_book_ratings(db: Session, book_id: int) -> list[tuple[models.BookClubRating, str]]:
+    rows = db.execute(
+        select(models.BookClubRating, ParticipantAccount.name)
+        .join(ParticipantAccount, ParticipantAccount.id == models.BookClubRating.participant_id)
+        .where(
+            models.BookClubRating.book_id == book_id,
+            models.BookClubRating.club_id == _club_id(db),
+        )
+        .order_by(models.BookClubRating.created_at)
+    ).all()
+    return [(rating, name) for rating, name in rows]
+
+
+def get_own_rating(db: Session, book_id: int, participant_id: int) -> models.BookClubRating | None:
+    return db.scalar(
+        select(models.BookClubRating).where(
+            models.BookClubRating.book_id == book_id,
+            models.BookClubRating.participant_id == participant_id,
+            models.BookClubRating.club_id == _club_id(db),
+        )
+    )
+
+
+def upsert_rating(
+    db: Session, book_id: int, participant_id: int, value: RatingSubmit
+) -> models.BookClubRating:
+    rating = get_own_rating(db, book_id, participant_id)
+    if rating is None:
+        rating = models.BookClubRating(
+            club_id=_club_id(db), book_id=book_id, participant_id=participant_id
+        )
+        db.add(rating)
+    rating.rating = value.rating
+    rating.review_text = value.review_text
+    return _commit(db, rating)
+
+
+def delete_rating(db: Session, book_id: int, participant_id: int) -> bool:
+    rating = get_own_rating(db, book_id, participant_id)
+    if rating is None:
+        return False
+    db.delete(rating)
+    db.commit()
+    return True
+
+
+def get_current_voting_round(db: Session) -> models.BookClubVotingRound | None:
+    return db.scalar(
+        select(models.BookClubVotingRound)
+        .where(models.BookClubVotingRound.club_id == _club_id(db))
+        .order_by(models.BookClubVotingRound.created_at.desc())
+    )
+
+
+def get_open_voting_round(db: Session) -> models.BookClubVotingRound | None:
+    return db.scalar(
+        select(models.BookClubVotingRound).where(
+            models.BookClubVotingRound.club_id == _club_id(db),
+            models.BookClubVotingRound.status == "open",
+        )
+    )
+
+
+def open_voting_round(
+    db: Session, candidate_book_ids: list[int], proposer_id: int
+) -> models.BookClubVotingRound:
+    if get_open_voting_round(db) is not None:
+        raise ValueError("A voting round is already open")
+    round_ = models.BookClubVotingRound(club_id=_club_id(db), status="open")
+    db.add(round_)
+    db.flush()
+    for book_id in candidate_book_ids:
+        db.add(
+            models.BookClubBookCandidate(
+                voting_round_id=round_.id,
+                book_id=book_id,
+                proposed_by_participant_id=proposer_id,
+                status="approved",
+            )
+        )
+    return _commit(db, round_)
+
+
+def add_candidate(
+    db: Session, voting_round_id: int, book_id: int, proposer_id: int, *, auto_approve: bool
+) -> models.BookClubBookCandidate:
+    candidate = models.BookClubBookCandidate(
+        voting_round_id=voting_round_id,
+        book_id=book_id,
+        proposed_by_participant_id=proposer_id,
+        status="approved" if auto_approve else "pending",
+    )
+    db.add(candidate)
+    return _commit(db, candidate)
+
+
+def list_candidates(db: Session, voting_round_id: int) -> list[models.BookClubBookCandidate]:
+    return list(
+        db.scalars(
+            select(models.BookClubBookCandidate)
+            .options(selectinload(models.BookClubBookCandidate.book))
+            .where(models.BookClubBookCandidate.voting_round_id == voting_round_id)
+            .order_by(models.BookClubBookCandidate.created_at)
+        )
+    )
+
+
+def get_candidate(db: Session, candidate_id: int) -> models.BookClubBookCandidate | None:
+    return db.scalar(
+        select(models.BookClubBookCandidate)
+        .join(models.BookClubVotingRound)
+        .where(
+            models.BookClubBookCandidate.id == candidate_id,
+            models.BookClubVotingRound.club_id == _club_id(db),
+        )
+    )
+
+
+def set_candidate_status(
+    db: Session, candidate_id: int, value: str
+) -> models.BookClubBookCandidate | None:
+    candidate = get_candidate(db, candidate_id)
+    if candidate is None:
+        return None
+    candidate.status = value
+    return _commit(db, candidate)
+
+
+def candidate_proposer_names(
+    db: Session, candidates: list[models.BookClubBookCandidate]
+) -> dict[int, str]:
+    participant_ids = {c.proposed_by_participant_id for c in candidates if c.proposed_by_participant_id}
+    if not participant_ids:
+        return {}
+    rows = db.execute(
+        select(ParticipantAccount.id, ParticipantAccount.name).where(
+            ParticipantAccount.id.in_(participant_ids)
+        )
+    ).all()
+    return dict(rows)
+
+
+def vote_counts(db: Session, voting_round_id: int) -> dict[int, int]:
+    rows = db.execute(
+        select(models.BookClubVote.candidate_id, func.count())
+        .where(models.BookClubVote.voting_round_id == voting_round_id)
+        .group_by(models.BookClubVote.candidate_id)
+    ).all()
+    return dict(rows)
+
+
+def get_own_vote(db: Session, voting_round_id: int, participant_id: int) -> models.BookClubVote | None:
+    return db.scalar(
+        select(models.BookClubVote).where(
+            models.BookClubVote.voting_round_id == voting_round_id,
+            models.BookClubVote.participant_id == participant_id,
+        )
+    )
+
+
+def cast_vote(
+    db: Session, voting_round_id: int, candidate_id: int, participant_id: int
+) -> models.BookClubVote:
+    vote = get_own_vote(db, voting_round_id, participant_id)
+    if vote is None:
+        vote = models.BookClubVote(
+            voting_round_id=voting_round_id, participant_id=participant_id, candidate_id=candidate_id
+        )
+        db.add(vote)
+    else:
+        vote.candidate_id = candidate_id
+    return _commit(db, vote)
+
+
+def remove_vote(db: Session, voting_round_id: int, participant_id: int) -> bool:
+    vote = get_own_vote(db, voting_round_id, participant_id)
+    if vote is None:
+        return False
+    db.delete(vote)
+    db.commit()
+    return True
+
+
+def close_voting_round(db: Session, voting_round_id: int) -> models.BookClubVotingRound:
+    round_ = db.get(models.BookClubVotingRound, voting_round_id)
+    if round_ is None or round_.club_id != _club_id(db):
+        raise LookupError("Voting round not found")
+    if round_.status != "open":
+        raise ValueError("This voting round is already closed")
+    counts = vote_counts(db, voting_round_id)
+    approved = [c for c in list_candidates(db, voting_round_id) if c.status == "approved"]
+    # Ties go to whichever approved candidate was proposed first (lowest id).
+    winner = max(approved, key=lambda c: (counts.get(c.id, 0), -c.id), default=None) if approved else None
+    round_.status = "closed"
+    round_.closed_at = datetime.now(timezone.utc)
+    round_.winning_book_id = winner.book_id if winner else None
+    return _commit(db, round_)
+
+
+# ---- meeting-date polling: a deliberately independent system from book
+# voting above, not a shared generalized poll (see BookClubDatePoll's
+# docstring in models.py). Mirrors the same shape, minus the candidate
+# approval queue, since date options are facilitator-only.
+
+
+def get_current_date_poll(db: Session) -> models.BookClubDatePoll | None:
+    return db.scalar(
+        select(models.BookClubDatePoll)
+        .where(models.BookClubDatePoll.club_id == _club_id(db))
+        .order_by(models.BookClubDatePoll.created_at.desc())
+    )
+
+
+def get_open_date_poll(db: Session) -> models.BookClubDatePoll | None:
+    return db.scalar(
+        select(models.BookClubDatePoll).where(
+            models.BookClubDatePoll.club_id == _club_id(db),
+            models.BookClubDatePoll.status == "open",
+        )
+    )
+
+
+def open_date_poll(db: Session, option_dates: list) -> models.BookClubDatePoll:
+    if get_open_date_poll(db) is not None:
+        raise ValueError("A date poll is already open")
+    poll = models.BookClubDatePoll(club_id=_club_id(db), status="open")
+    db.add(poll)
+    db.flush()
+    for option_date in option_dates:
+        db.add(models.BookClubDatePollOption(poll_id=poll.id, option_date=option_date))
+    return _commit(db, poll)
+
+
+def add_date_option(db: Session, poll_id: int, option_date) -> models.BookClubDatePollOption:
+    option = models.BookClubDatePollOption(poll_id=poll_id, option_date=option_date)
+    db.add(option)
+    return _commit(db, option)
+
+
+def list_date_options(db: Session, poll_id: int) -> list[models.BookClubDatePollOption]:
+    return list(
+        db.scalars(
+            select(models.BookClubDatePollOption)
+            .where(models.BookClubDatePollOption.poll_id == poll_id)
+            .order_by(models.BookClubDatePollOption.option_date)
+        )
+    )
+
+
+def get_date_option(db: Session, option_id: int) -> models.BookClubDatePollOption | None:
+    return db.scalar(
+        select(models.BookClubDatePollOption)
+        .join(models.BookClubDatePoll)
+        .where(
+            models.BookClubDatePollOption.id == option_id,
+            models.BookClubDatePoll.club_id == _club_id(db),
+        )
+    )
+
+
+def date_poll_vote_counts(db: Session, poll_id: int) -> dict[int, int]:
+    rows = db.execute(
+        select(models.BookClubDatePollVote.option_id, func.count())
+        .where(models.BookClubDatePollVote.poll_id == poll_id)
+        .group_by(models.BookClubDatePollVote.option_id)
+    ).all()
+    return dict(rows)
+
+
+def get_own_date_vote(db: Session, poll_id: int, participant_id: int) -> models.BookClubDatePollVote | None:
+    return db.scalar(
+        select(models.BookClubDatePollVote).where(
+            models.BookClubDatePollVote.poll_id == poll_id,
+            models.BookClubDatePollVote.participant_id == participant_id,
+        )
+    )
+
+
+def cast_date_vote(
+    db: Session, poll_id: int, option_id: int, participant_id: int
+) -> models.BookClubDatePollVote:
+    vote = get_own_date_vote(db, poll_id, participant_id)
+    if vote is None:
+        vote = models.BookClubDatePollVote(
+            poll_id=poll_id, participant_id=participant_id, option_id=option_id
+        )
+        db.add(vote)
+    else:
+        vote.option_id = option_id
+    return _commit(db, vote)
+
+
+def remove_date_vote(db: Session, poll_id: int, participant_id: int) -> bool:
+    vote = get_own_date_vote(db, poll_id, participant_id)
+    if vote is None:
+        return False
+    db.delete(vote)
+    db.commit()
+    return True
+
+
+def close_date_poll(db: Session, poll_id: int) -> models.BookClubDatePoll:
+    poll = db.get(models.BookClubDatePoll, poll_id)
+    if poll is None or poll.club_id != _club_id(db):
+        raise LookupError("Date poll not found")
+    if poll.status != "open":
+        raise ValueError("This date poll is already closed")
+    counts = date_poll_vote_counts(db, poll_id)
+    options = list_date_options(db, poll_id)
+    # Ties go to whichever date option was added first (lowest id).
+    winner = max(options, key=lambda o: (counts.get(o.id, 0), -o.id), default=None) if options else None
+    poll.status = "closed"
+    poll.closed_at = datetime.now(timezone.utc)
+    poll.winning_date = winner.option_date if winner else None
+    return _commit(db, poll)
+
+
+def list_broadcastable_participants(db: Session) -> list[ParticipantAccount]:
+    return list(
+        db.scalars(
+            select(ParticipantAccount).where(
+                ParticipantAccount.club_id == _club_id(db),
+                ParticipantAccount.active.is_(True),
+                ParticipantAccount.unsubscribed_at.is_(None),
+            )
+        )
+    )
+
+
+def mark_participant_unsubscribed(db: Session, participant: ParticipantAccount) -> None:
+    if participant.unsubscribed_at is None:
+        participant.unsubscribed_at = datetime.now(timezone.utc)
+        db.commit()
+
+
+def list_self_serve_clubs(
+    db: Session,
+) -> list[tuple[models.BookClub, ParticipantAccount | None, int]]:
+    """Self-serve clubs with their owner participant and participant count.
+
+    Self-serve clubs never get a BookClubAccess row, so the staff tool has
+    no visibility into them at all — this is the admin-only support/abuse
+    triage view, deliberately unscoped by db.info["bookclub_id"] since it
+    spans every club rather than one selected club.
+    """
+    clubs = list(
+        db.scalars(
+            select(models.BookClub)
+            .where(models.BookClub.club_type == "self_serve")
+            .order_by(models.BookClub.name)
+        )
+    )
+    if not clubs:
+        return []
+    club_ids = [club.id for club in clubs]
+    owners = {
+        owner.club_id: owner
+        for owner in db.scalars(
+            select(ParticipantAccount).where(
+                ParticipantAccount.club_id.in_(club_ids),
+                ParticipantAccount.role == "owner",
+            )
+        )
+    }
+    counts = dict(
+        db.execute(
+            select(ParticipantAccount.club_id, func.count(ParticipantAccount.id))
+            .where(ParticipantAccount.club_id.in_(club_ids))
+            .group_by(ParticipantAccount.club_id)
+        ).all()
+    )
+    return [(club, owners.get(club.id), counts.get(club.id, 0)) for club in clubs]

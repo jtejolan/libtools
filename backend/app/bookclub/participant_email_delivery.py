@@ -11,6 +11,7 @@ __all__ = [
     "send_verification_email",
     "send_password_reset_email",
     "send_password_changed_email",
+    "send_broadcast_email",
 ]
 
 
@@ -50,4 +51,14 @@ def send_password_changed_email(*, recipient: str, name: str, club_name: str) ->
         "this wasn't you, use the password reset link on your club's page "
         "to secure your account."
     )
+    return send_email(to=[recipient], subject=subject, text_body=text_body)
+
+
+def send_broadcast_email(*, recipient: str, subject: str, body: str, unsubscribe_url: str) -> bool:
+    """A facilitator-authored broadcast. Sent one-at-a-time (not BCC'd like
+    bookclub/email_delivery.send_reminder_batch's member reminders) so each
+    recipient gets their own working, no-login-required unsubscribe link —
+    see participant_unsubscribe.py.
+    """
+    text_body = f"{body}\n\n---\nDon't want these emails? Unsubscribe: {unsubscribe_url}"
     return send_email(to=[recipient], subject=subject, text_body=text_body)

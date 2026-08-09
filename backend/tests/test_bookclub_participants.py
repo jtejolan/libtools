@@ -9,6 +9,7 @@ from sqlalchemy.pool import StaticPool
 from accounts import login_throttle
 from bookclub.facilitator_auth import require_facilitator
 from bookclub.models import BookClub
+from bookclub.participant_auth import require_participant_club
 from bookclub.participant_models import ParticipantAccount
 from bookclub import participant_tokens
 from database import Base
@@ -304,7 +305,7 @@ class RequireFacilitatorTests(unittest.TestCase):
             db.commit()
             db.refresh(owner)
 
-            resolved = require_facilitator(owner, db)
+            resolved = require_facilitator(owner, require_participant_club(owner, db))
             self.assertEqual(resolved.id, club.id)
             self.assertEqual(db.info["bookclub_id"], club.id)
 
@@ -322,7 +323,7 @@ class RequireFacilitatorTests(unittest.TestCase):
             db.refresh(member)
 
             with self.assertRaises(HTTPException) as ctx:
-                require_facilitator(member, db)
+                require_facilitator(member, require_participant_club(member, db))
             self.assertEqual(ctx.exception.status_code, 403)
 
 
