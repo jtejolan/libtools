@@ -175,16 +175,40 @@
               <div><p class="eyebrow"><span></span> Reading history</p><h1>Books</h1><p class="intro">Keep cover art, publication details, descriptions, and discussion notes together for every selection.</p></div>
               <button class="primary-button" id="add-book" type="button"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg></span> Add book</button>
             </header>
-            <section class="stats-grid" aria-label="Reading stats">
-              <article><span class="stat-icon green">▥</span><div><strong id="book-stat-total">—</strong><span>Books in the catalog</span></div></article>
-              <article><span class="stat-icon gold">◫</span><div><strong id="book-stat-meetings">—</strong><span>Meetings held</span></div></article>
-              <article><span class="stat-icon orange">Σ</span><div><strong id="book-stat-avg-pages">—</strong><span>Average page count</span></div></article>
-              <article><span class="stat-icon blue">✦</span><div><strong id="book-stat-longest">—</strong><span>Longest book</span></div></article>
+            <section class="book-insights" aria-labelledby="book-insights-heading">
+              <div class="book-insights-heading">
+                <div><p class="eyebrow"><span></span> Collection snapshot</p><h2 id="book-insights-heading">Your reading, by the numbers</h2></div>
+                <p id="book-insights-summary">A living portrait of the club shelf.</p>
+              </div>
+              <div class="stats-grid book-stats" aria-label="Reading stats">
+                <article><span class="stat-icon green">▥</span><div><strong id="book-stat-total">—</strong><span>Books on the shelf</span></div></article>
+                <article><span class="stat-icon gold">◫</span><div><strong id="book-stat-meetings">—</strong><span>Meetings held</span></div></article>
+                <article><span class="stat-icon orange">Σ</span><div><strong id="book-stat-pages">—</strong><span>Pages catalogued</span></div></article>
+                <article><span class="stat-icon blue">≈</span><div><strong id="book-stat-avg-pages">—</strong><span>Average book length</span></div></article>
+              </div>
+              <div class="book-insight-grid">
+                <article class="book-insight-panel">
+                  <div class="insight-panel-heading"><div><span>Reading commitment</span><h3>Page-length mix</h3></div><strong id="book-pages-known">—</strong></div>
+                  <div class="book-bar-list" id="book-length-breakdown"></div>
+                </article>
+                <article class="book-insight-panel">
+                  <div class="insight-panel-heading"><div><span>Favourite territory</span><h3>Top genres</h3></div><strong id="book-genre-count">—</strong></div>
+                  <div class="book-bar-list genre-bars" id="book-genre-breakdown"></div>
+                </article>
+                <article class="book-insight-panel book-shelf-status">
+                  <div class="insight-panel-heading"><div><span>Club journey</span><h3>Shelf status</h3></div></div>
+                  <div class="shelf-status-visual">
+                    <div class="shelf-status-ring" id="book-status-ring" role="img" aria-label="No shelf status data"><strong id="book-status-center">—</strong><span>titles</span></div>
+                    <dl class="shelf-status-legend" id="book-status-legend"></dl>
+                  </div>
+                  <p class="book-era-note" id="book-era-note"></p>
+                </article>
+              </div>
             </section>
-            <p class="helper-text book-genre-breakdown" id="book-genre-breakdown"></p>
             <section class="collection-toolbar">
               <label class="search-box"><span>⌕</span><span class="sr-only">Search books</span><input id="book-search" type="search" placeholder="Search title, author, ISBN, or genre…" /></label>
               <label class="check-wrap"><input type="checkbox" id="book-unscheduled-filter" /><span>Not yet scheduled only</span></label>
+              <label class="book-sort-control"><span>Sort by</span><select id="book-sort"><option value="title-asc">Title: A–Z</option><option value="title-desc">Title: Z–A</option><option value="pages-asc">Shortest to longest</option><option value="pages-desc">Longest to shortest</option><option value="year-asc">Oldest to newest</option><option value="year-desc">Newest to oldest</option><option value="author-asc">Author: A–Z</option></select></label>
               <p id="book-count">—</p>
             </section>
             <div class="book-list" id="book-list"></div>

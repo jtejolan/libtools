@@ -15,6 +15,7 @@ const state = {
   templateKey: null,
   participation: [],
   memberSort: "name",
+  bookSort: "title-asc",
   bookUnscheduledOnly: false,
   memberQuery: "",
   meetingQuery: "",
@@ -385,20 +386,40 @@ const scheduledBookIds = () => new Set(state.meetings.map((meeting) => meeting.b
 
 const renderBookStats = () => {
   const books = state.books;
+  const completedMeetingBookIds = new Set(state.meetings
+    .filter((meeting) => meeting.meeting_date <= today())
+    .map((meeting) => meeting.book_id));
+  const upcomingMeetingBookIds = new Set(state.meetings
+    .filter((meeting) => meeting.meeting_date > today())
+    .map((meeting) => meeting.book_id));
   $("#book-stat-total").textContent = books.length;
-  $("#book-stat-meetings").textContent = state.meetings.filter(
+  const meetingsHeld = state.meetings.filter(
     (meeting) => meeting.meeting_date <= today(),
   ).length;
+  $("#book-stat-meetings").textContent = meetingsHeld;
   const withPages = books.filter((book) => book.page_count);
+  const totalPages = withPages.reduce((sum, book) => sum + book.page_count, 0);
+  $("#book-stat-pages").textContent = totalPages ? totalPages.toLocaleString() : "—";
   const avgPages = withPages.length
-    ? Math.round(withPages.reduce((sum, book) => sum + book.page_count, 0) / withPages.length)
+    ? Math.round(totalPages / withPages.length)
     : null;
   $("#book-stat-avg-pages").textContent = avgPages ?? "—";
-  const longest = withPages.reduce(
-    (max, book) => (!max || book.page_count > max.page_count ? book : max),
-    null,
-  );
-  $("#book-stat-longest").textContent = longest ? `${longest.page_count}p` : "—";
+  $("#book-pages-known").textContent = withPages.length
+    ? `${withPages.length} measured`
+    : "No data";
+
+  const lengthGroups = [
+    { label: "Quick reads", note: "Under 300 pages", count: withPages.filter((book) => book.page_count < 300).length },
+    { label: "Middle distance", note: "300–499 pages", count: withPages.filter((book) => book.page_count >= 300 && book.page_count < 500).length },
+    { label: "Long reads", note: "500+ pages", count: withPages.filter((book) => book.page_count >= 500).length },
+  ];
+  $("#book-length-breakdown").innerHTML = withPages.length
+    ? lengthGroups.map((group) => {
+      const percent = Math.round((group.count / withPages.length) * 100);
+      return `<div class="book-bar-row"><div><strong>${escapeHtml(group.label)}</strong><span>${escapeHtml(group.note)}</span></div><div class="book-bar-track" aria-label="${escapeHtml(group.label)}: ${group.count} books"><span style="width:${percent}%"></span></div><b>${group.count}</b></div>`;
+    }).join("")
+    : '<p class="insight-empty">Add page counts to see the collection’s reading commitment.</p>';
+
   const genreCounts = new Map();
   books.forEach((book) => {
     (book.genres || "")
@@ -407,11 +428,68 @@ const renderBookStats = () => {
       .filter(Boolean)
       .forEach((genre) => genreCounts.set(genre, (genreCounts.get(genre) || 0) + 1));
   });
-  const topGenres = [...genreCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
-  $("#book-genre-breakdown").textContent = topGenres.length
-    ? `Top genres: ${topGenres.map(([genre, count]) => `${genre} (${count})`).join(", ")}`
-    : "";
+  const topGenres = [...genreCounts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 4);
+  $("#book-genre-count").textContent = genreCounts.size
+    ? `${genreCounts.size} ${genreCounts.size === 1 ? "genre" : "genres"}`
+    : "No data";
+  const topGenreCount = topGenres[0]?.[1] || 0;
+  $("#book-genre-breakdown").innerHTML = topGenres.length
+    ? topGenres.map(([genre, count]) => `<div class="book-bar-row"><div><strong>${escapeHtml(genre)}</strong><span>${count} ${count === 1 ? "title" : "titles"}</span></div><div class="book-bar-track" aria-label="${escapeHtml(genre)}: ${count} titles"><span style="width:${Math.round((count / topGenreCount) * 100)}%"></span></div><b>${count}</b></div>`).join("")
+    : '<p class="insight-empty">Add genres to reveal the club’s favourite territory.</p>';
+
+  const readCount = books.filter((book) => book.is_past_selection || completedMeetingBookIds.has(book.id)).length;
+  const upcomingCount = books.filter((book) => !book.is_past_selection && !completedMeetingBookIds.has(book.id) && upcomingMeetingBookIds.has(book.id)).length;
+  const unscheduledCount = Math.max(books.length - readCount - upcomingCount, 0);
+  const readDegrees = books.length ? (readCount / books.length) * 360 : 0;
+  const upcomingDegrees = books.length ? (upcomingCount / books.length) * 360 : 0;
+  const ring = $("#book-status-ring");
+  ring.style.background = books.length
+    ? `conic-gradient(var(--forest-soft) 0deg ${readDegrees}deg, var(--gold) ${readDegrees}deg ${readDegrees + upcomingDegrees}deg, rgba(110,157,154,.34) ${readDegrees + upcomingDegrees}deg 360deg)`
+    : "rgba(24,59,51,.08)";
+  ring.setAttribute("aria-label", `${readCount} read, ${upcomingCount} scheduled, ${unscheduledCount} unscheduled`);
+  $("#book-status-center").textContent = books.length;
+  $("#book-status-legend").innerHTML = [
+    ["Read", readCount, "read"],
+    ["Coming up", upcomingCount, "upcoming"],
+    ["Unscheduled", unscheduledCount, "unscheduled"],
+  ].map(([label, count, className]) => `<div><dt><i class="${className}"></i>${label}</dt><dd>${count}</dd></div>`).join("");
+
+  const datedBooks = books.filter((book) => book.publication_date);
+  const oldestYear = datedBooks.length ? Math.min(...datedBooks.map((book) => Number(book.publication_date.slice(0, 4)))) : null;
+  const newestYear = datedBooks.length ? Math.max(...datedBooks.map((book) => Number(book.publication_date.slice(0, 4)))) : null;
+  $("#book-era-note").textContent = oldestYear
+    ? oldestYear === newestYear
+      ? `The dated shelf is rooted in ${oldestYear}.`
+      : `The shelf spans ${newestYear - oldestYear} years, from ${oldestYear} to ${newestYear}.`
+    : "Add publication dates to see the shelf across time.";
+  $("#book-insights-summary").textContent = books.length
+    ? `${readCount} read · ${upcomingCount} coming up · ${unscheduledCount} waiting on the shelf`
+    : "A living portrait of the club shelf.";
 };
+
+const compareNullableNumbers = (left, right, direction) => {
+  const leftMissing = left === null || left === undefined || Number.isNaN(left);
+  const rightMissing = right === null || right === undefined || Number.isNaN(right);
+  if (leftMissing && rightMissing) return 0;
+  if (leftMissing) return 1;
+  if (rightMissing) return -1;
+  return direction * (left - right);
+};
+
+const sortBooks = (books) => [...books].sort((left, right) => {
+  const titleFallback = left.title.localeCompare(right.title, undefined, { sensitivity: "base" });
+  switch (state.bookSort) {
+    case "title-desc": return right.title.localeCompare(left.title, undefined, { sensitivity: "base" });
+    case "pages-asc": return compareNullableNumbers(left.page_count, right.page_count, 1) || titleFallback;
+    case "pages-desc": return compareNullableNumbers(left.page_count, right.page_count, -1) || titleFallback;
+    case "year-asc": return compareNullableNumbers(left.publication_date ? Date.parse(left.publication_date) : null, right.publication_date ? Date.parse(right.publication_date) : null, 1) || titleFallback;
+    case "year-desc": return compareNullableNumbers(left.publication_date ? Date.parse(left.publication_date) : null, right.publication_date ? Date.parse(right.publication_date) : null, -1) || titleFallback;
+    case "author-asc": return left.author.localeCompare(right.author, undefined, { sensitivity: "base" }) || titleFallback;
+    default: return titleFallback;
+  }
+});
 
 const renderBooks = () => {
   const query = state.bookQuery.trim().toLowerCase();
@@ -428,7 +506,10 @@ const renderBooks = () => {
       (book) => !scheduled.has(book.id) && !book.is_past_selection,
     );
   }
-  $("#book-count").textContent = `${state.books.length} ${state.books.length === 1 ? "book" : "books"}`;
+  books = sortBooks(books);
+  $("#book-count").textContent = books.length === state.books.length
+    ? `${books.length} ${books.length === 1 ? "book" : "books"}`
+    : `${books.length} of ${state.books.length} books`;
   renderBookStats();
   const list = $("#book-list");
   if (!books.length) {
@@ -1953,6 +2034,10 @@ $("#book-search").addEventListener("input", (event) => {
 });
 $("#book-unscheduled-filter").addEventListener("change", (event) => {
   state.bookUnscheduledOnly = event.target.checked;
+  renderBooks();
+});
+$("#book-sort").addEventListener("change", (event) => {
+  state.bookSort = event.target.value;
   renderBooks();
 });
 $("#add-member").addEventListener("click", () => openMemberDialog());

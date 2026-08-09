@@ -1,17 +1,23 @@
 # frontend — Book Club Manager
 
-## `bookclub.html` / `bookclub.js` (433 / 2,181 lines)
+## `bookclub.html` / `bookclub.js` (457 / 2,298 lines)
 
 The app. Single `state` object (top of `bookclub.js`) holds: `user`,
 `clubs`/`club` (selected club), `view` (current tab — meetings/books/
 members/etc), and per-entity lists (`members`, `books`, `meetings`,
 `roster`, `templates`, `participation`) plus UI-only fields
-(search queries for the larger collections, `memberSort`, day-of mode, and
+(search queries for the larger collections, `memberSort`/`bookSort`, day-of mode, and
 unsaved discussion-note state).
 Talks to `/bookclub/*` (club-scoped CRUD call sites for
 members/books/meetings/roster/templates/emails/giveaway) and
 `/bookclub/clubs/*` (club switching). See `docs/backend/bookclub.md` for the
 endpoint groups.
+
+The Books view includes a client-computed collection snapshot: catalogue/page
+totals, reading-length and genre bar charts, a read/upcoming/unscheduled shelf
+ring, and the publication-year span. Its sort menu supports title, author,
+page-count, and publication-date ordering; books missing the selected numeric
+or date field are kept at the end in either direction.
 
 Opening a club lands on its nearest upcoming meeting (or the most recent past
 meeting when nothing is scheduled) via the Book Club Manager logo

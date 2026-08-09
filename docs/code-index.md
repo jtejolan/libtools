@@ -113,7 +113,7 @@ from `backend/` — see root `CLAUDE.md` for full commands.
 | `frontend/admin-accounts.html` / `admin-accounts.js` | 70 / 178 | Platform-admin account management (canonical) | `docs/frontend/accounts.md` |
 | `frontend/admin-users.html` / `admin-users.js` | 2 / 12 | Minified LEGACY duplicate of admin-accounts — don't edit | `docs/frontend/accounts.md` |
 | `frontend/admin-bookclub.html` / `admin-bookclub.js` | 37 / 66 | Platform-admin, read-only list of self-serve clubs (support/abuse triage), at `/admin/bookclub` | `docs/backend/bookclub.md` |
-| `frontend/bookclub.html` / `bookclub.js` | 433 / 2181 | Book Club Manager app | `docs/frontend/bookclub.md` |
+| `frontend/bookclub.html` / `bookclub.js` | 457 / 2298 | Book Club Manager app | `docs/frontend/bookclub.md` |
 | `frontend/public-club.html` / `public-club.js` | 1 / 15 | Public read-only club page (minified), served on both `libtools.app` and `bookclub.libtools.app` | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-landing.html` / `bookclub-landing.js` | 1 / 20 | Root landing page for `bookclub.libtools.app` — "Start a club" goes to `/create` (in-subdomain), club-slug search | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-account.html` / `bookclub-account.js` | 114 / 214 | Facilitator create-club + participant join/login/forgot-password/verify-email/reset-password — one shared shell keyed by URL path, mirrors `account.html`/`account.js` | `docs/frontend/bookclub.md` |
@@ -127,7 +127,7 @@ from `backend/` — see root `CLAUDE.md` for full commands.
 | `frontend/quotes.js` | 614 | Static book-quote content data (not logic), used by index/dashboard | `docs/frontend/overview.md` |
 | `frontend/styles.css` | 1015 | `index.html`-only stylesheet | `docs/frontend/accounts.md` |
 | `frontend/platform.css` | 284 | Shared chrome across 10 pages | `docs/frontend/overview.md` |
-| `frontend/bookclub.css` | 578 | Bookclub app styles | `docs/frontend/bookclub.md` |
+| `frontend/bookclub.css` | 654 | Bookclub app styles | `docs/frontend/bookclub.md` |
 | `frontend/lendery.css` | 3280 | Lendery app styles — largest CSS file in repo | `docs/frontend/lendery.md` |
 | `frontend/lendery-export.css` | 350 | Lendery export UI styles | `docs/frontend/lendery.md` |
 | `frontend/check.css` | 70 | Quick-check page styles | `docs/frontend/lendery.md` |
