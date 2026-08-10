@@ -191,10 +191,12 @@ action and supports joining a second open club without another account.
   includes online/calendar actions, facilitator preparation notes, and ordered
   discussion questions. It also provides a club switcher, announcement archive
   with read state, current-book detail/progress, post-meeting follow-up, and a
-  grouped searchable library. Each book opens a club-stat hub with the average
-  and individual 0.5-star ratings, opt-in shared progress, an automatic daily/
-  weekly reading pace, spoiler-aware discussions/replies/reactions, and member
-  activity. The dashboard also includes a durable club feed, immediate/digest
+  grouped searchable library. The current book's club-stat hub is the primary
+  dashboard experience—not a modal or collapsed library control—and puts the
+  average and individual 0.5-star ratings, opt-in shared progress, automatic
+  daily/weekly reading pace, spoiler-aware discussions/replies/reactions, and
+  member activity at the top. Choosing another library or feed book replaces
+  that featured hub and scrolls to it. The dashboard also includes a durable club feed, immediate/digest
   notification preferences, personal activity, and an opt-in member directory
   whose responses never expose roster email or staff notes. It has no
   facilitator role or management link.

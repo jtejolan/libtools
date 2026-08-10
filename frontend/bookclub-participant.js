@@ -583,15 +583,15 @@ const renderBookPage = ({ detail, ratings, progress, posts }) => {
     .filter((score) => ratings.ratings.some((item) => item.rating === score))
     .map((score) => `${score}★ ${ratings.ratings.filter((item) => item.rating === score).length}`)
     .join(" · ") || "No ratings yet";
-  $("#book-page-content").innerHTML = `<div class="book-page-hero"><img class="book-page-cover" src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div><p class="eyebrow">${escapeHtml(book.author)}</p><h2>${escapeHtml(book.title)}</h2><p>${escapeHtml(book.description || "No description has been added yet.")}</p><p class="user-meta">${book.page_count ? `${book.page_count} pages · ` : ""}${escapeHtml(book.genres || "")}</p></div></div><div class="book-page-stats"><div><strong>${ratings.average ?? "—"}${ratings.average != null ? "★" : ""}</strong><span>Club average</span></div><div><strong>${ratings.count}</strong><span>Ratings</span></div><div><strong>${detail.attended_count}</strong><span>Meeting attendees</span></div></div><p class="muted">${distribution}</p>
+  $("#book-page-content").innerHTML = `<div class="book-page-hero"><img class="book-page-cover" src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div><p class="eyebrow">${escapeHtml(book.author)}</p><h2>${escapeHtml(book.title)}</h2><p class="book-page-summary">${escapeHtml(book.description || "No description has been added yet.")}</p><p class="user-meta">${book.page_count ? `${book.page_count} pages · ` : ""}${escapeHtml(book.genres || "")}</p></div></div><div class="book-page-stats"><div><strong>${ratings.average ?? "—"}${ratings.average != null ? "★" : ""}</strong><span>Club average</span></div><div><strong>${ratings.count}</strong><span>Ratings</span></div><div><strong>${detail.shared_progress.length}</strong><span>Sharing progress</span></div></div><p class="muted">${distribution}</p>
     <div class="book-page-columns"><section class="book-page-section"><p class="eyebrow">Your rating</p><output class="rating-value" id="detail-rating-value">${mine?.rating || 3}★</output><input class="rating-range" id="detail-rating" type="range" min="1" max="5" step="0.5" value="${mine?.rating || 3}" aria-label="Rating in half-star increments" /><textarea id="detail-review" rows="4" maxlength="4000" placeholder="Optional review">${escapeHtml(mine?.review_text || "")}</textarea><button class="primary-button" id="save-detail-rating" type="button">${mine ? "Update rating" : "Save rating"}</button></section>
     <section class="book-page-section"><p class="eyebrow">Reading pace</p><form class="progress-form" id="detail-progress-form"><label>Status<select name="status"><option value="not_started"${progress.status === "not_started" ? " selected" : ""}>Not started</option><option value="reading"${progress.status === "reading" ? " selected" : ""}>Reading</option><option value="finished"${progress.status === "finished" ? " selected" : ""}>Finished</option></select></label><div class="progress-form-row"><label>Current page<input name="current_page" type="number" min="0" ${book.page_count ? `max="${book.page_count}"` : ""} value="${progress.current_page ?? 0}" /></label><label>Book club day<input value="${detail.meeting_date ? escapeHtml(formatDate(detail.meeting_date)) : "Not scheduled"}" disabled /></label></div><label class="preference-option"><input name="shared_with_club" type="checkbox"${progress.shared_with_club ? " checked" : ""} /><span><strong>Share my progress</strong><small>Other members can see your status and current page.</small></span></label><div class="pace-result" id="pace-result">${escapeHtml(readingPaceCopy(detail, progress))}</div><button class="secondary-button" type="submit">Save progress</button></form></section></div>
-    <section class="book-page-section"><p class="eyebrow">Club progress</p><div class="shared-progress-list">${detail.shared_progress.length ? detail.shared_progress.map((item) => `<div class="shared-progress-item"><strong>${escapeHtml(item.member.name)}</strong><span>${escapeHtml(progressLabels[item.status] || item.status)}${item.current_page != null ? ` · page ${item.current_page}` : ""}</span></div>`).join("") : '<p class="muted">No one has shared progress for this book yet.</p>'}</div></section>
-    <section class="book-page-section"><p class="eyebrow">Club ratings</p>${ratings.ratings.length ? ratings.ratings.map((item) => `<article class="activity-item"><p><strong>${escapeHtml(item.participant_name)}</strong> · ${item.rating}★</p>${item.review_text ? `<p>${escapeHtml(item.review_text)}</p>` : ""}</article>`).join("") : '<p class="muted">Be the first to rate this book.</p>'}</section>
-    <section class="book-page-section"><p class="eyebrow">Discussion</p><form class="discussion-compose" id="detail-discussion-form"><textarea rows="3" maxlength="4000" placeholder="What are you noticing so far?"></textarea><label><input type="checkbox" name="spoiler" /> Contains spoilers</label><div><button class="primary-button" type="submit">Post</button></div></form><div id="detail-discussion-list">${discussionMarkup(posts)}</div></section>`;
+    <div class="book-community-grid"><section class="book-page-section"><p class="eyebrow">Reading together</p><h3>Club progress</h3><div class="shared-progress-list">${detail.shared_progress.length ? detail.shared_progress.map((item) => `<div class="shared-progress-item"><strong>${escapeHtml(item.member.name)}</strong><span>${escapeHtml(progressLabels[item.status] || item.status)}${item.current_page != null ? ` · page ${item.current_page}` : ""}</span></div>`).join("") : '<p class="muted">No one has shared progress for this book yet.</p>'}</div></section>
+    <section class="book-page-section"><p class="eyebrow">What the club thinks</p><h3>Ratings and reviews</h3>${ratings.ratings.length ? ratings.ratings.map((item) => `<article class="activity-item"><p><strong>${escapeHtml(item.participant_name)}</strong> · ${item.rating}★</p>${item.review_text ? `<p>${escapeHtml(item.review_text)}</p>` : ""}</article>`).join("") : '<p class="muted">Be the first to rate this book.</p>'}</section></div>
+    <section class="book-page-section book-discussion-panel"><p class="eyebrow">Between meetings</p><h3>Book discussion</h3><p class="muted">Share an observation, question, or response with the club.</p><form class="discussion-compose" id="detail-discussion-form"><textarea rows="3" maxlength="4000" placeholder="What are you noticing so far?"></textarea><label><input type="checkbox" name="spoiler" /> Contains spoilers</label><div><button class="primary-button" type="submit">Join the discussion</button></div></form><div id="detail-discussion-list">${discussionMarkup(posts)}</div></section>`;
 };
 
-const openBookPage = async (bookId) => {
+const openBookPage = async (bookId, { scroll = false } = {}) => {
   participantState.activeBookId = Number(bookId);
   const id = participantState.activeBookId;
   const [detail, ratings, progress, posts] = await Promise.all([
@@ -600,12 +600,11 @@ const openBookPage = async (bookId) => {
   ]);
   participantState.activeBookDetail = detail;
   renderBookPage({ detail, ratings, progress, posts });
-  if (!$("#book-page-dialog").open) $("#book-page-dialog").showModal();
   history.replaceState(null, "", `${location.pathname}?book=${id}`);
+  if (scroll) $("#book-page-section").scrollIntoView({ behavior: "smooth", block: "start" });
 };
 
-$("#close-book-page").addEventListener("click", () => { $("#book-page-dialog").close(); history.replaceState(null, "", location.pathname); });
-document.addEventListener("click", (event) => { const button = event.target.closest("[data-open-book]"); if (button) openBookPage(button.dataset.openBook).catch((error) => toast(error.message)); });
+document.addEventListener("click", (event) => { const button = event.target.closest("[data-open-book]"); if (button) openBookPage(button.dataset.openBook, { scroll: true }).catch((error) => toast(error.message)); });
 $("#book-page-content").addEventListener("input", (event) => {
   if (event.target.id === "detail-rating") $("#detail-rating-value").textContent = `${event.target.value}★`;
   if (event.target.name === "current_page" && $("#pace-result")) {
@@ -809,7 +808,13 @@ $("#notification-form").addEventListener("submit", async (event) => {
     ]);
     await Promise.all([loadAnnouncements(), loadRsvp(), loadVoting(), loadDatePoll(), loadRatings(), loadActivity(), loadClubActivity(), loadNotificationPreferences(), loadDirectory()]);
     const requestedBook = new URLSearchParams(location.search).get("book");
-    if (requestedBook) await openBookPage(Number(requestedBook));
+    const featuredBook = requestedBook
+      ? participantState.books.find((book) => book.id === Number(requestedBook))
+      : participantState.library.current[0]
+        || participantState.library.previously_read[0]
+        || participantState.books[0];
+    if (featuredBook) await openBookPage(featuredBook.id);
+    else $("#book-page-content").innerHTML = '<div class="book-page-empty"><h2>Your club’s next read will live here</h2><p>Once a book is scheduled, members can track progress, rate it, and discuss it together.</p></div>';
     renderPostMeeting();
     renderActionCenter();
   } catch {
