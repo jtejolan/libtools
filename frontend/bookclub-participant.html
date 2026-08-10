@@ -11,7 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/static/platform.css?v=9" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub-participant.js?v=10" defer></script>
+    <script src="/static/bookclub-participant.js?v=11" defer></script>
     <style>
       .participant-heading{display:flex;align-items:end;justify-content:space-between;gap:24px;margin-bottom:26px}.participant-heading h1{margin:0;font-family:var(--serif);font-size:clamp(42px,6vw,64px);font-weight:500;line-height:1}.participant-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,.65fr);gap:18px}.participant-card{padding:24px;border:1px solid var(--line);border-radius:16px;background:rgba(255,250,241,.92)}.participant-card h2{margin:0 0 8px;font-family:var(--serif);font-size:30px;font-weight:500}.participant-card .eyebrow{margin-bottom:8px}.meeting-card{min-height:260px;background:linear-gradient(135deg,rgba(22,62,52,.98),rgba(36,83,72,.94));color:var(--paper);border:0}.meeting-card .eyebrow,.meeting-card .muted{color:rgba(255,250,241,.72)}.meeting-card h2{font-size:38px}.meeting-card .secondary-button{border-color:rgba(255,250,241,.55);color:var(--paper)}.meeting-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}.calendar-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.calendar-link{font-size:12px;font-weight:700;text-decoration:underline;text-underline-offset:3px}.announcement-feature{min-height:260px}.announcement-feature article{border:0;padding:0;background:transparent;display:block}.announcement-feature .user-card~.user-card{display:none}.reading-card{margin-top:18px;display:grid;grid-template-columns:96px minmax(0,1fr);gap:20px;align-items:center}.reading-cover{width:96px;aspect-ratio:2/3;border-radius:8px;object-fit:cover;background:rgba(22,62,52,.1)}.progress-options{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}.progress-button{min-height:36px;padding:0 11px}.decisions{margin-top:34px}.decision-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.decision-card{min-width:0}.decision-card .user-card{background:rgba(255,255,255,.45)}.activity-layout{display:grid;grid-template-columns:minmax(280px,.65fr) minmax(0,1.35fr);gap:18px;margin-top:34px}.activity-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.activity-stat{padding:14px;border-radius:10px;background:rgba(22,62,52,.06)}.activity-stat strong{display:block;font-family:var(--serif);font-size:28px}.activity-stat span{color:var(--muted);font-size:11px}.activity-item{padding:11px 0;border-bottom:1px solid var(--line)}.activity-item:last-child{border:0}.activity-item p{margin:0}.activity-item small{color:var(--muted)}.library-heading{display:flex;justify-content:space-between;align-items:end;gap:15px}.library-note{max-width:520px}.preference-option{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:12px 0;border-bottom:1px solid var(--line)}.preference-option:last-of-type{border:0}.preference-option strong,.preference-option small{display:block}.preference-option small{color:var(--muted)}@media(max-width:800px){.participant-grid,.decision-grid,.activity-layout{grid-template-columns:1fr}.participant-heading{align-items:start;flex-direction:column}.reading-card{grid-template-columns:72px minmax(0,1fr)}.reading-cover{width:72px}.meeting-card,.announcement-feature{min-height:0}}
     </style>
@@ -36,11 +36,30 @@
       .book-page-summary{display:none}
       .book-quick-meta{margin:12px 0}
       .book-hub-tabs{margin-top:12px}
+      .book-meeting-panel{margin-top:16px;padding:16px;border:1px solid rgba(255,255,255,.18);border-radius:14px;background:rgba(255,255,255,.08)}
+      .book-meeting-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+      .book-meeting-header .eyebrow{margin:0 0 3px;color:#f1c894}
+      .book-meeting-header h3{margin:0;color:#fffaf1;font-family:var(--serif);font-size:24px;font-weight:500}
+      .book-meeting-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:13px}
+      .book-meeting-fact{padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.08)}
+      .book-meeting-fact span,.book-meeting-fact strong{display:block}
+      .book-meeting-fact span{margin-bottom:2px;color:rgba(255,250,241,.66);font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+      .book-meeting-fact strong{color:#fffaf1;font-size:13px}
+      .book-meeting-panel .meeting-actions{margin-top:13px}
+      .book-meeting-panel .primary-button{background:#f5c982;color:#173f35}
+      .book-meeting-panel .secondary-button{border-color:rgba(255,255,255,.5);background:transparent;color:#fffaf1}
+      .book-meeting-panel .calendar-actions{margin-top:12px}
+      .book-meeting-panel .calendar-link{color:#fffaf1}
+      .book-meeting-note{margin:10px 0 0;color:rgba(255,250,241,.68);font-size:12px}
+      .participant-grid{grid-template-columns:1fr}
       @media(max-width:800px){
         .current-book-stage{margin-left:0;margin-right:0;border-radius:0}
         .book-page-hero{grid-template-columns:72px minmax(0,1fr);gap:13px;padding:16px}
         .book-page-cover{width:72px}
         .book-page-hero h2{font-size:28px}
+        .book-meeting-panel{grid-column:1/-1}
+        .book-meeting-header{flex-direction:column}
+        .book-meeting-facts{grid-template-columns:1fr}
       }
     </style>
   </head>
@@ -60,10 +79,9 @@
 
         <section class="current-book-stage" id="book-page-section"><div class="book-stage-kicker"><span></span>Current club read</div><div class="book-page-shell"><div id="book-page-content"><p>Loading your current book…</p></div></div></section>
 
-        <div class="support-heading"><p class="eyebrow">Plan the gathering</p><h2>Meeting and club updates</h2></div>
+        <div class="support-heading"><p class="eyebrow">From your facilitator</p><h2>Club updates</h2></div>
 
         <div class="participant-grid">
-          <section class="participant-card meeting-card" id="rsvp-section"><p class="eyebrow">Your next gathering</p><h2 id="rsvp-heading">Upcoming meeting</h2><div id="rsvp-content"></div></section>
           <section class="participant-card announcement-feature" id="announcements-section"><div class="announcement-toolbar"><div><p class="eyebrow">From your facilitator</p><h2>Latest announcement</h2></div><button class="quiet-button" id="view-announcements" type="button">View all</button></div><div id="announcements-content"></div></section>
         </div>
 

@@ -138,28 +138,33 @@ $("#announcement-list").addEventListener("click", async (event) => {
 });
 
 const renderRsvp = (data) => {
-  const content = $("#rsvp-content");
-  if (!data) {
-    $("#rsvp-heading").textContent = "No meeting scheduled";
-    content.innerHTML = '<p class="muted">Your facilitator hasn’t scheduled the next gathering yet.</p>';
-    return;
-  }
-  const meeting = data.meeting;
   participantState.upcomingMeeting = data;
-  $("#rsvp-heading").textContent = meeting.book.title;
+  const panel = document.querySelector("[data-book-meeting]");
+  if (panel) panel.outerHTML = meetingHeroMarkup(data);
+  renderActionCenter();
+};
+
+const meetingHeroMarkup = (data) => {
+  if (!data) return `<section class="book-meeting-panel" id="rsvp-section" data-book-meeting><div class="book-meeting-header"><div><p class="eyebrow">Next gathering</p><h3>No meeting scheduled</h3></div></div><p class="book-meeting-note">Your facilitator hasn’t scheduled the next gathering yet.</p></section>`;
+  const meeting = data.meeting;
+  const heading = Number(meeting.book.id) === participantState.activeBookId ? "Book club gathering" : meeting.book.title;
   const options = [
     ["attending", "I’m attending"],
     ["maybe", "Maybe"],
     ["not_attending", "Can’t attend"],
   ];
-  content.innerHTML = `<p>${escapeHtml(formatDate(meeting.meeting_date))}${meeting.meeting_time ? ` · ${escapeHtml(meeting.meeting_time)}` : ""}${meeting.location ? ` · ${escapeHtml(meeting.location)}` : ""}</p>
+  return `<section class="book-meeting-panel" id="rsvp-section" data-book-meeting>
+    <div class="book-meeting-header"><div><p class="eyebrow">Next gathering</p><h3>${escapeHtml(heading)}</h3></div>${data.video_call_url ? `<a class="calendar-link" href="${escapeHtml(data.video_call_url)}" target="_blank" rel="noopener">Join online ↗</a>` : ""}</div>
+    <div class="book-meeting-facts">
+      <div class="book-meeting-fact"><span>Date</span><strong>${escapeHtml(formatDate(meeting.meeting_date))}${meeting.meeting_time ? ` · ${escapeHtml(meeting.meeting_time)}` : ""}</strong></div>
+      <div class="book-meeting-fact"><span>Location</span><strong>${escapeHtml(meeting.location || "To be announced")}</strong></div>
+    </div>
     <div class="meeting-actions">
       ${options.map(([status, label]) => `<button class="${data.rsvp_status === status ? "primary-button" : "secondary-button"}" data-rsvp="${status}" data-meeting-id="${meeting.id}">${label}</button>`).join("")}
     </div>
-    <div class="calendar-actions">${data.video_call_url ? `<a class="calendar-link" href="${escapeHtml(data.video_call_url)}" target="_blank" rel="noopener">Join online ↗</a>` : ""}<a class="calendar-link" href="${escapeHtml(data.google_calendar_url)}" target="_blank" rel="noopener">Add to Google Calendar ↗</a><a class="calendar-link" href="${escapeHtml(data.ics_calendar_url)}" download>Download calendar event</a></div>
-    <p class="muted" style="margin-top:14px">${data.rsvp_status ? "Your response is saved. You can change it anytime before the meeting." : "Please respond before the meeting so your facilitator can plan."}</p>
-    ${(meeting.notes || data.discussion_questions?.length) ? `<div class="meeting-details">${meeting.notes ? `<p><strong>Before you come</strong><br>${escapeHtml(meeting.notes)}</p>` : ""}${data.discussion_questions?.length ? `<strong>Discussion starters</strong><ul>${data.discussion_questions.map((question) => `<li>${escapeHtml(question)}</li>`).join("")}</ul>` : ""}</div>` : ""}`;
-  renderActionCenter();
+    <div class="calendar-actions"><a class="calendar-link" href="${escapeHtml(data.google_calendar_url)}" target="_blank" rel="noopener">Add to Google Calendar ↗</a><a class="calendar-link" href="${escapeHtml(data.ics_calendar_url)}" download>Download calendar invite</a></div>
+    <p class="book-meeting-note">${data.rsvp_status ? "Your RSVP is saved. You can change it anytime before the meeting." : "RSVP so your facilitator can plan."}</p>
+  </section>`;
 };
 
 const progressLabels = { not_started: "Not started", reading: "Reading", finished: "Finished" };
@@ -208,7 +213,7 @@ $("#reading-progress-options").addEventListener("click", async (event) => {
   } catch (error) { toast(error.message); }
 });
 
-$("#rsvp-content").addEventListener("click", async (event) => {
+$("#book-page-content").addEventListener("click", async (event) => {
   const button = event.target.closest("[data-rsvp]");
   if (!button) return;
   try {
@@ -592,7 +597,7 @@ const renderBookPage = ({ detail, ratings, progress, posts }) => {
   const activityMarkup = bookActivity.length
     ? `<div class="conversation-updates">${bookActivity.slice(0, 6).map((item) => `<article class="conversation-update">${avatarMarkup(item.actor)}<div><p><strong>${escapeHtml(item.actor.name)}</strong> ${item.kind === "rating" ? "rated this book" : "updated their reading progress"}${item.detail ? ` · ${escapeHtml(item.detail)}` : ""}</p><small>${escapeHtml(formatTimestamp(item.created_at))}</small></div></article>`).join("")}</div>`
     : "";
-  $("#book-page-content").innerHTML = `<div class="book-page-hero"><img class="book-page-cover" src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div class="book-page-intro"><p class="eyebrow">${escapeHtml(book.author)}</p><h2>${escapeHtml(book.title)}</h2><p class="book-page-summary">${escapeHtml(book.description || "No description has been added yet.")}</p><div class="book-quick-meta"><span>${detail.meeting_date ? `Discussing ${escapeHtml(formatDate(detail.meeting_date))}` : "Meeting not scheduled"}</span><span>${book.page_count ? `${book.page_count} pages` : "Page count unavailable"}</span><span>${ratings.average != null ? `${ratings.average}★ from ${ratings.count}` : "No ratings yet"}</span></div><div class="book-primary-actions"><button class="primary-button" type="button" data-book-hub-tab-target="progress">${progress.current_page ? `Update page ${progress.current_page}` : "Update progress"}</button><button class="secondary-button" type="button" data-book-hub-tab-target="ratings">${mine ? `Your rating: ${mine.rating}★` : "Rate this book"}</button></div></div></div>
+  $("#book-page-content").innerHTML = `<div class="book-page-hero"><img class="book-page-cover" src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div class="book-page-intro"><p class="eyebrow">${escapeHtml(book.author)}</p><h2>${escapeHtml(book.title)}</h2><p class="book-page-summary">${escapeHtml(book.description || "No description has been added yet.")}</p><div class="book-quick-meta"><span>${book.page_count ? `${book.page_count} pages` : "Page count unavailable"}</span><span>${ratings.average != null ? `${ratings.average}★ from ${ratings.count}` : "No ratings yet"}</span></div>${meetingHeroMarkup(participantState.upcomingMeeting)}</div></div>
     <div class="book-hub-tabs" role="tablist" aria-label="Current book sections">${[["conversation","Conversation"],["ratings","Ratings"],["progress","Reading progress"]].map(([value,label]) => `<button type="button" role="tab" data-book-hub-tab="${value}" aria-selected="${tab === value}" class="${tab === value ? "active" : ""}">${label}${value === "conversation" && posts.length ? ` <span>${posts.length}</span>` : ""}</button>`).join("")}</div>
     <section class="book-hub-panel" data-book-hub-panel="conversation"${tab === "conversation" ? "" : " hidden"}><div class="book-panel-heading"><div><p class="eyebrow">Club conversation</p><h3>Read and respond</h3></div><p>Progress updates, ratings, and discussion in one place.</p></div>${activityMarkup}<form class="discussion-compose conversation-composer" id="detail-discussion-form"><textarea rows="3" maxlength="4000" placeholder="Share a thought or question with your club…"></textarea><div class="composer-actions"><label><input type="checkbox" name="spoiler" /> Contains spoilers</label><button class="primary-button" type="submit">Post</button></div></form><div id="detail-discussion-list">${discussionMarkup(posts)}</div></section>
     <section class="book-hub-panel" data-book-hub-panel="ratings"${tab === "ratings" ? "" : " hidden"}><div class="book-panel-heading"><div><p class="eyebrow">Club ratings</p><h3>${ratings.average != null ? `${ratings.average}★ average` : "No ratings yet"}</h3></div><p>${distribution}</p></div><div class="ratings-calm-layout"><div class="your-rating-editor"><p class="eyebrow">Your rating</p><output class="rating-value" id="detail-rating-value">${mine?.rating || 3}★</output><input class="rating-range" id="detail-rating" type="range" min="1" max="5" step="0.5" value="${mine?.rating || 3}" aria-label="Rating in half-star increments" /><textarea id="detail-review" rows="3" maxlength="4000" placeholder="Add an optional review">${escapeHtml(mine?.review_text || "")}</textarea><button class="primary-button" id="save-detail-rating" type="button">${mine ? "Update rating" : "Save rating"}</button></div><div class="club-review-list">${ratings.ratings.length ? ratings.ratings.map((item) => `<article><p><strong>${escapeHtml(item.participant_name)}</strong><span>${item.rating}★</span></p>${item.review_text ? `<p>${escapeHtml(item.review_text)}</p>` : ""}</article>`).join("") : '<p class="muted">Be the first to rate this book.</p>'}</div></div></section>
