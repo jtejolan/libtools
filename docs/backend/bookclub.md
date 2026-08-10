@@ -17,12 +17,14 @@ Multi-tenant book club manager. Every club-owned table is scoped by
 | `BookClubParticipation` | `bookclub_participation` | Member roster for one meeting (`attended`, participant-set `rsvp_status`, and a session-only note); unique per `(meeting_id, member_id)`. RSVP and attendance intentionally share this record. |
 | `BookClubAnnouncement` | `bookclub_announcements` | Community announcement scoped to one club, with title/body, timestamps, and optional pinned priority. |
 | `BookClubAnnouncementRead` | `bookclub_announcement_reads` | Per-member acknowledgement/read state for an announcement; unique per `(announcement_id, member_id)`. |
-| `BookClubReadingProgress` | `bookclub_reading_progress` | Optional private reading state (`not_started`/`reading`/`finished`) for one roster member and club book; no row means the participant chose not to track it. |
+| `BookClubReadingProgress` | `bookclub_reading_progress` | Optional reading state and current page for one roster member/book. Private by default; `shared_with_club` explicitly publishes it to book stats and the social feed. |
 | `BookClubNotificationPreference` | `bookclub_notification_preferences` | Per-membership preferences for announcements, polls, meeting reminders, discussion replies, and immediate versus daily-digest delivery. |
-| `BookClubDiscussionPost` | `bookclub_discussion_posts` | Participant book discussion post or one-level reply, scoped to a club/book and attributed to the canonical roster member. |
+| `BookClubDiscussionPost` | `bookclub_discussion_posts` | Participant book discussion post or one-level reply, with optional spoiler concealment, scoped to a club/book and attributed to the canonical roster member. |
+| `BookClubDiscussionReaction` | `bookclub_discussion_reactions` | One like per member/discussion post; unique per `(post_id, member_id)`. |
+| `BookClubActivity` | `bookclub_activity` | Durable, club-scoped social feed events for shared progress, ratings, and discussion activity. |
 | `BookClubTemplate` | `bookclub_templates` | Editable email template; unique per `(club_id, key)` |
 | `BookClubDiscussionQuestion` | `bookclub_discussion_questions` | Legacy ordered questions retained for API compatibility; migration `e93f1a6b2c47` copies existing text into meeting discussion notes |
-| `BookClubRating` | `bookclub_ratings` | A participant's 1-5 rating (DB `CheckConstraint`) + optional review of a book; unique per `(book_id, participant_id)`, editable (upsert, not append). FK to `ParticipantAccount` is a plain string FK (`bookclub_participant_accounts.id`), not an ORM `relationship()` — `crud.py` joins in the participant's name explicitly instead, since that model lives in `participant_models.py` and there's no existing precedent in this package for a cross-module `relationship()`. |
+| `BookClubRating` | `bookclub_ratings` | A participant's 1-5 rating in 0.5-star increments plus optional review; unique per `(book_id, participant_id)`, editable (upsert, not append). |
 | `BookClubVotingRound` | `bookclub_voting_rounds` | A "what should we read next" poll; `status` `"open"`/`"closed"` only (simplified from an originally-planned draft/open/closed — see gotcha below), `winning_book_id` set on close. One open round per club at a time, enforced in `crud.py` (app-level, not a DB constraint). |
 | `BookClubBookCandidate` | `bookclub_book_candidates` | A book nominated for a round; manager-added candidates auto-approve, participant proposals require approval through `/bookclub/community/candidates/{id}/approve` |
 | `BookClubVote` | `bookclub_votes` | One participant's vote for a candidate; unique per `(voting_round_id, participant_id)` — casting a second vote updates the existing row rather than adding one. |
@@ -77,13 +79,13 @@ Announcements are managed at `/bookclub/community/announcements`, read at
 `/participant/meetings/*`; saving one creates or updates the same participation
 row staff later use to record attendance.
 
-Participant community routes also expose the grouped club library, the latest
-completed meeting, opt-in member profiles/directory, book discussions and
-one-level replies, optional reading progress, per-club notification preferences,
-a personal activity aggregate, a Google Calendar link, and an authenticated
-`.ics` meeting download. Activity is derived from
-existing ratings, votes, proposals, attendance, and reading-progress records;
-it is not a second append-only audit log.
+Participant community routes also expose the grouped club library, a club-stat
+book detail hub, half-star ratings, the latest completed meeting, opt-in member
+profiles/directory, spoiler-aware discussions/replies/reactions, optional
+private-or-shared page progress, per-club notification preferences, a personal
+activity aggregate, the durable social feed, a Google Calendar link, and an
+authenticated `.ics` meeting download. Facilitators can review and remove
+discussion posts through `/bookclub/community/discussion`.
 
 The participant landing page also supports account-first navigation. A global
 login verifies the participant once, claims any still-unlinked active roster
@@ -104,6 +106,8 @@ Migration `e8a1c4d72f60` adds the separate enrollment policy, defaulting existin
 clubs to `open` for backward compatibility.
 Migration `f9a2d4c6e810` adds participant profiles, announcement reads,
 discussion posts, and notification delivery frequency.
+Migration `a7d3e5f9b120` adds shared page progress, half-star storage, spoiler
+flags, discussion reactions, and the durable social activity feed.
 
 ## Routes
 

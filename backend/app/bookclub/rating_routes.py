@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Response, status
 
-from bookclub import crud, schemas
-from bookclub.participant_auth import CurrentParticipant, CurrentParticipantClub
+from bookclub import crud, models, schemas
+from bookclub.participant_auth import CurrentParticipant, CurrentParticipantClub, CurrentParticipantMember
 from bookclub.participant_schemas import BookRatingsResponse, RatingResponse, RatingSubmit
 from dependencies import DatabaseSession
 
@@ -52,12 +52,22 @@ def submit_rating(
     book_id: int,
     value: RatingSubmit,
     participant: CurrentParticipant,
+    member: CurrentParticipantMember,
     club: CurrentParticipantClub,
     db: DatabaseSession,
 ):
     if crud.get_book(db, book_id) is None:
         raise _not_found("Book not found")
-    crud.upsert_rating(db, book_id, participant.id, value)
+    rating = crud.upsert_rating(db, book_id, participant.id, value)
+    db.add(models.BookClubActivity(
+        club_id=club.id,
+        member_id=member.id,
+        book_id=book_id,
+        kind="rating",
+        detail=f"{value.rating:g} stars",
+        reference_id=rating.id,
+    ))
+    db.commit()
     return _ratings_response(book_id, crud.get_book_ratings(db, book_id))
 
 

@@ -118,7 +118,7 @@ class ParticipantPasswordResetConfirmRequest(ParticipantPasswordPair):
 
 
 class RatingSubmit(BaseModel):
-    rating: int = Field(ge=1, le=5)
+    rating: float = Field(ge=1, le=5, multiple_of=0.5)
     review_text: str | None = Field(default=None, max_length=4000)
 
     @field_validator("review_text")
@@ -132,7 +132,7 @@ class RatingResponse(BaseModel):
     book_id: int
     participant_id: int
     participant_name: str
-    rating: int
+    rating: float
     review_text: str | None
     created_at: datetime
     updated_at: datetime
@@ -148,6 +148,19 @@ class BookRatingsResponse(BaseModel):
 
 class ProposeCandidateRequest(BaseModel):
     book_id: int = Field(ge=1)
+
+
+class ProposeNewBookRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    author: str = Field(min_length=1, max_length=200)
+
+    @field_validator("title", "author")
+    @classmethod
+    def strip_required_text(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("This field cannot be blank")
+        return cleaned
 
 
 class CastVoteRequest(BaseModel):
@@ -316,6 +329,8 @@ class ParticipantMeetingResponse(BaseModel):
 
 class ReadingProgressUpdate(BaseModel):
     status: str | None
+    current_page: int | None = Field(default=None, ge=0)
+    shared_with_club: bool | None = None
 
     @field_validator("status")
     @classmethod
@@ -328,7 +343,40 @@ class ReadingProgressUpdate(BaseModel):
 class ReadingProgressResponse(BaseModel):
     book_id: int
     status: str | None = None
+    current_page: int | None = None
+    shared_with_club: bool = False
     updated_at: datetime | None = None
+
+
+class SocialMemberResponse(BaseModel):
+    member_id: int
+    name: str
+    avatar_url: str | None = None
+    is_self: bool = False
+
+
+class SharedReadingProgressResponse(BaseModel):
+    member: SocialMemberResponse
+    status: str
+    current_page: int | None = None
+    updated_at: datetime
+
+
+class ParticipantBookDetailResponse(BaseModel):
+    book: BookResponse
+    meeting_date: date | None = None
+    meetings_count: int = 0
+    attended_count: int = 0
+    shared_progress: list[SharedReadingProgressResponse] = Field(default_factory=list)
+
+
+class ClubActivityItem(BaseModel):
+    id: int
+    kind: str
+    detail: str | None = None
+    actor: SocialMemberResponse
+    book: BookResponse
+    created_at: datetime
 
 
 class NotificationPreferencesUpdate(BaseModel):
@@ -405,6 +453,7 @@ class ParticipantProfileResponse(BaseModel):
 class DiscussionPostCreate(BaseModel):
     body: str = Field(min_length=1, max_length=4000)
     parent_id: int | None = Field(default=None, ge=1)
+    spoiler: bool = False
 
     @field_validator("body")
     @classmethod
@@ -420,9 +469,23 @@ class DiscussionPostResponse(BaseModel):
     book_id: int
     parent_id: int | None = None
     body: str
+    spoiler: bool = False
+    reaction_count: int = 0
+    reacted_by_me: bool = False
     author: ParticipantProfileResponse
     created_at: datetime
     updated_at: datetime
+
+
+class DiscussionModerationResponse(BaseModel):
+    id: int
+    book_id: int
+    book_title: str
+    author_name: str
+    body: str
+    spoiler: bool = False
+    parent_id: int | None = None
+    created_at: datetime
 
 
 class ParticipantLibraryResponse(BaseModel):

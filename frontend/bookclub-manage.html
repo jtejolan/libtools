@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/static/bookclub.css?v=37" />
     <link rel="stylesheet" href="/static/bookclub-manage.css?v=3" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub-manage.js?v=10" defer></script>
+    <script src="/static/bookclub-manage.js?v=11" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -44,7 +44,7 @@
         <div class="content community-content">
           <header class="page-heading"><div><p class="eyebrow"><span></span><b id="club-eyebrow">Participant engagement</b></p><h1>Community</h1><p class="intro">Keep participant conversations and decisions moving between meetings.</p></div><div class="page-heading-actions"><button class="secondary-button" id="new-announcement">New announcement</button><button class="primary-button invite-readers-button" id="invite-readers"><span aria-hidden="true">＋</span> Invite readers</button></div></header>
 
-          <nav class="manage-tabs" aria-label="Community sections"><button class="manage-tab active" type="button" data-view="overview">Overview</button><button class="manage-tab" type="button" data-view="voting">Next book</button><button class="manage-tab" type="button" data-view="date-poll">Meeting date</button><button class="manage-tab" type="button" data-view="announcements">Announcements</button></nav>
+          <nav class="manage-tabs" aria-label="Community sections"><button class="manage-tab active" type="button" data-view="overview">Overview</button><button class="manage-tab" type="button" data-view="voting">Next book</button><button class="manage-tab" type="button" data-view="date-poll">Meeting date</button><button class="manage-tab" type="button" data-view="announcements">Announcements</button><button class="manage-tab" type="button" data-view="discussions">Discussions</button></nav>
 
           <section id="overview-view">
             <div class="community-stats"><article><strong id="member-count">—</strong><span>people on the roster</span></article><article><strong id="linked-count">—</strong><span>community accounts</span></article><article><strong id="verified-count">—</strong><span>community active</span></article><article><strong id="attention-count">—</strong><span>items needing attention</span></article></div>
@@ -55,6 +55,7 @@
           <section id="voting-view" hidden><div class="manage-toolbar"><div class="section-intro"><p class="eyebrow"><span></span>Collective choice</p><h2>Choose the next book</h2><p class="muted" id="voting-toolbar-copy">No poll running right now.</p></div><button class="primary-button" id="start-voting-round">Start a poll</button><button class="secondary-button" id="close-voting-round" hidden>Close voting</button></div><div class="user-list" id="voting-list"></div><div class="manage-toolbar add-option-row" id="add-candidate-row" hidden><label class="field"><span>Add another candidate</span><select id="candidate-book-select"></select></label><button class="secondary-button" id="add-candidate-button">Add</button></div></section>
           <section id="date-poll-view" hidden><div class="manage-toolbar"><div class="section-intro"><p class="eyebrow"><span></span>Find a time</p><h2>Choose the next meeting date</h2><p class="muted" id="date-poll-toolbar-copy">No date poll running right now.</p></div><button class="primary-button" id="start-date-poll">Start a poll</button><button class="secondary-button" id="close-date-poll" hidden>Close poll</button></div><div class="user-list" id="date-poll-list"></div><div class="manage-toolbar add-option-row" id="add-date-option-row" hidden><label class="field"><span>Add another date</span><input type="date" id="date-option-input" /></label><button class="secondary-button" id="add-date-option-button">Add</button></div></section>
           <section id="announcements-view" hidden><div class="manage-toolbar"><div class="section-intro"><p class="eyebrow"><span></span>Participant updates</p><h2>Announcements</h2><p class="muted">Updates appear for every participant with community access. Pin the one people should see first.</p></div><button class="primary-button" data-new-announcement>New announcement</button></div><div class="user-list" id="announcements-list"></div></section>
+          <section id="discussions-view" hidden><div class="manage-toolbar"><div class="section-intro"><p class="eyebrow"><span></span>Member conversations</p><h2>Discussion moderation</h2><p class="muted">Review book discussions and remove posts that do not belong in the club conversation.</p></div></div><div class="user-list" id="discussion-moderation-list"></div></section>
         </div>
       </main>
     </div>

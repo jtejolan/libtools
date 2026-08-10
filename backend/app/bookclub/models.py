@@ -5,6 +5,7 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -311,6 +312,10 @@ class BookClubReadingProgress(Base):
         ForeignKey("bookclub_books.id", ondelete="CASCADE"), index=True
     )
     status: Mapped[str] = mapped_column(String(20))
+    current_page: Mapped[int | None] = mapped_column(Integer())
+    shared_with_club: Mapped[bool] = mapped_column(
+        Boolean(), default=False, server_default="0"
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -354,6 +359,7 @@ class BookClubDiscussionPost(Base):
         ForeignKey("bookclub_discussion_posts.id", ondelete="CASCADE"), index=True
     )
     body: Mapped[str] = mapped_column(Text())
+    spoiler: Mapped[bool] = mapped_column(Boolean(), default=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -362,6 +368,49 @@ class BookClubDiscussionPost(Base):
     )
 
     member: Mapped[BookClubMember] = relationship()
+
+
+class BookClubDiscussionReaction(Base):
+    __tablename__ = "bookclub_discussion_reactions"
+    __table_args__ = (
+        UniqueConstraint("post_id", "member_id", name="uq_bookclub_post_member_reaction"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    post_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_discussion_posts.id", ondelete="CASCADE"), index=True
+    )
+    member_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_members.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(20), default="like", server_default="like")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class BookClubActivity(Base):
+    __tablename__ = "bookclub_activity"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    club_id: Mapped[int] = mapped_column(
+        ForeignKey("book_clubs.id", ondelete="CASCADE"), index=True
+    )
+    member_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_members.id", ondelete="CASCADE"), index=True
+    )
+    book_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_books.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(30), index=True)
+    detail: Mapped[str | None] = mapped_column(String(500))
+    reference_id: Mapped[int | None] = mapped_column(Integer())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+
+    member: Mapped[BookClubMember] = relationship()
+    book: Mapped[BookClubBook] = relationship()
 
 
 class BookClubTemplate(Base):
@@ -435,7 +484,7 @@ class BookClubRating(Base):
     participant_id: Mapped[int] = mapped_column(
         ForeignKey("bookclub_participant_accounts.id", ondelete="CASCADE"), index=True
     )
-    rating: Mapped[int] = mapped_column(Integer())
+    rating: Mapped[float] = mapped_column(Float())
     review_text: Mapped[str | None] = mapped_column(Text())
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

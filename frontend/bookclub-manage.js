@@ -2,7 +2,7 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const API = "/bookclub/community";
 const PARTICIPANT_PORTAL_ORIGIN = "https://bookclub.libtools.app";
-const state = { books: [], announcements: [], overview: null, club: null };
+const state = { books: [], announcements: [], discussions: [], overview: null, club: null };
 
 const request = async (url, options = {}) => {
   const response = await fetch(url, { ...options, cache: "no-store", headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...options.headers } });
@@ -46,7 +46,7 @@ const applyManagerShell = (user, club) => {
 
 const selectView = (view) => {
   $$(".manage-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
-  ["overview", "voting", "date-poll", "announcements"].forEach((name) => { $(`#${name}-view`).hidden = name !== view; });
+  ["overview", "voting", "date-poll", "announcements", "discussions"].forEach((name) => { $(`#${name}-view`).hidden = name !== view; });
 };
 
 $$(".manage-tab").forEach((tab) => tab.addEventListener("click", () => selectView(tab.dataset.view)));
@@ -155,6 +155,18 @@ const renderAnnouncements = () => {
   $("#announcements-list").innerHTML = state.announcements.length ? state.announcements.map((item) => `<article class="user-card announcement-card"><div>${item.pinned ? '<div class="pin-mark">Pinned</div>' : ""}<h3>${escapeHtml(item.title)}</h3><p class="user-meta">Published ${escapeHtml(formatTimestamp(item.published_at))}</p><p class="announcement-body">${escapeHtml(item.body)}</p></div><div class="user-actions"><button class="quiet-button" data-edit-announcement="${item.id}">Edit</button></div></article>`).join("") : '<p class="empty-state">No announcements yet. Publish a welcome message or an update about the next discussion.</p>';
 };
 const loadAnnouncements = async () => { state.announcements = await request(`${API}/announcements`); renderAnnouncements(); };
+
+const loadDiscussions = async () => {
+  state.discussions = await request(`${API}/discussion`);
+  $("#discussion-moderation-list").innerHTML = state.discussions.length ? state.discussions.map((post) => `<article class="user-card"><div><p class="eyebrow">${escapeHtml(post.book_title)}${post.parent_id ? " · Reply" : ""}${post.spoiler ? " · Spoiler" : ""}</p><h3>${escapeHtml(post.author_name)}</h3><p class="announcement-body">${escapeHtml(post.body)}</p><p class="user-meta">${escapeHtml(formatTimestamp(post.created_at))}</p></div><button class="quiet-button" type="button" data-remove-discussion="${post.id}">Remove</button></article>`).join("") : '<p class="empty-state">No member discussions yet.</p>';
+};
+
+$("#discussion-moderation-list").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-remove-discussion]");
+  if (!button) return;
+  try { await request(`${API}/discussion/${button.dataset.removeDiscussion}`, { method: "DELETE" }); await loadDiscussions(); toast("Discussion post removed."); }
+  catch (error) { toast(error.message); }
+});
 const openAnnouncement = (item = null) => {
   const form = $("#announcement-form"); form.reset(); $("#announcement-error").textContent = "";
   $("#announcement-dialog-title").textContent = item ? "Edit announcement" : "New announcement";
@@ -206,4 +218,4 @@ $("#add-date-option-button").addEventListener("click", async () => { const input
 $("#close-date-poll").addEventListener("click", async () => { if (!confirm("Close the poll and select the leading date?")) return; try { renderDatePoll(await request(`${API}/date-poll/close`, { method: "POST" })); toast("Date poll closed."); } catch (error) { toast(error.message); } });
 
 $("#logout").addEventListener("click", async () => { await request("/auth/logout", { method: "POST" }); location.href = "/login"; });
-(async () => { try { const user = await request("/auth/me"); const club = await request("/bookclub/clubs/selected"); applyManagerShell(user, club); document.title = `${club.name} — Community`; state.books = await request(`${API}/books?limit=500`); await Promise.all([loadOverview(), loadVoting(), loadDatePoll(), loadAnnouncements()]); } catch { location.href = "/bookclub"; } })();
+(async () => { try { const user = await request("/auth/me"); const club = await request("/bookclub/clubs/selected"); applyManagerShell(user, club); document.title = `${club.name} — Community`; state.books = await request(`${API}/books?limit=500`); await Promise.all([loadOverview(), loadVoting(), loadDatePoll(), loadAnnouncements(), loadDiscussions()]); } catch { location.href = "/bookclub"; } })();

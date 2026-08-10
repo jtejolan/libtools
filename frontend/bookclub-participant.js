@@ -67,6 +67,8 @@ const participantState = {
   votingRound: null,
   datePoll: null,
   profile: null,
+  activeBookId: null,
+  activeBookDetail: null,
 };
 
 const formatTimestamp = (value) =>
@@ -173,7 +175,7 @@ const renderCurrentReading = (data, progress) => {
   cover.alt = book.cover_image_url ? `Cover of ${book.title}` : "";
   $("#reading-progress-options").innerHTML = ["not_started", "reading", "finished"]
     .map((status) => `<button type="button" class="${progress?.status === status ? "primary-button" : "secondary-button"} progress-button" data-reading-status="${status}" data-book-id="${book.id}">${progressLabels[status]}</button>`)
-    .join("") + (progress?.status ? `<button type="button" class="quiet-button" data-reading-status="" data-book-id="${book.id}">Clear</button>` : "");
+    .join("") + `<button type="button" class="quiet-button" data-open-book="${book.id}">Book details &amp; club ratings</button>` + (progress?.status ? `<button type="button" class="quiet-button" data-reading-status="" data-book-id="${book.id}">Clear</button>` : "");
 };
 
 const loadCurrentReading = async (data = participantState.upcomingMeeting) => {
@@ -265,6 +267,17 @@ const renderVoting = (round) => {
         </div>
       </form>`;
 
+  const newBookForm = showResults
+    ? ""
+    : `<form id="propose-new-book-form" class="dash-scan-form" style="margin-top:12px">
+        <label for="propose-new-book-title">Suggest a book we don't have yet</label>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <input id="propose-new-book-title" type="text" placeholder="Title" required />
+          <input id="propose-new-book-author" type="text" placeholder="Author" required />
+          <button class="secondary-button" type="submit">Propose</button>
+        </div>
+      </form>`;
+
   const pendingCopy = myPending.length
     ? `<p class="muted" style="margin-top:14px">Awaiting facilitator approval: ${myPending.map((c) => escapeHtml(c.book.title)).join(", ")}</p>`
     : "";
@@ -277,7 +290,7 @@ const renderVoting = (round) => {
         isWinner: showResults && round.winning_book && candidate.book.id === round.winning_book.id,
       }),
     )
-    .join("")}</div>${proposeForm}${pendingCopy}`;
+    .join("")}</div>${proposeForm}${newBookForm}${pendingCopy}`;
   renderActionCenter();
 };
 
@@ -299,6 +312,25 @@ document.addEventListener("submit", async (event) => {
     await request("/participant/voting-round/candidates", {
       method: "POST",
       body: JSON.stringify({ book_id: bookId }),
+    });
+    toast("Proposed — waiting on facilitator approval.");
+    await loadVoting();
+    await loadActivity();
+  } catch (error) {
+    toast(error.message);
+  }
+});
+
+document.addEventListener("submit", async (event) => {
+  if (event.target.id !== "propose-new-book-form") return;
+  event.preventDefault();
+  const title = $("#propose-new-book-title").value.trim();
+  const author = $("#propose-new-book-author").value.trim();
+  if (!title || !author) return;
+  try {
+    await request("/participant/voting-round/candidates/new-book", {
+      method: "POST",
+      body: JSON.stringify({ title, author }),
     });
     toast("Proposed — waiting on facilitator approval.");
     await loadVoting();
@@ -395,34 +427,8 @@ const ratingsState = { participantId: null, pendingStars: {}, dataByBook: {}, mi
 
 const renderBookRatingCard = (book, ratingsData) => {
   const mine = ratingsData.ratings.find((entry) => entry.participant_id === ratingsState.participantId);
-  const selectedStars = ratingsState.pendingStars[book.id] ?? mine?.rating ?? 0;
-  const stars = [1, 2, 3, 4, 5]
-    .map(
-      (n) =>
-        `<button type="button" class="star-button${n <= selectedStars ? " is-filled" : ""}" data-book-id="${book.id}" data-star="${n}" aria-label="Rate ${n} star${n > 1 ? "s" : ""}">★</button>`,
-    )
-    .join("");
-  const others = ratingsData.ratings.filter((entry) => entry.participant_id !== ratingsState.participantId);
   const averageCopy = ratingsData.count ? `${ratingsData.average}★ average (${ratingsData.count} rating${ratingsData.count > 1 ? "s" : ""})` : "No ratings yet";
-
-  return `<details class="rating-card" data-book-id="${book.id}">
-    <summary style="cursor:pointer"><h3 style="display:inline">${escapeHtml(book.title)}</h3><p class="user-meta">${escapeHtml(book.author)} · ${averageCopy}${mine ? ` · You rated ${mine.rating}★` : ""}</p></summary>
-    <div style="padding-top:14px">
-    <div class="star-row">${stars}</div>
-    <textarea class="rating-review" data-book-id="${book.id}" placeholder="Optional review" rows="2">${mine?.review_text ? escapeHtml(mine.review_text) : ""}</textarea>
-    <button class="secondary-button" data-save-rating="${book.id}">${mine ? "Update rating" : "Save rating"}</button>
-    ${
-      others.length
-        ? `<details class="rating-others"><summary>${others.length} other review${others.length > 1 ? "s" : ""}</summary>${others
-            .map(
-              (entry) =>
-                `<p><strong>${escapeHtml(entry.participant_name)}</strong> rated ${entry.rating}★${entry.review_text ? `: ${escapeHtml(entry.review_text)}` : ""}</p>`,
-            )
-            .join("")}</details>`
-        : ""
-    }
-    </div>
-  </details>`;
+  return `<article class="user-card rating-card" data-book-id="${book.id}"><div><h3>${escapeHtml(book.title)}</h3><p class="user-meta">${escapeHtml(book.author)} · ${averageCopy}${mine ? ` · You rated ${mine.rating}★` : ""}</p></div><button class="secondary-button" type="button" data-open-book="${book.id}">View book</button></article>`;
 };
 
 const loadRatings = async () => {
@@ -499,7 +505,7 @@ const renderPostMeeting = () => {
   section.hidden = false;
   $("#post-meeting-heading").textContent = mine ? `Thanks for sharing your take on ${book.title}` : `What did you think of ${book.title}?`;
   $("#post-meeting-copy").textContent = mine ? `You rated it ${mine.rating} star${mine.rating === 1 ? "" : "s"}. You can update your rating or join the conversation anytime.` : `Capture a quick rating or reflection while the conversation is still fresh.`;
-  $("#post-meeting-actions").innerHTML = `${actionButton(mine ? "Update my review" : "Rate this book", "library-section")}<button class="secondary-button" type="button" data-open-discussion-book="${book.id}">Open discussion</button>`;
+  $("#post-meeting-actions").innerHTML = `<button class="primary-button" type="button" data-open-book="${book.id}">${mine ? "Update my review" : "Rate this book"}</button><button class="secondary-button" type="button" data-open-book="${book.id}">Open discussion</button>`;
 };
 
 $("#logout").addEventListener("click", async () => {
@@ -528,12 +534,14 @@ const renderActivity = (activity) => {
     [activity.proposals_count, "books proposed"],
   ];
   $("#activity-stats").innerHTML = stats.map(([count, label]) => `<div class="activity-stat"><strong>${count}</strong><span>${label}</span></div>`).join("");
-  $("#activity-list").innerHTML = activity.recent.length
-    ? activity.recent.map((item) => `<div class="activity-item"><p><strong>${escapeHtml(item.label)}</strong>${item.detail ? ` · ${escapeHtml(item.detail)}` : ""}</p><small>${escapeHtml(formatTimestamp(item.occurred_at))}</small></div>`).join("")
-    : '<p class="muted">Your ratings, votes, proposals, and reading updates will appear here.</p>';
 };
 
 const loadActivity = async () => renderActivity(await request("/participant/activity"));
+
+const loadClubActivity = async () => {
+  const activity = await request("/participant/club-activity");
+  $("#activity-list").innerHTML = activity.length ? activity.map((item) => `<article class="feed-item">${avatarMarkup(item.actor)}<div><p><strong>${escapeHtml(item.actor.name)}</strong> ${item.kind === "rating" ? "rated" : item.kind === "progress" ? "updated their progress on" : "posted about"} <strong>${escapeHtml(item.book.title)}</strong>${item.detail ? ` · ${escapeHtml(item.detail)}` : ""}</p><small class="user-meta">${escapeHtml(formatTimestamp(item.created_at))}</small><button class="quiet-button" type="button" data-open-book="${item.book.id}">View book</button></div></article>`).join("") : '<p class="muted">Shared progress, ratings, and discussions will appear here.</p>';
+};
 
 const avatarMarkup = (profile) => profile.avatar_url
   ? `<span class="member-avatar"><img src="${escapeHtml(profile.avatar_url)}" alt="" /></span>`
@@ -546,6 +554,99 @@ const renderDirectory = (members) => {
 };
 
 const loadDirectory = async () => renderDirectory(await request("/participant/members"));
+
+const readingPaceCopy = (detail, progress) => {
+  const total = detail.book.page_count;
+  const current = Number(progress?.current_page || 0);
+  if (!total) return "Add a page count to this book to calculate a reading pace.";
+  if (!detail.meeting_date) return `${Math.max(0, total - current)} pages remaining. Schedule a meeting to calculate a pace.`;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(`${detail.meeting_date}T00:00:00`);
+  const days = Math.max(1, Math.ceil((target - today) / 86400000));
+  const remaining = Math.max(0, total - current);
+  if (!remaining) return "You’ve reached the end — nicely done.";
+  return `${remaining} pages remaining · ${days} day${days === 1 ? "" : "s"} · ${Math.ceil(remaining / days)} pages per day or ${Math.ceil((remaining * 7) / days)} pages per week`;
+};
+
+const discussionMarkup = (posts) => {
+  const roots = posts.filter((post) => post.parent_id == null);
+  const replies = posts.filter((post) => post.parent_id != null);
+  const postMarkup = (post, reply = false) => `<article class="${reply ? "discussion-reply" : "discussion-thread"}"><div class="discussion-author">${avatarMarkup(post.author)}<div><strong>${escapeHtml(post.author.name)}</strong><small class="user-meta">${escapeHtml(formatTimestamp(post.created_at))}</small></div></div><p class="discussion-body${post.spoiler ? " spoiler-text" : ""}"${post.spoiler ? ` data-reveal-spoiler="true" data-body="${escapeHtml(post.body)}"` : ""}>${post.spoiler ? "Spoiler — click to reveal" : escapeHtml(post.body)}</p><div class="post-meeting-actions"><button class="quiet-button reaction-button${post.reacted_by_me ? " is-active" : ""}" type="button" data-react-post="${post.id}">♥ ${post.reaction_count}</button>${reply ? "" : `<button class="quiet-button" type="button" data-detail-reply="${post.id}">Reply</button>`}${post.author.is_self ? `<button class="quiet-button" type="button" data-detail-delete-post="${post.id}">Delete</button>` : ""}</div>${reply ? "" : `<form class="reply-form" data-detail-reply-form="${post.id}" hidden><textarea rows="2" maxlength="4000" placeholder="Write a reply"></textarea><label><input type="checkbox" name="spoiler" /> Contains spoilers</label><button class="secondary-button" type="submit">Post reply</button></form><div class="discussion-replies">${replies.filter((item) => item.parent_id === post.id).map((item) => postMarkup(item, true)).join("")}</div>`}</article>`;
+  return roots.length ? roots.map((post) => postMarkup(post)).join("") : '<p class="muted">No posts yet. Start the conversation.</p>';
+};
+
+const renderBookPage = ({ detail, ratings, progress, posts }) => {
+  const book = detail.book;
+  const mine = ratings.ratings.find((item) => item.participant_id === ratingsState.participantId);
+  const distribution = [5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5, 1]
+    .filter((score) => ratings.ratings.some((item) => item.rating === score))
+    .map((score) => `${score}★ ${ratings.ratings.filter((item) => item.rating === score).length}`)
+    .join(" · ") || "No ratings yet";
+  $("#book-page-content").innerHTML = `<div class="book-page-hero"><img class="book-page-cover" src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div><p class="eyebrow">${escapeHtml(book.author)}</p><h2>${escapeHtml(book.title)}</h2><p>${escapeHtml(book.description || "No description has been added yet.")}</p><p class="user-meta">${book.page_count ? `${book.page_count} pages · ` : ""}${escapeHtml(book.genres || "")}</p></div></div><div class="book-page-stats"><div><strong>${ratings.average ?? "—"}${ratings.average != null ? "★" : ""}</strong><span>Club average</span></div><div><strong>${ratings.count}</strong><span>Ratings</span></div><div><strong>${detail.attended_count}</strong><span>Meeting attendees</span></div></div><p class="muted">${distribution}</p>
+    <div class="book-page-columns"><section class="book-page-section"><p class="eyebrow">Your rating</p><output class="rating-value" id="detail-rating-value">${mine?.rating || 3}★</output><input class="rating-range" id="detail-rating" type="range" min="1" max="5" step="0.5" value="${mine?.rating || 3}" aria-label="Rating in half-star increments" /><textarea id="detail-review" rows="4" maxlength="4000" placeholder="Optional review">${escapeHtml(mine?.review_text || "")}</textarea><button class="primary-button" id="save-detail-rating" type="button">${mine ? "Update rating" : "Save rating"}</button></section>
+    <section class="book-page-section"><p class="eyebrow">Reading pace</p><form class="progress-form" id="detail-progress-form"><label>Status<select name="status"><option value="not_started"${progress.status === "not_started" ? " selected" : ""}>Not started</option><option value="reading"${progress.status === "reading" ? " selected" : ""}>Reading</option><option value="finished"${progress.status === "finished" ? " selected" : ""}>Finished</option></select></label><div class="progress-form-row"><label>Current page<input name="current_page" type="number" min="0" ${book.page_count ? `max="${book.page_count}"` : ""} value="${progress.current_page ?? 0}" /></label><label>Book club day<input value="${detail.meeting_date ? escapeHtml(formatDate(detail.meeting_date)) : "Not scheduled"}" disabled /></label></div><label class="preference-option"><input name="shared_with_club" type="checkbox"${progress.shared_with_club ? " checked" : ""} /><span><strong>Share my progress</strong><small>Other members can see your status and current page.</small></span></label><div class="pace-result" id="pace-result">${escapeHtml(readingPaceCopy(detail, progress))}</div><button class="secondary-button" type="submit">Save progress</button></form></section></div>
+    <section class="book-page-section"><p class="eyebrow">Club progress</p><div class="shared-progress-list">${detail.shared_progress.length ? detail.shared_progress.map((item) => `<div class="shared-progress-item"><strong>${escapeHtml(item.member.name)}</strong><span>${escapeHtml(progressLabels[item.status] || item.status)}${item.current_page != null ? ` · page ${item.current_page}` : ""}</span></div>`).join("") : '<p class="muted">No one has shared progress for this book yet.</p>'}</div></section>
+    <section class="book-page-section"><p class="eyebrow">Club ratings</p>${ratings.ratings.length ? ratings.ratings.map((item) => `<article class="activity-item"><p><strong>${escapeHtml(item.participant_name)}</strong> · ${item.rating}★</p>${item.review_text ? `<p>${escapeHtml(item.review_text)}</p>` : ""}</article>`).join("") : '<p class="muted">Be the first to rate this book.</p>'}</section>
+    <section class="book-page-section"><p class="eyebrow">Discussion</p><form class="discussion-compose" id="detail-discussion-form"><textarea rows="3" maxlength="4000" placeholder="What are you noticing so far?"></textarea><label><input type="checkbox" name="spoiler" /> Contains spoilers</label><div><button class="primary-button" type="submit">Post</button></div></form><div id="detail-discussion-list">${discussionMarkup(posts)}</div></section>`;
+};
+
+const openBookPage = async (bookId) => {
+  participantState.activeBookId = Number(bookId);
+  const id = participantState.activeBookId;
+  const [detail, ratings, progress, posts] = await Promise.all([
+    request(`/participant/books/${id}/detail`), request(`/participant/books/${id}/ratings`),
+    request(`/participant/books/${id}/reading-progress`), request(`/participant/books/${id}/discussion`),
+  ]);
+  participantState.activeBookDetail = detail;
+  renderBookPage({ detail, ratings, progress, posts });
+  if (!$("#book-page-dialog").open) $("#book-page-dialog").showModal();
+  history.replaceState(null, "", `${location.pathname}?book=${id}`);
+};
+
+$("#close-book-page").addEventListener("click", () => { $("#book-page-dialog").close(); history.replaceState(null, "", location.pathname); });
+document.addEventListener("click", (event) => { const button = event.target.closest("[data-open-book]"); if (button) openBookPage(button.dataset.openBook).catch((error) => toast(error.message)); });
+$("#book-page-content").addEventListener("input", (event) => {
+  if (event.target.id === "detail-rating") $("#detail-rating-value").textContent = `${event.target.value}★`;
+  if (event.target.name === "current_page" && $("#pace-result")) {
+    $("#pace-result").textContent = readingPaceCopy(participantState.activeBookDetail, { current_page: Number(event.target.value || 0) });
+  }
+});
+$("#book-page-content").addEventListener("click", async (event) => {
+  const spoiler = event.target.closest("[data-reveal-spoiler]");
+  if (spoiler) { spoiler.classList.add("revealed"); spoiler.textContent = spoiler.dataset.body || ""; return; }
+  const reply = event.target.closest("[data-detail-reply]");
+  if (reply) { $(`[data-detail-reply-form='${reply.dataset.detailReply}']`).hidden = false; return; }
+  const react = event.target.closest("[data-react-post]");
+  const remove = event.target.closest("[data-detail-delete-post]");
+  try {
+    if (event.target.id === "save-detail-rating") await request(`/participant/books/${participantState.activeBookId}/rating`, { method: "PUT", body: JSON.stringify({ rating: Number($("#detail-rating").value), review_text: $("#detail-review").value.trim() || null }) });
+    else if (react) await request(`/participant/discussion/${react.dataset.reactPost}/reaction`, { method: "PUT" });
+    else if (remove) await request(`/participant/discussion/${remove.dataset.detailDeletePost}`, { method: "DELETE" });
+    else return;
+    delete ratingsState.dataByBook[participantState.activeBookId];
+    await Promise.all([openBookPage(participantState.activeBookId), loadRatings(), loadActivity(), loadClubActivity()]);
+    toast("Saved.");
+  } catch (error) { toast(error.message); }
+});
+$("#book-page-content").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const id = participantState.activeBookId;
+  try {
+    if (event.target.id === "detail-progress-form") {
+      const form = event.target;
+      await request(`/participant/books/${id}/reading-progress`, { method: "PUT", body: JSON.stringify({ status: form.elements.status.value, current_page: Number(form.elements.current_page.value), shared_with_club: form.elements.shared_with_club.checked }) });
+    } else {
+      const form = event.target;
+      const parentId = form.dataset.detailReplyForm ? Number(form.dataset.detailReplyForm) : null;
+      const textarea = form.querySelector("textarea");
+      if (!textarea.value.trim()) return;
+      await request(`/participant/books/${id}/discussion`, { method: "POST", body: JSON.stringify({ body: textarea.value.trim(), parent_id: parentId, spoiler: form.elements.spoiler.checked }) });
+    }
+    await Promise.all([openBookPage(id), loadCurrentReading(), loadActivity(), loadClubActivity()]);
+    toast("Saved.");
+  } catch (error) { toast(error.message); }
+});
 
 const openProfileDialog = async () => {
   try {
@@ -706,9 +807,9 @@ $("#notification-form").addEventListener("submit", async (event) => {
       request("/participant/profile"),
       loadClubSwitcher(participant.club_slug),
     ]);
-    await Promise.all([loadAnnouncements(), loadRsvp(), loadVoting(), loadDatePoll(), loadRatings(), loadActivity(), loadNotificationPreferences(), loadDirectory()]);
-    const discussionBook = participantState.library.current[0] || participantState.library.previously_read[0];
-    if (discussionBook) await loadDiscussion(discussionBook.id);
+    await Promise.all([loadAnnouncements(), loadRsvp(), loadVoting(), loadDatePoll(), loadRatings(), loadActivity(), loadClubActivity(), loadNotificationPreferences(), loadDirectory()]);
+    const requestedBook = new URLSearchParams(location.search).get("book");
+    if (requestedBook) await openBookPage(Number(requestedBook));
     renderPostMeeting();
     renderActionCenter();
   } catch {

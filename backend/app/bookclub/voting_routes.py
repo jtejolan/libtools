@@ -1,11 +1,12 @@
 from fastapi import APIRouter, HTTPException, Response, status
 
-from bookclub import crud
+from bookclub import crud, schemas
 from bookclub.participant_auth import CurrentParticipant, CurrentParticipantClub
 from bookclub.participant_schemas import (
     CandidateResponse,
     CastVoteRequest,
     ProposeCandidateRequest,
+    ProposeNewBookRequest,
     VotingRoundResponse,
 )
 from dependencies import DatabaseSession
@@ -90,6 +91,34 @@ def propose_candidate(
     return CandidateResponse(
         id=candidate.id,
         book=crud.get_book(db, candidate.book_id),
+        status=candidate.status,
+        proposed_by_participant_id=candidate.proposed_by_participant_id,
+        proposed_by_name=participant.name,
+        vote_count=None,
+        created_at=candidate.created_at,
+    )
+
+
+@router.post("/candidates/new-book", response_model=CandidateResponse, status_code=status.HTTP_201_CREATED)
+def propose_new_book(
+    value: ProposeNewBookRequest,
+    participant: CurrentParticipant,
+    club: CurrentParticipantClub,
+    db: DatabaseSession,
+):
+    round_ = crud.get_open_voting_round(db)
+    if round_ is None:
+        raise _not_found("There is no open voting round")
+    # A participant-typed title has no ISBN, so it can never collide with
+    # create_book's ISBN uniqueness constraint - always a fresh book row,
+    # even if it duplicates an existing title/author.
+    book = crud.create_book(db, schemas.BookCreate(title=value.title, author=value.author))
+    candidate = crud.add_candidate(
+        db, round_.id, book.id, participant.id, auto_approve=False
+    )
+    return CandidateResponse(
+        id=candidate.id,
+        book=book,
         status=candidate.status,
         proposed_by_participant_id=candidate.proposed_by_participant_id,
         proposed_by_name=participant.name,

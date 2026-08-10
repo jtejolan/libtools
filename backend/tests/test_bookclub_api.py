@@ -157,7 +157,7 @@ class BookClubApiTests(unittest.TestCase):
         self.assertIn('aria-current="page">', community.text)
         self.assertIn('/static/bookclub.css?v=37', community.text)
         self.assertIn('/static/bookclub-manage.css?v=3', community.text)
-        self.assertIn('/static/bookclub-manage.js?v=10', community.text)
+        self.assertIn('/static/bookclub-manage.js?v=11', community.text)
         self.assertIn('id="invite-readers"', community.text)
         self.assertEqual(community.headers["cache-control"], "no-store")
 

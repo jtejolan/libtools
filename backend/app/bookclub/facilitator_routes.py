@@ -22,6 +22,7 @@ from bookclub.participant_schemas import (
     CommunityAccountStatus,
     CommunityOverviewResponse,
     DatePollResponse,
+    DiscussionModerationResponse,
     OpenDatePollRequest,
     OpenVotingRoundRequest,
     ProposeCandidateRequest,
@@ -50,6 +51,45 @@ PARTICIPANT_PORTAL_ORIGIN = "https://bookclub.libtools.app"
 
 def _not_found(detail: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+
+
+@router.delete("/discussion/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+def moderate_discussion_post(post_id: int, club: SelectedClub, db: DatabaseSession) -> Response:
+    post = db.scalar(select(models.BookClubDiscussionPost).where(
+        models.BookClubDiscussionPost.id == post_id,
+        models.BookClubDiscussionPost.club_id == club.id,
+    ))
+    if post is None:
+        raise _not_found("Discussion post not found")
+    db.query(models.BookClubActivity).filter(
+        models.BookClubActivity.kind == "discussion",
+        models.BookClubActivity.reference_id == post.id,
+    ).delete(synchronize_session=False)
+    db.delete(post)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/discussion", response_model=list[DiscussionModerationResponse])
+def discussion_moderation_queue(club: SelectedClub, db: DatabaseSession):
+    rows = db.execute(
+        select(models.BookClubDiscussionPost, models.BookClubMember.name, models.BookClubBook.title)
+        .join(models.BookClubMember, models.BookClubMember.id == models.BookClubDiscussionPost.member_id)
+        .join(models.BookClubBook, models.BookClubBook.id == models.BookClubDiscussionPost.book_id)
+        .where(models.BookClubDiscussionPost.club_id == club.id)
+        .order_by(models.BookClubDiscussionPost.created_at.desc(), models.BookClubDiscussionPost.id.desc())
+        .limit(200)
+    ).all()
+    return [DiscussionModerationResponse(
+        id=post.id,
+        book_id=post.book_id,
+        book_title=title,
+        author_name=name,
+        body=post.body,
+        spoiler=post.spoiler,
+        parent_id=post.parent_id,
+        created_at=post.created_at,
+    ) for post, name, title in rows]
 
 
 @router.get("/invite-qr.svg")

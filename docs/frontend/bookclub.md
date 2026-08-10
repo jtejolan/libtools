@@ -190,8 +190,11 @@ action and supports joining a second open club without another account.
   rating work from the data already loaded on the page. The richer meeting hub
   includes online/calendar actions, facilitator preparation notes, and ordered
   discussion questions. It also provides a club switcher, announcement archive
-  with read state, current-book detail/progress, post-meeting follow-up, book
-  discussions/replies, a grouped searchable library, immediate/digest
+  with read state, current-book detail/progress, post-meeting follow-up, and a
+  grouped searchable library. Each book opens a club-stat hub with the average
+  and individual 0.5-star ratings, opt-in shared progress, an automatic daily/
+  weekly reading pace, spoiler-aware discussions/replies/reactions, and member
+  activity. The dashboard also includes a durable club feed, immediate/digest
   notification preferences, personal activity, and an opt-in member directory
   whose responses never expose roster email or staff notes. It has no
   facilitator role or management link.
@@ -200,7 +203,8 @@ action and supports joining a second open club without another account.
   session and selected club. It shares the Book Club Manager's green sidebar,
   account menu, responsive shell, and direct navigation to the Meetings, Books,
   Members, and Settings views. Its content focuses on community health/account
-  activation, next-meeting RSVP counts, book/date polls, and announcements. A
+  activation, next-meeting RSVP counts, book/date polls, announcements, and a
+  discussion moderation queue. A
   prominent **Invite readers** dialog supplies the canonical
   `bookclub.libtools.app/clubs/{slug}` link, copyable club code, downloadable
   QR code, and public-page preview. Private clubs see a settings prompt instead

@@ -37,7 +37,7 @@ guaranteed exact) · **Purpose** (one clause) · **Detail in**.
 
 | Path | Lines | Purpose | Detail in |
 |---|---|---|---|
-| `backend/app/bookclub/models.py` | — | Club/member/book/meeting/participation, announcements, reading progress, notification preferences, templates, ratings and polls | `docs/backend/bookclub.md` |
+| `backend/app/bookclub/models.py` | — | Club/member/book/meeting data, shared progress, social activity, discussions/reactions, ratings and polls | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/schemas.py` | 461 | Pydantic schemas incl. `PublicXResponse` subset types, book-detail insights, `SelfServeClubSummary` (admin view) | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/crud.py` | — | DB ops for all bookclub entities including roster-linked participant broadcasts, ratings, voting, and date polling | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/routes.py` | — | Members (including community-access state and verification resend), books/meetings/roster/emails/giveaway/templates/questions | `docs/backend/bookclub.md` |
@@ -49,7 +49,7 @@ guaranteed exact) · **Purpose** (one clause) · **Detail in**.
 | `backend/app/bookclub/participant_models.py` | — | Global `ParticipantAccount` identity and tokens; club membership lives on linked roster rows | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/participant_schemas.py` | — | Participant auth, ratings, polls, announcement, RSVP, activation overview, broadcast/unsubscribe schemas | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/facilitator_routes.py` | — | `/bookclub/community/*` overview, announcements, polls and supporting routes, using regular selected-club access | `docs/backend/bookclub.md` |
-| `backend/app/bookclub/participant_community_routes.py` | — | Participant announcements, RSVP/calendar, reading progress, preferences, and personal activity APIs | `docs/backend/bookclub.md` |
+| `backend/app/bookclub/participant_community_routes.py` | — | Participant book detail, social feed, discussions, shared progress, RSVP/calendar, profiles and preferences APIs | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/voting_routes.py` | 125 | `/participant/voting-round/*` — propose/vote, `build_round_response()` reused by `facilitator_routes.py` | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/date_poll_routes.py` | 77 | `/participant/date-poll/*` — vote (no propose, facilitator-only options), `build_poll_response()` reused by `facilitator_routes.py`; independent from `voting_routes.py` by design | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/participant_unsubscribe.py` | 46 | Signs/verifies unsubscribe tokens via `itsdangerous` — no DB table, reused `LIBTOOLS_SESSION_SECRET` with a distinct salt | `docs/backend/bookclub.md` |

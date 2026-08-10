@@ -169,6 +169,37 @@ class VotingRoutesTests(unittest.TestCase):
         )
         self.assertEqual(vote_after_approval.status_code, 200, vote_after_approval.text)
 
+    def test_participant_can_propose_a_book_not_in_the_catalogue(self) -> None:
+        self.open_round(candidate_book_ids=[self.book_a])
+        response = self.reader_a.post(
+            "/participant/voting-round/candidates/new-book",
+            json={"title": "Piranesi", "author": "Susanna Clarke"},
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertEqual(response.json()["status"], "pending")
+        self.assertEqual(response.json()["book"]["title"], "Piranesi")
+
+        # It's now a real club book, visible to the facilitator's catalogue,
+        # and only approved after facilitator review, same as an existing-book proposal.
+        catalogue = self.facilitator.get("/bookclub/community/books").json()
+        self.assertIn("Piranesi", [book["title"] for book in catalogue])
+
+        approved = self.facilitator.post(
+            f"/bookclub/community/candidates/{response.json()['id']}/approve"
+        )
+        self.assertEqual(approved.status_code, 200, approved.text)
+        vote = self.reader_b.put(
+            "/participant/voting-round/vote", json={"candidate_id": response.json()["id"]}
+        )
+        self.assertEqual(vote.status_code, 200, vote.text)
+
+    def test_cannot_propose_a_new_book_without_an_open_round(self) -> None:
+        response = self.reader_a.post(
+            "/participant/voting-round/candidates/new-book",
+            json={"title": "Piranesi", "author": "Susanna Clarke"},
+        )
+        self.assertEqual(response.status_code, 404, response.text)
+
     def test_rejected_candidate_cannot_be_voted_for(self) -> None:
         self.open_round(candidate_book_ids=[self.book_a])
         proposed = self.reader_a.post(

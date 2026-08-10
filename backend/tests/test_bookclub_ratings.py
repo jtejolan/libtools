@@ -102,6 +102,18 @@ class RatingRoutesTests(unittest.TestCase):
         self.assertEqual(body["count"], 1)
         self.assertEqual(body["ratings"][0]["participant_name"], "reader-a")
 
+    def test_rating_accepts_half_star_increments_only(self) -> None:
+        accepted = self.reader_a.put(
+            f"/participant/books/{self.book_id}/rating",
+            json={"rating": 4.5, "review_text": "Almost perfect"},
+        )
+        self.assertEqual(accepted.status_code, 200, accepted.text)
+        self.assertEqual(accepted.json()["ratings"][0]["rating"], 4.5)
+        rejected = self.reader_a.put(
+            f"/participant/books/{self.book_id}/rating", json={"rating": 4.2}
+        )
+        self.assertEqual(rejected.status_code, 422, rejected.text)
+
     def test_ratings_are_visible_to_other_participants_not_just_aggregate(self) -> None:
         self.reader_a.put(f"/participant/books/{self.book_id}/rating", json={"rating": 4})
         self.reader_b.put(f"/participant/books/{self.book_id}/rating", json={"rating": 2})

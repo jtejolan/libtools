@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from bookclub import crud, models, participant_auth
 from bookclub.participant_schemas import (
     AnnouncementResponse,
+    ClubActivityItem,
     DiscussionPostCreate,
     DiscussionPostResponse,
     NotificationPreferencesResponse,
@@ -15,16 +16,39 @@ from bookclub.participant_schemas import (
     PersonalActivityResponse,
     ParticipantMeetingResponse,
     ParticipantLibraryResponse,
+    ParticipantBookDetailResponse,
     ParticipantProfileResponse,
     ParticipantProfileUpdate,
     ReadingProgressResponse,
     ReadingProgressUpdate,
     RsvpUpdate,
+    SharedReadingProgressResponse,
+    SocialMemberResponse,
 )
 from dependencies import DatabaseSession
 
 
 router = APIRouter(prefix="/participant", tags=["bookclub-participant-community"])
+
+
+def _social_member(member, current_member_id: int) -> SocialMemberResponse:
+    return SocialMemberResponse(
+        member_id=member.id,
+        name=member.name,
+        avatar_url=member.avatar_url,
+        is_self=member.id == current_member_id,
+    )
+
+
+def _record_activity(db, *, club_id, member_id, book_id, kind, detail=None, reference_id=None):
+    db.add(models.BookClubActivity(
+        club_id=club_id,
+        member_id=member_id,
+        book_id=book_id,
+        kind=kind,
+        detail=detail,
+        reference_id=reference_id,
+    ))
 
 
 def _meeting_response(meeting, club, member, db) -> ParticipantMeetingResponse:
@@ -267,6 +291,8 @@ def get_reading_progress(
     return ReadingProgressResponse(
         book_id=book_id,
         status=progress.status if progress else None,
+        current_page=progress.current_page if progress else None,
+        shared_with_club=progress.shared_with_club if progress else False,
         updated_at=progress.updated_at if progress else None,
     )
 
@@ -286,6 +312,8 @@ def save_reading_progress(
     )
     if book is None:
         raise HTTPException(status_code=404, detail="Book not found")
+    if value.current_page is not None and book.page_count is not None and value.current_page > book.page_count:
+        raise HTTPException(status_code=422, detail=f"Current page cannot exceed {book.page_count}")
     progress = db.scalar(
         select(models.BookClubReadingProgress).where(
             models.BookClubReadingProgress.member_id == member.id,
@@ -299,16 +327,117 @@ def save_reading_progress(
         return ReadingProgressResponse(book_id=book_id)
     if progress is None:
         progress = models.BookClubReadingProgress(
-            club_id=club.id, member_id=member.id, book_id=book_id, status=value.status
+            club_id=club.id,
+            member_id=member.id,
+            book_id=book_id,
+            status=value.status,
+            current_page=value.current_page,
+            shared_with_club=bool(value.shared_with_club),
         )
         db.add(progress)
     else:
+        changed = progress.status != value.status or (
+            "current_page" in value.model_fields_set and progress.current_page != value.current_page
+        )
         progress.status = value.status
+        if "current_page" in value.model_fields_set:
+            progress.current_page = value.current_page
+        if value.shared_with_club is not None:
+            progress.shared_with_club = value.shared_with_club
+        if changed and progress.shared_with_club:
+            detail = value.status.replace("_", " ")
+            if progress.current_page is not None:
+                detail += f" · page {progress.current_page}"
+            _record_activity(
+                db, club_id=club.id, member_id=member.id, book_id=book_id,
+                kind="progress", detail=detail,
+            )
+    if progress.id is None and progress.shared_with_club:
+        detail = progress.status.replace("_", " ")
+        if progress.current_page is not None:
+            detail += f" · page {progress.current_page}"
+        _record_activity(
+            db, club_id=club.id, member_id=member.id, book_id=book_id,
+            kind="progress", detail=detail,
+        )
     db.commit()
     db.refresh(progress)
     return ReadingProgressResponse(
-        book_id=book_id, status=progress.status, updated_at=progress.updated_at
+        book_id=book_id,
+        status=progress.status,
+        current_page=progress.current_page,
+        shared_with_club=progress.shared_with_club,
+        updated_at=progress.updated_at,
     )
+
+
+@router.get("/books/{book_id}/detail", response_model=ParticipantBookDetailResponse)
+def participant_book_detail(
+    book_id: int,
+    club: participant_auth.CurrentParticipantClub,
+    member: participant_auth.CurrentParticipantMember,
+    db: DatabaseSession,
+):
+    book = _participant_book(db, club.id, book_id)
+    meetings = list(db.scalars(select(models.BookClubMeeting).where(
+        models.BookClubMeeting.club_id == club.id,
+        models.BookClubMeeting.book_id == book_id,
+    ).order_by(models.BookClubMeeting.meeting_date)))
+    meeting_ids = [meeting.id for meeting in meetings]
+    attended_count = db.scalar(select(func.count(models.BookClubParticipation.id)).where(
+        models.BookClubParticipation.meeting_id.in_(meeting_ids),
+        models.BookClubParticipation.attended.is_(True),
+    )) if meeting_ids else 0
+    shared = list(db.scalars(
+        select(models.BookClubReadingProgress)
+        .options(selectinload(models.BookClubReadingProgress.book))
+        .where(
+            models.BookClubReadingProgress.club_id == club.id,
+            models.BookClubReadingProgress.book_id == book_id,
+            models.BookClubReadingProgress.shared_with_club.is_(True),
+        )
+        .order_by(models.BookClubReadingProgress.updated_at.desc())
+    ))
+    member_ids = [row.member_id for row in shared]
+    member_rows = {item.id: item for item in db.scalars(
+        select(models.BookClubMember).where(models.BookClubMember.id.in_(member_ids))
+    )} if member_ids else {}
+    future = next((meeting for meeting in meetings if meeting.meeting_date >= date.today()), None)
+    return ParticipantBookDetailResponse(
+        book=book,
+        meeting_date=(future or (meetings[-1] if meetings else None)).meeting_date if meetings else None,
+        meetings_count=len(meetings),
+        attended_count=int(attended_count or 0),
+        shared_progress=[SharedReadingProgressResponse(
+            member=_social_member(member_rows[row.member_id], member.id),
+            status=row.status,
+            current_page=row.current_page,
+            updated_at=row.updated_at,
+        ) for row in shared if row.member_id in member_rows],
+    )
+
+
+@router.get("/club-activity", response_model=list[ClubActivityItem])
+def club_activity(
+    club: participant_auth.CurrentParticipantClub,
+    member: participant_auth.CurrentParticipantMember,
+    db: DatabaseSession,
+):
+    rows = list(db.scalars(
+        select(models.BookClubActivity)
+        .options(selectinload(models.BookClubActivity.member), selectinload(models.BookClubActivity.book))
+        .where(models.BookClubActivity.club_id == club.id)
+        .order_by(models.BookClubActivity.created_at.desc(), models.BookClubActivity.id.desc())
+        .limit(50)
+    ))
+    return [ClubActivityItem(
+        id=row.id,
+        kind=row.kind,
+        detail=row.detail,
+        actor=_social_member(row.member, member.id),
+        book=row.book,
+        created_at=row.created_at,
+    ) for row in rows]
 
 
 @router.get("/notification-preferences", response_model=NotificationPreferencesResponse)
@@ -430,12 +559,18 @@ def participant_library(
     )
 
 
-def _discussion_response(post, current_member_id: int) -> DiscussionPostResponse:
+def _discussion_response(post, current_member_id: int, db) -> DiscussionPostResponse:
+    reactions = list(db.scalars(select(models.BookClubDiscussionReaction).where(
+        models.BookClubDiscussionReaction.post_id == post.id
+    )))
     return DiscussionPostResponse(
         id=post.id,
         book_id=post.book_id,
         parent_id=post.parent_id,
         body=post.body,
+        spoiler=post.spoiler,
+        reaction_count=len(reactions),
+        reacted_by_me=any(reaction.member_id == current_member_id for reaction in reactions),
         author=_profile_response(post.member, is_self=post.member_id == current_member_id),
         created_at=post.created_at,
         updated_at=post.updated_at,
@@ -473,7 +608,7 @@ def list_discussion_posts(
             .order_by(models.BookClubDiscussionPost.created_at, models.BookClubDiscussionPost.id)
         )
     )
-    return [_discussion_response(post, member.id) for post in posts]
+    return [_discussion_response(post, member.id, db) for post in posts]
 
 
 @router.post(
@@ -506,12 +641,46 @@ def create_discussion_post(
         member_id=member.id,
         parent_id=value.parent_id,
         body=value.body,
+        spoiler=value.spoiler,
     )
     db.add(post)
+    db.flush()
+    _record_activity(
+        db, club_id=club.id, member_id=member.id, book_id=book_id,
+        kind="discussion", detail="replied to a discussion" if value.parent_id else "started a discussion",
+        reference_id=post.id,
+    )
     db.commit()
     db.refresh(post)
     post.member = member
-    return _discussion_response(post, member.id)
+    return _discussion_response(post, member.id, db)
+
+
+@router.put("/discussion/{post_id}/reaction", response_model=DiscussionPostResponse)
+def toggle_discussion_reaction(
+    post_id: int,
+    club: participant_auth.CurrentParticipantClub,
+    member: participant_auth.CurrentParticipantMember,
+    db: DatabaseSession,
+):
+    post = db.scalar(select(models.BookClubDiscussionPost).options(
+        selectinload(models.BookClubDiscussionPost.member)
+    ).where(
+        models.BookClubDiscussionPost.id == post_id,
+        models.BookClubDiscussionPost.club_id == club.id,
+    ))
+    if post is None:
+        raise HTTPException(status_code=404, detail="Discussion post not found")
+    reaction = db.scalar(select(models.BookClubDiscussionReaction).where(
+        models.BookClubDiscussionReaction.post_id == post_id,
+        models.BookClubDiscussionReaction.member_id == member.id,
+    ))
+    if reaction is None:
+        db.add(models.BookClubDiscussionReaction(post_id=post_id, member_id=member.id))
+    else:
+        db.delete(reaction)
+    db.commit()
+    return _discussion_response(post, member.id, db)
 
 
 @router.delete("/discussion/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -530,6 +699,10 @@ def delete_discussion_post(
     )
     if post is None:
         raise HTTPException(status_code=404, detail="Discussion post not found")
+    db.query(models.BookClubActivity).filter(
+        models.BookClubActivity.kind == "discussion",
+        models.BookClubActivity.reference_id == post.id,
+    ).delete(synchronize_session=False)
     db.delete(post)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

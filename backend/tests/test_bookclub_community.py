@@ -225,10 +225,18 @@ class BookClubCommunityTests(unittest.TestCase):
         empty_progress = self.reader.get(f"/participant/books/{book_id}/reading-progress")
         self.assertIsNone(empty_progress.json()["status"])
         saved_progress = self.reader.put(
-            f"/participant/books/{book_id}/reading-progress", json={"status": "reading"}
+            f"/participant/books/{book_id}/reading-progress",
+            json={"status": "reading", "current_page": 120, "shared_with_club": True},
         )
         self.assertEqual(saved_progress.status_code, 200, saved_progress.text)
         self.assertEqual(saved_progress.json()["status"], "reading")
+        self.assertEqual(saved_progress.json()["current_page"], 120)
+        self.assertTrue(saved_progress.json()["shared_with_club"])
+        detail = self.reader.get(f"/participant/books/{book_id}/detail")
+        self.assertEqual(detail.status_code, 200, detail.text)
+        self.assertEqual(detail.json()["shared_progress"][0]["current_page"], 120)
+        feed = self.reader.get("/participant/club-activity")
+        self.assertEqual(feed.json()[0]["kind"], "progress")
         activity = self.reader.get("/participant/activity")
         self.assertEqual(activity.status_code, 200, activity.text)
         self.assertEqual(activity.json()["recent"][0]["kind"], "progress")
@@ -289,7 +297,7 @@ class BookClubCommunityTests(unittest.TestCase):
 
         book_id = meeting["book_id"]
         post = self.reader.post(f"/participant/books/{book_id}/discussion", json={
-            "body": "The setting feels like another character."
+            "body": "The setting feels like another character.", "spoiler": True,
         })
         self.assertEqual(post.status_code, 201, post.text)
         reply = self.reader.post(f"/participant/books/{book_id}/discussion", json={
@@ -300,6 +308,13 @@ class BookClubCommunityTests(unittest.TestCase):
         discussion = self.reader.get(f"/participant/books/{book_id}/discussion")
         self.assertEqual(len(discussion.json()), 2)
         self.assertTrue(discussion.json()[0]["author"]["is_self"])
+        self.assertTrue(discussion.json()[0]["spoiler"])
+        reacted = self.reader.put(f"/participant/discussion/{post.json()['id']}/reaction")
+        self.assertEqual(reacted.status_code, 200, reacted.text)
+        self.assertEqual(reacted.json()["reaction_count"], 1)
+        self.assertTrue(reacted.json()["reacted_by_me"])
+        social_feed = self.reader.get("/participant/club-activity").json()
+        self.assertTrue(any(item["kind"] == "discussion" for item in social_feed))
 
         announcement = self.facilitator.post("/bookclub/community/announcements", json={
             "title": "Room update", "body": "We are upstairs.", "pinned": False,
