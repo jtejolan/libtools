@@ -14,6 +14,14 @@ members/books/meetings/roster/templates/emails/giveaway) and
 `/bookclub/clubs/*` (club switching). See `docs/backend/bookclub.md` for the
 endpoint groups.
 
+The topbar club switcher (`#club-menu`) is a `<details>` dropdown listing the
+user's other clubs plus a "+ Create a new book club" link to the standalone
+`bookclub-new.html`/`.js` page at `/bookclub/new` (POSTs `/bookclub/clubs`,
+selects it, then redirects to `/bookclub`). The `#club-dialog` modal still
+exists but only for the ambiguous case where multiple clubs exist and none is
+selected yet (or ad-hoc dashboard deep-links); it no longer contains the
+create-club form.
+
 The Books view includes a client-computed collection snapshot: catalogue/page
 totals, reading-length and genre bar charts, a read/upcoming/unscheduled shelf
 ring, and the publication-year span. Its sort menu supports title, author,

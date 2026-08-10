@@ -111,6 +111,7 @@ from `backend/` — see root `CLAUDE.md` for full commands.
 | `frontend/admin-accounts.html` / `admin-accounts.js` | 70 / 178 | Platform-admin account management (canonical) | `docs/frontend/accounts.md` |
 | `frontend/admin-users.html` / `admin-users.js` | 2 / 12 | Minified LEGACY duplicate of admin-accounts — don't edit | `docs/frontend/accounts.md` |
 | `frontend/bookclub.html` / `bookclub.js` | 463 / 2446 | Book Club Manager app | `docs/frontend/bookclub.md` |
+| `frontend/bookclub-new.html` / `bookclub-new.js` | — | Standalone "create a book club" page at `/bookclub/new`, linked from the facilitator club-switcher dropdown | `docs/frontend/bookclub.md` |
 | `frontend/public-club.html` / `.js` / `.css` | — | Responsive public invitation page with current book, meeting calendar, account-aware joining, feature summary, and reading history | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-landing.html` / `.js` / `.css` | 117 / 158 / 181 | Responsive participant landing page — invitation link/code lookup, global reader sign-in, and multi-club chooser | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-account.html` / `bookclub-account.js` | 114 / 214 | Participant join/login/forgot-password/verify-email/reset-password — one shared shell keyed by URL path, mirrors `account.html`/`account.js` | `docs/frontend/bookclub.md` |
