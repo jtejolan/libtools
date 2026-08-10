@@ -10,9 +10,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/bookclub.css?v=38" />
+    <link rel="stylesheet" href="/static/bookclub.css?v=39" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub.js?v=40" defer></script>
+    <script src="/static/bookclub.js?v=41" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -47,7 +47,17 @@
           <div class="breadcrumb"><span>Book Club Manager</span><i>/</i><strong id="breadcrumb-page">Next meeting</strong></div>
           <div class="topbar-actions">
             <a class="account-button" id="public-club-link" href="#" target="_blank" rel="noopener" hidden>Public page ↗</a>
-            <button class="club-switcher" id="switch-club" type="button">Choose club</button>
+            <details class="account-menu club-menu" id="club-menu">
+              <summary class="account-menu-trigger club-switcher" id="switch-club">
+                <span id="club-menu-current">Choose club</span>
+                <span aria-hidden="true">⌄</span>
+              </summary>
+              <div class="account-menu-panel club-menu-panel">
+                <p class="account-menu-username">Switch club</p>
+                <div id="club-menu-list"></div>
+                <a class="club-menu-new" href="/bookclub/new">+ Create a new book club</a>
+              </div>
+            </details>
             <span class="role-badge" id="user-badge">Member</span>
             <details class="account-menu" id="account-menu">
               <summary class="account-menu-trigger">
@@ -455,19 +465,10 @@
 
     <dialog class="form-dialog club-dialog" id="club-dialog">
       <div class="dialog-heading"><div><p class="eyebrow"><span></span> Your workspaces</p><h2>Choose a book club</h2></div><a class="text-button" href="/dashboard">← Back to dashboard</a></div>
-      <p class="auth-intro">Select the club you are running, or create a new workspace.</p>
+      <p class="auth-intro">Select the club you are running.</p>
       <div class="club-choice-list" id="club-choice-list"></div>
-      <form id="club-form" class="club-create-form">
-        <h3>Create a book club</h3>
-        <label class="field"><span>Club name</span><input name="name" required maxlength="200" placeholder="e.g. Science Fiction Book Club" /></label>
-        <label class="field"><span>Club type</span><select name="club_type"><option value="private">Personal or community club</option><option value="library">Library-run club</option></select></label>
-        <div class="form-grid">
-          <label class="field"><span>Facilitator name</span><input name="organizer_name" maxlength="200" /></label>
-          <label class="field"><span>Home branch <small>optional</small></span><input name="organizer_branch" maxlength="200" /></label>
-        </div>
-        <p class="form-error" id="club-error"></p>
-        <button class="primary-button" type="submit">Create club</button>
-      </form>
+      <p class="club-dialog-footer"><a href="/bookclub/new">+ Create a new book club</a></p>
+      <p class="form-error" id="club-error"></p>
     </dialog>
 
     <datalist id="branch-suggestions"></datalist>

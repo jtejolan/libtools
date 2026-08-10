@@ -155,6 +155,14 @@ def bookclub_app() -> FileResponse:
     )
 
 
+@app.get("/bookclub/new", include_in_schema=False)
+def bookclub_new_club_page() -> FileResponse:
+    return FileResponse(
+        FRONTEND_DIR / "bookclub-new.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @app.get("/bookclub/community", include_in_schema=False)
 def bookclub_community_manager_page() -> FileResponse:
     return FileResponse(

@@ -43,6 +43,7 @@ const loginDialog = $("#login-dialog");
 const clubDialog = $("#club-dialog");
 const toast = $("#toast");
 const accountMenu = $("#account-menu");
+const clubMenu = $("#club-menu");
 
 const capitalizeFirst = (value = "") => {
   const characters = Array.from(String(value));
@@ -102,10 +103,11 @@ const applyUser = (user) => {
 const applyClub = (club) => {
   state.club = club;
   $("#sidebar-club-name").textContent = club.name;
-  $("#switch-club").textContent = club.name;
+  $("#club-menu-current").textContent = club.name;
   const publicLink = $("#public-club-link");
   publicLink.hidden = !club.public;
   publicLink.href = `${BOOKCLUB_PARTICIPANT_ORIGIN}/clubs/${encodeURIComponent(club.slug)}`;
+  renderClubMenu();
 };
 
 const populateClubSettingsForm = () => {
@@ -132,6 +134,15 @@ const renderClubChoices = () => {
 const showClubPicker = () => {
   renderClubChoices();
   if (!clubDialog.open) clubDialog.showModal();
+};
+
+// Dropdown lists every other club (the one currently open is redundant to
+// offer), plus a link out to the standalone /bookclub/new page.
+const renderClubMenu = () => {
+  const otherClubs = state.clubs.filter((club) => !state.club || club.id !== state.club.id);
+  $("#club-menu-list").innerHTML = otherClubs.length
+    ? otherClubs.map((club) => `<button type="button" data-club-id="${club.id}">${escapeHtml(club.name)}</button>`).join("")
+    : '<p class="club-menu-empty">No other clubs yet</p>';
 };
 
 const finishDashboardAction = () => {
@@ -177,7 +188,11 @@ const chooseClub = async (clubId) => {
 
 const loadClubs = async () => {
   state.clubs = await request("/bookclub/clubs");
-  if (!state.clubs.length) return showClubPicker();
+  renderClubMenu();
+  if (!state.clubs.length) {
+    window.location.href = "/bookclub/new";
+    return;
+  }
   if (
     pendingDashboardClubId &&
     state.clubs.some((club) => club.id === pendingDashboardClubId)
@@ -1969,24 +1984,14 @@ $("#club-choice-list").addEventListener("click", async (event) => {
   }
 });
 
-$("#club-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  $("#club-error").textContent = "";
+$("#club-menu-list").addEventListener("click", async (event) => {
+  const choice = event.target.closest("[data-club-id]");
+  if (!choice) return;
+  clubMenu.open = false;
   try {
-    const club = await request("/bookclub/clubs", {
-      method: "POST",
-      body: JSON.stringify({
-        name: form.elements.name.value.trim(),
-        organizer_name: form.elements.organizer_name.value.trim() || null,
-        organizer_branch: form.elements.organizer_branch.value.trim() || null,
-      }),
-    });
-    state.clubs.push(club);
-    form.reset();
-    await chooseClub(club.id);
+    await chooseClub(Number(choice.dataset.clubId));
   } catch (error) {
-    $("#club-error").textContent = error.message;
+    showToast(error.message);
   }
 });
 
@@ -2540,6 +2545,9 @@ document.addEventListener("click", (event) => {
   if (accountMenu.open && !accountMenu.contains(event.target)) {
     accountMenu.open = false;
   }
+  if (clubMenu.open && !clubMenu.contains(event.target)) {
+    clubMenu.open = false;
+  }
   $$(".roster-card-menu[open]").forEach((menu) => {
     if (!menu.contains(event.target)) menu.open = false;
   });
@@ -2548,10 +2556,9 @@ document.addEventListener("click", (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   accountMenu.open = false;
+  clubMenu.open = false;
   $$(".roster-card-menu[open]").forEach((menu) => { menu.open = false; });
 });
-
-$("#switch-club").addEventListener("click", showClubPicker);
 
 const initialize = async () => {
   try {

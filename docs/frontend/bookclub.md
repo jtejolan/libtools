@@ -185,21 +185,22 @@ action and supports joining a second open club without another account.
   calendar actions on the subdomain.
 - `bookclub-account.html` handles participant registration, login, recovery,
   and verification only; the old facilitator creation card is removed.
-- `bookclub-participant.html` is an action-first participant dashboard. Its
-  attention queue derives pending verification, RSVP, poll, and post-meeting
-  rating work from the data already loaded on the page. The richer meeting hub
-  includes online/calendar actions, facilitator preparation notes, and ordered
-  discussion questions. It also provides a club switcher, announcement archive
-  with read state, current-book detail/progress, post-meeting follow-up, and a
-  grouped searchable library. The current book's club-stat hub is the primary
-  dashboard experience—not a modal or collapsed library control—and puts the
-  average and individual 0.5-star ratings, opt-in shared progress, automatic
-  daily/weekly reading pace, spoiler-aware discussions/replies/reactions, and
-  member activity at the top. Choosing another library or feed book replaces
-  that featured hub and scrolls to it. The dashboard also includes a durable club feed, immediate/digest
-  notification preferences, personal activity, and an opt-in member directory
-  whose responses never expose roster email or staff notes. It has no
-  facilitator role or management link.
+- `bookclub-participant.html` is a calm, current-book-first participant home.
+  A compact book hero leads directly into three visible workspaces:
+  **Conversation**, **Ratings**, and **Reading progress**. Conversation merges
+  social activity with spoiler-aware discussions, replies, and reactions;
+  Ratings includes the club average, individual reviews, and 0.5-star input;
+  Reading progress includes optional sharing and the automatic daily/weekly
+  pace calculator. Choosing another library book replaces the featured book
+  and scrolls to it. Meeting RSVP and the latest announcement appear as compact
+  supporting cards, while book/date votes stay in a collapsed **Open
+  decisions** section until needed. The page also provides a club switcher,
+  announcement archive with read state, calendar actions, a grouped searchable
+  library, immediate/digest notification preferences, and an opt-in member
+  directory whose responses never expose roster email or staff notes. Personal
+  activity summaries remain available through account/profile surfaces rather
+  than competing with the current book. It has no facilitator role or
+  management link.
 - `bookclub-manage.html` is now served from
   `libtools.app/bookclub/community`, authenticated by the regular Libtools
   session and selected club. It shares the Book Club Manager's green sidebar,

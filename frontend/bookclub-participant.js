@@ -69,6 +69,8 @@ const participantState = {
   profile: null,
   activeBookId: null,
   activeBookDetail: null,
+  clubActivity: [],
+  bookHubTab: "conversation",
 };
 
 const formatTimestamp = (value) =>
@@ -540,7 +542,9 @@ const loadActivity = async () => renderActivity(await request("/participant/acti
 
 const loadClubActivity = async () => {
   const activity = await request("/participant/club-activity");
-  $("#activity-list").innerHTML = activity.length ? activity.map((item) => `<article class="feed-item">${avatarMarkup(item.actor)}<div><p><strong>${escapeHtml(item.actor.name)}</strong> ${item.kind === "rating" ? "rated" : item.kind === "progress" ? "updated their progress on" : "posted about"} <strong>${escapeHtml(item.book.title)}</strong>${item.detail ? ` · ${escapeHtml(item.detail)}` : ""}</p><small class="user-meta">${escapeHtml(formatTimestamp(item.created_at))}</small><button class="quiet-button" type="button" data-open-book="${item.book.id}">View book</button></div></article>`).join("") : '<p class="muted">Shared progress, ratings, and discussions will appear here.</p>';
+  participantState.clubActivity = activity;
+  const list = $("#activity-list");
+  if (list) list.innerHTML = activity.length ? activity.map((item) => `<article class="feed-item">${avatarMarkup(item.actor)}<div><p><strong>${escapeHtml(item.actor.name)}</strong> ${item.kind === "rating" ? "rated" : item.kind === "progress" ? "updated their progress on" : "posted about"} <strong>${escapeHtml(item.book.title)}</strong>${item.detail ? ` · ${escapeHtml(item.detail)}` : ""}</p><small class="user-meta">${escapeHtml(formatTimestamp(item.created_at))}</small></div></article>`).join("") : '<p class="muted">Shared progress, ratings, and discussions will appear here.</p>';
 };
 
 const avatarMarkup = (profile) => profile.avatar_url
@@ -579,19 +583,25 @@ const discussionMarkup = (posts) => {
 const renderBookPage = ({ detail, ratings, progress, posts }) => {
   const book = detail.book;
   const mine = ratings.ratings.find((item) => item.participant_id === ratingsState.participantId);
+  const tab = participantState.bookHubTab;
   const distribution = [5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5, 1]
     .filter((score) => ratings.ratings.some((item) => item.rating === score))
     .map((score) => `${score}★ ${ratings.ratings.filter((item) => item.rating === score).length}`)
     .join(" · ") || "No ratings yet";
-  $("#book-page-content").innerHTML = `<div class="book-page-hero"><img class="book-page-cover" src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div><p class="eyebrow">${escapeHtml(book.author)}</p><h2>${escapeHtml(book.title)}</h2><p class="book-page-summary">${escapeHtml(book.description || "No description has been added yet.")}</p><p class="user-meta">${book.page_count ? `${book.page_count} pages · ` : ""}${escapeHtml(book.genres || "")}</p></div></div><div class="book-page-stats"><div><strong>${ratings.average ?? "—"}${ratings.average != null ? "★" : ""}</strong><span>Club average</span></div><div><strong>${ratings.count}</strong><span>Ratings</span></div><div><strong>${detail.shared_progress.length}</strong><span>Sharing progress</span></div></div><p class="muted">${distribution}</p>
-    <div class="book-page-columns"><section class="book-page-section"><p class="eyebrow">Your rating</p><output class="rating-value" id="detail-rating-value">${mine?.rating || 3}★</output><input class="rating-range" id="detail-rating" type="range" min="1" max="5" step="0.5" value="${mine?.rating || 3}" aria-label="Rating in half-star increments" /><textarea id="detail-review" rows="4" maxlength="4000" placeholder="Optional review">${escapeHtml(mine?.review_text || "")}</textarea><button class="primary-button" id="save-detail-rating" type="button">${mine ? "Update rating" : "Save rating"}</button></section>
-    <section class="book-page-section"><p class="eyebrow">Reading pace</p><form class="progress-form" id="detail-progress-form"><label>Status<select name="status"><option value="not_started"${progress.status === "not_started" ? " selected" : ""}>Not started</option><option value="reading"${progress.status === "reading" ? " selected" : ""}>Reading</option><option value="finished"${progress.status === "finished" ? " selected" : ""}>Finished</option></select></label><div class="progress-form-row"><label>Current page<input name="current_page" type="number" min="0" ${book.page_count ? `max="${book.page_count}"` : ""} value="${progress.current_page ?? 0}" /></label><label>Book club day<input value="${detail.meeting_date ? escapeHtml(formatDate(detail.meeting_date)) : "Not scheduled"}" disabled /></label></div><label class="preference-option"><input name="shared_with_club" type="checkbox"${progress.shared_with_club ? " checked" : ""} /><span><strong>Share my progress</strong><small>Other members can see your status and current page.</small></span></label><div class="pace-result" id="pace-result">${escapeHtml(readingPaceCopy(detail, progress))}</div><button class="secondary-button" type="submit">Save progress</button></form></section></div>
-    <div class="book-community-grid"><section class="book-page-section"><p class="eyebrow">Reading together</p><h3>Club progress</h3><div class="shared-progress-list">${detail.shared_progress.length ? detail.shared_progress.map((item) => `<div class="shared-progress-item"><strong>${escapeHtml(item.member.name)}</strong><span>${escapeHtml(progressLabels[item.status] || item.status)}${item.current_page != null ? ` · page ${item.current_page}` : ""}</span></div>`).join("") : '<p class="muted">No one has shared progress for this book yet.</p>'}</div></section>
-    <section class="book-page-section"><p class="eyebrow">What the club thinks</p><h3>Ratings and reviews</h3>${ratings.ratings.length ? ratings.ratings.map((item) => `<article class="activity-item"><p><strong>${escapeHtml(item.participant_name)}</strong> · ${item.rating}★</p>${item.review_text ? `<p>${escapeHtml(item.review_text)}</p>` : ""}</article>`).join("") : '<p class="muted">Be the first to rate this book.</p>'}</section></div>
-    <section class="book-page-section book-discussion-panel"><p class="eyebrow">Between meetings</p><h3>Book discussion</h3><p class="muted">Share an observation, question, or response with the club.</p><form class="discussion-compose" id="detail-discussion-form"><textarea rows="3" maxlength="4000" placeholder="What are you noticing so far?"></textarea><label><input type="checkbox" name="spoiler" /> Contains spoilers</label><div><button class="primary-button" type="submit">Join the discussion</button></div></form><div id="detail-discussion-list">${discussionMarkup(posts)}</div></section>`;
+  const bookActivity = participantState.clubActivity.filter((item) => item.book.id === book.id && item.kind !== "discussion");
+  const activityMarkup = bookActivity.length
+    ? `<div class="conversation-updates">${bookActivity.slice(0, 6).map((item) => `<article class="conversation-update">${avatarMarkup(item.actor)}<div><p><strong>${escapeHtml(item.actor.name)}</strong> ${item.kind === "rating" ? "rated this book" : "updated their reading progress"}${item.detail ? ` · ${escapeHtml(item.detail)}` : ""}</p><small>${escapeHtml(formatTimestamp(item.created_at))}</small></div></article>`).join("")}</div>`
+    : "";
+  $("#book-page-content").innerHTML = `<div class="book-page-hero"><img class="book-page-cover" src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div class="book-page-intro"><p class="eyebrow">${escapeHtml(book.author)}</p><h2>${escapeHtml(book.title)}</h2><p class="book-page-summary">${escapeHtml(book.description || "No description has been added yet.")}</p><div class="book-quick-meta"><span>${detail.meeting_date ? `Discussing ${escapeHtml(formatDate(detail.meeting_date))}` : "Meeting not scheduled"}</span><span>${book.page_count ? `${book.page_count} pages` : "Page count unavailable"}</span><span>${ratings.average != null ? `${ratings.average}★ from ${ratings.count}` : "No ratings yet"}</span></div><div class="book-primary-actions"><button class="primary-button" type="button" data-book-hub-tab-target="progress">${progress.current_page ? `Update page ${progress.current_page}` : "Update progress"}</button><button class="secondary-button" type="button" data-book-hub-tab-target="ratings">${mine ? `Your rating: ${mine.rating}★` : "Rate this book"}</button></div></div></div>
+    <div class="book-hub-tabs" role="tablist" aria-label="Current book sections">${[["conversation","Conversation"],["ratings","Ratings"],["progress","Reading progress"]].map(([value,label]) => `<button type="button" role="tab" data-book-hub-tab="${value}" aria-selected="${tab === value}" class="${tab === value ? "active" : ""}">${label}${value === "conversation" && posts.length ? ` <span>${posts.length}</span>` : ""}</button>`).join("")}</div>
+    <section class="book-hub-panel" data-book-hub-panel="conversation"${tab === "conversation" ? "" : " hidden"}><div class="book-panel-heading"><div><p class="eyebrow">Club conversation</p><h3>Read and respond</h3></div><p>Progress updates, ratings, and discussion in one place.</p></div>${activityMarkup}<form class="discussion-compose conversation-composer" id="detail-discussion-form"><textarea rows="3" maxlength="4000" placeholder="Share a thought or question with your club…"></textarea><div class="composer-actions"><label><input type="checkbox" name="spoiler" /> Contains spoilers</label><button class="primary-button" type="submit">Post</button></div></form><div id="detail-discussion-list">${discussionMarkup(posts)}</div></section>
+    <section class="book-hub-panel" data-book-hub-panel="ratings"${tab === "ratings" ? "" : " hidden"}><div class="book-panel-heading"><div><p class="eyebrow">Club ratings</p><h3>${ratings.average != null ? `${ratings.average}★ average` : "No ratings yet"}</h3></div><p>${distribution}</p></div><div class="ratings-calm-layout"><div class="your-rating-editor"><p class="eyebrow">Your rating</p><output class="rating-value" id="detail-rating-value">${mine?.rating || 3}★</output><input class="rating-range" id="detail-rating" type="range" min="1" max="5" step="0.5" value="${mine?.rating || 3}" aria-label="Rating in half-star increments" /><textarea id="detail-review" rows="3" maxlength="4000" placeholder="Add an optional review">${escapeHtml(mine?.review_text || "")}</textarea><button class="primary-button" id="save-detail-rating" type="button">${mine ? "Update rating" : "Save rating"}</button></div><div class="club-review-list">${ratings.ratings.length ? ratings.ratings.map((item) => `<article><p><strong>${escapeHtml(item.participant_name)}</strong><span>${item.rating}★</span></p>${item.review_text ? `<p>${escapeHtml(item.review_text)}</p>` : ""}</article>`).join("") : '<p class="muted">Be the first to rate this book.</p>'}</div></div></section>
+    <section class="book-hub-panel" data-book-hub-panel="progress"${tab === "progress" ? "" : " hidden"}><div class="book-panel-heading"><div><p class="eyebrow">Reading progress</p><h3>Stay on pace</h3></div><p>Private unless you choose to share it.</p></div><div class="progress-calm-layout"><form class="progress-form" id="detail-progress-form"><label>Status<select name="status"><option value="not_started"${progress.status === "not_started" ? " selected" : ""}>Not started</option><option value="reading"${progress.status === "reading" ? " selected" : ""}>Reading</option><option value="finished"${progress.status === "finished" ? " selected" : ""}>Finished</option></select></label><div class="progress-form-row"><label>Current page<input name="current_page" type="number" min="0" ${book.page_count ? `max="${book.page_count}"` : ""} value="${progress.current_page ?? 0}" /></label><label>Book club day<input value="${detail.meeting_date ? escapeHtml(formatDate(detail.meeting_date)) : "Not scheduled"}" disabled /></label></div><div class="pace-result" id="pace-result">${escapeHtml(readingPaceCopy(detail, progress))}</div><label class="preference-option"><input name="shared_with_club" type="checkbox"${progress.shared_with_club ? " checked" : ""} /><span><strong>Share my progress</strong><small>Members can see your status and current page.</small></span></label><button class="primary-button" type="submit">Save progress</button></form><div class="shared-progress-list"><p class="eyebrow">Reading together</p>${detail.shared_progress.length ? detail.shared_progress.map((item) => `<div class="shared-progress-item"><strong>${escapeHtml(item.member.name)}</strong><span>${escapeHtml(progressLabels[item.status] || item.status)}${item.current_page != null ? ` · page ${item.current_page}` : ""}</span></div>`).join("") : '<p class="muted">No one has shared progress yet.</p>'}</div></div></section>
+    <details class="book-about"><summary>About this book</summary><p>${escapeHtml(book.description || "No description has been added yet.")}</p><p class="muted">${book.page_count ? `${book.page_count} pages · ` : ""}${escapeHtml(book.genres || "")}</p></details>`;
 };
 
 const openBookPage = async (bookId, { scroll = false } = {}) => {
+  if (participantState.activeBookId !== Number(bookId)) participantState.bookHubTab = "conversation";
   participantState.activeBookId = Number(bookId);
   const id = participantState.activeBookId;
   const [detail, ratings, progress, posts] = await Promise.all([
@@ -612,6 +622,19 @@ $("#book-page-content").addEventListener("input", (event) => {
   }
 });
 $("#book-page-content").addEventListener("click", async (event) => {
+  const tabButton = event.target.closest("[data-book-hub-tab], [data-book-hub-tab-target]");
+  if (tabButton) {
+    const selected = tabButton.dataset.bookHubTab || tabButton.dataset.bookHubTabTarget;
+    participantState.bookHubTab = selected;
+    document.querySelectorAll("[data-book-hub-tab]").forEach((button) => {
+      const active = button.dataset.bookHubTab === selected;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", String(active));
+    });
+    document.querySelectorAll("[data-book-hub-panel]").forEach((panel) => { panel.hidden = panel.dataset.bookHubPanel !== selected; });
+    document.querySelector(`[data-book-hub-panel="${selected}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    return;
+  }
   const spoiler = event.target.closest("[data-reveal-spoiler]");
   if (spoiler) { spoiler.classList.add("revealed"); spoiler.textContent = spoiler.dataset.body || ""; return; }
   const reply = event.target.closest("[data-detail-reply]");
@@ -624,7 +647,8 @@ $("#book-page-content").addEventListener("click", async (event) => {
     else if (remove) await request(`/participant/discussion/${remove.dataset.detailDeletePost}`, { method: "DELETE" });
     else return;
     delete ratingsState.dataByBook[participantState.activeBookId];
-    await Promise.all([openBookPage(participantState.activeBookId), loadRatings(), loadActivity(), loadClubActivity()]);
+    await Promise.all([loadRatings(), loadActivity(), loadClubActivity()]);
+    await openBookPage(participantState.activeBookId);
     toast("Saved.");
   } catch (error) { toast(error.message); }
 });
@@ -642,7 +666,8 @@ $("#book-page-content").addEventListener("submit", async (event) => {
       if (!textarea.value.trim()) return;
       await request(`/participant/books/${id}/discussion`, { method: "POST", body: JSON.stringify({ body: textarea.value.trim(), parent_id: parentId, spoiler: form.elements.spoiler.checked }) });
     }
-    await Promise.all([openBookPage(id), loadCurrentReading(), loadActivity(), loadClubActivity()]);
+    await Promise.all([loadCurrentReading(), loadActivity(), loadClubActivity()]);
+    await openBookPage(id);
     toast("Saved.");
   } catch (error) { toast(error.message); }
 });

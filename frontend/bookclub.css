@@ -83,8 +83,13 @@ dialog.club-dialog { width: min(620px, calc(100% - 28px)); padding: 27px; }
 .club-choice { width: 100%; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: var(--paper); text-align: left; cursor: pointer; }
 .club-choice strong { font-family: var(--serif); font-size: 20px; font-weight: 500; }
 .club-choice span { color: var(--orange); }
-.club-dialog .club-create-form { padding: 20px 0 0; border-top: 1px solid var(--line); }
-.club-create-form h3 { margin: 0 0 14px; font-size: 22px; font-weight: 500; }
+.club-dialog-footer { margin: 0 0 6px; text-align: center; }
+.club-dialog-footer a { color: var(--forest); font-size: 13px; font-weight: 700; }
+.club-menu-panel { min-width: 220px; }
+.club-menu-panel #club-menu-list button { width: 100%; min-height: 38px; padding: 0 11px; display: flex; align-items: center; border: 0; border-radius: 4px; color: var(--ink); background: transparent; font-size: 12px; font-weight: 600; text-align: left; cursor: pointer; }
+.club-menu-panel #club-menu-list button:hover { background: rgba(24,59,51,.07); }
+.club-menu-empty { margin: 2px 4px 4px; padding: 0 7px; color: var(--muted); font-size: 12px; }
+.account-menu-panel a.club-menu-new { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--line); color: var(--forest); }
 
 .content { width: min(1240px, calc(100% - 70px)); margin: 0 auto; padding-bottom: 70px; }
 .page-heading { min-height: 150px; padding: 34px 0 28px; position: relative; overflow: hidden; display: flex; align-items: end; justify-content: space-between; gap: 30px; border-bottom: 1px solid var(--line); }
