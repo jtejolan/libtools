@@ -145,19 +145,20 @@ const renderRsvp = (data) => {
 };
 
 const meetingHeroMarkup = (data) => {
-  if (!data) return `<section class="book-meeting-panel" id="rsvp-section" data-book-meeting><div class="book-meeting-header"><div><p class="eyebrow">Next gathering</p><h3>No meeting scheduled</h3></div></div><p class="book-meeting-note">Your facilitator hasn’t scheduled the next gathering yet.</p></section>`;
+  if (!data) return `<section class="book-meeting-details" id="rsvp-section" data-book-meeting><p class="book-meeting-note">Your facilitator hasn’t scheduled the next gathering yet.</p></section>`;
   const meeting = data.meeting;
-  const heading = Number(meeting.book.id) === participantState.activeBookId ? "Book club gathering" : meeting.book.title;
   const options = [
     ["attending", "I’m attending"],
     ["maybe", "Maybe"],
     ["not_attending", "Can’t attend"],
   ];
-  return `<section class="book-meeting-panel" id="rsvp-section" data-book-meeting>
-    <div class="book-meeting-header"><div><p class="eyebrow">Next gathering</p><h3>${escapeHtml(heading)}</h3></div>${data.video_call_url ? `<a class="calendar-link" href="${escapeHtml(data.video_call_url)}" target="_blank" rel="noopener">Join online ↗</a>` : ""}</div>
-    <div class="book-meeting-facts">
-      <div class="book-meeting-fact"><span>Date</span><strong>${escapeHtml(formatDate(meeting.meeting_date))}${meeting.meeting_time ? ` · ${escapeHtml(meeting.meeting_time)}` : ""}</strong></div>
-      <div class="book-meeting-fact"><span>Location</span><strong>${escapeHtml(meeting.location || "To be announced")}</strong></div>
+  return `<section class="book-meeting-details" id="rsvp-section" data-book-meeting>
+    <div class="book-meeting-row">
+      <div class="book-meeting-facts">
+        <div class="book-meeting-fact"><span>Meeting</span><strong>${escapeHtml(formatDate(meeting.meeting_date))}${meeting.meeting_time ? ` · ${escapeHtml(meeting.meeting_time)}` : ""}</strong></div>
+        <div class="book-meeting-fact"><span>Location</span><strong>${escapeHtml(meeting.location || "To be announced")}</strong></div>
+      </div>
+      ${data.video_call_url ? `<a class="calendar-link" href="${escapeHtml(data.video_call_url)}" target="_blank" rel="noopener">Join online ↗</a>` : ""}
     </div>
     <div class="meeting-actions">
       ${options.map(([status, label]) => `<button class="${data.rsvp_status === status ? "primary-button" : "secondary-button"}" data-rsvp="${status}" data-meeting-id="${meeting.id}">${label}</button>`).join("")}
