@@ -115,7 +115,7 @@ flags, discussion reactions, and the durable social activity feed.
 |---|---|---|---|---|
 | `router` | `/bookclub/clubs` | `club_routes.py` | 5 | Club CRUD, select-into-session, list accessible clubs |
 | `public_router` | `/api/public/clubs` | `club_routes.py` | 2 | `GET /{slug}` public club data plus public upcoming-meeting `.ics` download |
-| `router` | `/participant/auth` | `participant_routes.py` | 12 | Global and club-scoped participant registration/login, enrollment-aware joining, club listing/selection, session, verification, and password reset |
+| `router` | `/participant/auth` | `participant_routes.py` | 13 | Global and club-scoped participant registration/login, enrollment-aware joining, club listing/selection, session, verification, password reset, and the facilitator "preview as reader" auto-login (`GET /preview-login`) |
 | `router` | `/bookclub` | `routes.py` | 47 | Members (including bulk community-access state and verification resend), books (incl. Google Books search and read-only `/{book_id}/insights` aggregation), meetings, roster/participation, onboarding/arrival email preview/send/**mark-sent** and reminder preview/send, giveaway draw, templates, transit labels, discussion questions — whole router requires `require_selected_club` |
 | `router` | `/bookclub/community` | `facilitator_routes.py` | — | Community overview, announcements, book/date polls, plus supporting scoped endpoints |
 | `router` | `/participant` | `participant_community_routes.py` | — | Announcements/read state, meeting preparation/RSVP/calendar, grouped library, discussions, member profiles/directory, reading progress, notification preferences, and personal activity |
@@ -144,6 +144,21 @@ flags, discussion reactions, and the durable social activity feed.
   QR code for the selected public club at `/bookclub/community/invite-qr.svg`.
   The encoded destination always uses the participant subdomain origin; private
   clubs receive `409` until their public page is enabled.
+- `POST /bookclub/community/reader-preview` (`facilitator_routes.py`) lets a
+  signed-in facilitator jump straight into their own club's reader dashboard
+  with no separate participant sign-in. Requires a verified `LibtoolsUser`
+  email (self-registration lets anyone claim an unverified email, so an
+  unverified one could otherwise be used to hijack a matching
+  `ParticipantAccount`). `crud.get_or_create_facilitator_participant()`
+  finds-or-creates a `ParticipantAccount`/`BookClubMember` pair by email —
+  reusing whatever reader identity already exists for that email rather than
+  duplicating it, same as every other participant/roster link in this
+  package — which means previewing adds the facilitator to the club's
+  Members roster if they weren't already on it. `participant_tokens.py`'s
+  generic token machinery issues a 2-minute single-use `READER_PREVIEW`
+  token; `participant_routes.py`'s `GET /participant/auth/preview-login`
+  (unauthenticated - the token itself is the credential) consumes it,
+  starts a real participant session, and redirects to `/dashboard`.
 - `scheduling.py` (34 lines) — `parse_meeting_time()` (free-text, 5 known
   formats) and `meeting_datetime_range()`. Lives outside both `models.py`
   and `crud.py` so each can import it without a circular dependency;

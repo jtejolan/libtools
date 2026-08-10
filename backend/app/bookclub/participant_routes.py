@@ -3,6 +3,7 @@ from datetime import date
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 
@@ -256,6 +257,33 @@ def login(value: ParticipantLoginRequest, request: Request, db: DatabaseSession)
     login_throttle.record_success(throttle_key)
     participant_auth.start_participant_session(request, participant, member)
     return participant_auth.participant_response(participant, club, member)
+
+
+@router.get("/preview-login", include_in_schema=False)
+def preview_login(token: str, club: str, request: Request, db: DatabaseSession) -> Response:
+    """Consumes a facilitator's one-time "preview as reader" token
+    (minted by facilitator_routes.start_reader_preview) and logs them
+    straight into the reader dashboard for that club - no participant
+    sign-in step, since they're already authenticated as staff."""
+    consumed = participant_tokens.consume_token(db, token, participant_tokens.READER_PREVIEW)
+    if consumed is None:
+        db.rollback()
+        return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+    participant = consumed.participant
+    member = db.scalar(
+        select(BookClubMember)
+        .join(BookClub, BookClub.id == BookClubMember.club_id)
+        .where(
+            BookClubMember.participant_account_id == participant.id,
+            BookClub.slug == club,
+        )
+    )
+    if member is None:
+        db.commit()
+        return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+    db.commit()
+    participant_auth.start_participant_session(request, participant, member)
+    return RedirectResponse("/dashboard", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/login/global", response_model=list[ParticipantClubResponse])

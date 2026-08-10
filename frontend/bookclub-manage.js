@@ -106,6 +106,14 @@ const openInviteDialog = () => {
 };
 
 $("#invite-readers").addEventListener("click", openInviteDialog);
+$("#preview-as-reader").addEventListener("click", async () => {
+  try {
+    const { url } = await request(`${API}/reader-preview`, { method: "POST" });
+    window.open(url, "_blank", "noopener");
+  } catch (error) {
+    toast(error.message);
+  }
+});
 $$("[data-copy-invite]").forEach((button) => button.addEventListener("click", async () => {
   const value = button.dataset.copyInvite === "code" ? state.club?.slug : participantInviteUrl(state.club);
   try {

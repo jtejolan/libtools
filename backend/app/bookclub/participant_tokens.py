@@ -16,8 +16,12 @@ from bookclub.participant_models import ParticipantAccount, ParticipantAccountTo
 
 EMAIL_VERIFICATION = "email_verification"
 PASSWORD_RESET = "password_reset"
+READER_PREVIEW = "reader_preview"
 EMAIL_VERIFICATION_LIFETIME = timedelta(hours=24)
 PASSWORD_RESET_LIFETIME = timedelta(hours=1)
+# Short-lived: minted and consumed in the same click, from the facilitator's
+# "preview as reader" link, so it never needs to survive more than a moment.
+READER_PREVIEW_LIFETIME = timedelta(minutes=2)
 
 
 def _now() -> datetime:

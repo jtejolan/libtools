@@ -1,5 +1,6 @@
 from datetime import date
 from typing import Annotated
+from urllib.parse import urlencode
 
 import qrcode
 import qrcode.image.svg
@@ -8,7 +9,8 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from bookclub import catalogue, crud, models, participant_email_delivery, schemas
+from accounts.auth import CurrentUser
+from bookclub import catalogue, crud, models, participant_email_delivery, participant_tokens, schemas
 from bookclub.date_poll_routes import build_poll_response
 from bookclub.access import SelectedClub, require_selected_club
 from bookclub.participant_schemas import (
@@ -26,6 +28,7 @@ from bookclub.participant_schemas import (
     OpenDatePollRequest,
     OpenVotingRoundRequest,
     ProposeCandidateRequest,
+    ReaderPreviewResponse,
     VotingRoundResponse,
     RsvpCounts,
 )
@@ -111,6 +114,24 @@ def invite_qr_code(club: SelectedClub) -> Response:
         media_type="image/svg+xml",
         headers={"Cache-Control": "private, no-store"},
     )
+
+
+@router.post("/reader-preview", response_model=ReaderPreviewResponse)
+def start_reader_preview(user: CurrentUser, club: SelectedClub, db: DatabaseSession):
+    if not user.email or user.email_verified_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Verify your account email before previewing the reader experience",
+        )
+    participant = crud.get_or_create_facilitator_participant(
+        db, club, name=user.name, email=user.email
+    )
+    raw_token = participant_tokens.issue_token(
+        db, participant, participant_tokens.READER_PREVIEW, participant_tokens.READER_PREVIEW_LIFETIME
+    )
+    db.commit()
+    query = urlencode({"token": raw_token, "club": club.slug})
+    return ReaderPreviewResponse(url=f"{PARTICIPANT_PORTAL_ORIGIN}/participant/auth/preview-login?{query}")
 
 
 @router.get("/overview", response_model=CommunityOverviewResponse)

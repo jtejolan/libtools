@@ -1,10 +1,13 @@
 import unittest
+from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from accounts.models import LibtoolsUser
 from database import Base
 from dependencies import get_db
 from main import app, bookclub_public_app
@@ -88,6 +91,59 @@ class CommunityManagementRoutesTests(unittest.TestCase):
         )
         self.assertEqual(poll.status_code, 201, poll.text)
         self.assertEqual(poll.json()["candidates"][0]["status"], "approved")
+
+    def test_reader_preview_requires_a_verified_facilitator_email(self) -> None:
+        response = self.manager.post("/bookclub/community/reader-preview")
+        self.assertEqual(response.status_code, 409, response.text)
+
+    def _verify_manager_email(self) -> None:
+        with self.sessions() as db:
+            user = db.scalar(select(LibtoolsUser).where(LibtoolsUser.username == "alex"))
+            user.email_verified_at = datetime.now(timezone.utc)
+            db.commit()
+
+    def test_facilitator_can_preview_as_a_reader_without_signing_in_again(self) -> None:
+        self._verify_manager_email()
+        response = self.manager.post("/bookclub/community/reader-preview")
+        self.assertEqual(response.status_code, 200, response.text)
+        preview_url = response.json()["url"]
+        self.assertTrue(
+            preview_url.startswith("https://bookclub.libtools.app/participant/auth/preview-login?")
+        )
+        parsed = urlsplit(preview_url)
+        path_and_query = f"{parsed.path}?{parsed.query}"
+
+        reader = TestClient(app, base_url="http://bookclub.libtools.app")
+        try:
+            redirect = reader.get(path_and_query, follow_redirects=False)
+            self.assertEqual(redirect.status_code, 303, redirect.text)
+            self.assertEqual(redirect.headers["location"], "/dashboard")
+
+            # The redirect's session cookie should already be a signed-in
+            # reader session - no separate participant login required.
+            library = reader.get("/participant/books/library")
+            self.assertEqual(library.status_code, 200, library.text)
+        finally:
+            reader.close()
+
+    def test_reader_preview_token_cannot_be_reused(self) -> None:
+        self._verify_manager_email()
+        preview_url = self.manager.post("/bookclub/community/reader-preview").json()["url"]
+        parsed = urlsplit(preview_url)
+        path_and_query = f"{parsed.path}?{parsed.query}"
+
+        first = TestClient(app, base_url="http://bookclub.libtools.app")
+        second = TestClient(app, base_url="http://bookclub.libtools.app")
+        try:
+            first_redirect = first.get(path_and_query, follow_redirects=False)
+            self.assertEqual(first_redirect.status_code, 303, first_redirect.text)
+            second_redirect = second.get(path_and_query, follow_redirects=False)
+            self.assertEqual(second_redirect.status_code, 303, second_redirect.text)
+            self.assertEqual(second_redirect.headers["location"], "/")
+            self.assertEqual(second.get("/participant/books/library").status_code, 401)
+        finally:
+            first.close()
+            second.close()
 
 
 if __name__ == "__main__":

@@ -171,6 +171,10 @@ class OpenVotingRoundRequest(BaseModel):
     candidate_book_ids: list[int] = Field(default_factory=list)
 
 
+class ReaderPreviewResponse(BaseModel):
+    url: str
+
+
 class CandidateResponse(BaseModel):
     id: int
     book: BookResponse

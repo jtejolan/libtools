@@ -14,6 +14,7 @@ from bookclub import email_delivery, models, schemas
 from bookclub.participant_models import ParticipantAccount
 from bookclub.participant_schemas import RatingSubmit
 from bookclub.scheduling import meeting_datetime_range, parse_meeting_time
+from security import hash_password
 
 DEFAULT_TEMPLATES = (
     {
@@ -1337,6 +1338,55 @@ def close_voting_round(db: Session, voting_round_id: int) -> models.BookClubVoti
     round_.closed_at = datetime.now(timezone.utc)
     round_.winning_book_id = winner.book_id if winner else None
     return _commit(db, round_)
+
+
+def get_or_create_facilitator_participant(
+    db: Session, club: models.BookClub, *, name: str, email: str
+) -> ParticipantAccount:
+    """Find-or-create the ParticipantAccount/BookClubMember pair a facilitator
+    uses to preview their own club as a reader would see it. Matched by
+    email, same as every other participant<->roster link in this package -
+    if the facilitator already reads this (or another) club under this
+    email, this reuses that identity instead of creating a duplicate.
+    """
+    cleaned_email = email.strip().casefold()
+    participant = db.scalar(
+        select(ParticipantAccount).where(
+            func.lower(ParticipantAccount.email) == cleaned_email
+        )
+    )
+    if participant is None:
+        participant = ParticipantAccount(
+            name=name,
+            email=cleaned_email,
+            password_hash=hash_password(secrets.token_urlsafe(32)),
+            email_verified_at=datetime.now(timezone.utc),
+        )
+        db.add(participant)
+        db.flush()
+    member = db.scalar(
+        select(models.BookClubMember).where(
+            models.BookClubMember.club_id == club.id,
+            func.lower(models.BookClubMember.email) == cleaned_email,
+        )
+    )
+    if member is None:
+        member = models.BookClubMember(
+            club_id=club.id,
+            name=name,
+            email=cleaned_email,
+            participant_account_id=participant.id,
+            joined_on=date.today(),
+            active=True,
+            notes="Added automatically so the facilitator could preview the reader experience.",
+        )
+        db.add(member)
+    else:
+        member.participant_account_id = participant.id
+        member.active = True
+    db.commit()
+    db.refresh(participant)
+    return participant
 
 
 # ---- meeting-date polling: a deliberately independent system from book
