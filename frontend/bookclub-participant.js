@@ -36,6 +36,42 @@ const capitalizeFirst = (value = "") => {
     : "";
 };
 
+const timeBasedGreeting = (name, now = new Date()) => {
+  const displayName = capitalizeFirst(String(name || "Reader").trim()) || "Reader";
+  const hour = now.getHours();
+  const greetings = hour < 5
+    ? [
+      `A late-night hello, ${displayName}`,
+      `Still up reading, ${displayName}?`,
+      `Burning the midnight oil, ${displayName}?`,
+    ]
+    : hour < 12
+      ? [
+        `Good morning, ${displayName}`,
+        `Morning, ${displayName}—glad you’re here`,
+        `Ready for a new chapter, ${displayName}?`,
+      ]
+      : hour < 17
+        ? [
+          `Good afternoon, ${displayName}`,
+          `Nice to see you this afternoon, ${displayName}`,
+          `Taking a reading break, ${displayName}?`,
+        ]
+        : hour < 22
+          ? [
+            `Good evening, ${displayName}`,
+            `Welcome back this evening, ${displayName}`,
+            `Time to settle in with the club, ${displayName}`,
+          ]
+          : [
+            `A late-night hello, ${displayName}`,
+            `Still up reading, ${displayName}?`,
+            `One more chapter tonight, ${displayName}?`,
+          ];
+  const dailyIndex = (now.getFullYear() + now.getMonth() + now.getDate() + displayName.length) % greetings.length;
+  return greetings[dailyIndex];
+};
+
 const formatDate = (value) =>
   new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }).format(
     new Date(`${value}T12:00:00`),
@@ -44,7 +80,7 @@ const formatDate = (value) =>
 const render = (participant) => {
   document.title = `${participant.club_name} — Book Club`;
   $("#club-eyebrow").textContent = participant.club_name;
-  $("#welcome-heading").textContent = `Welcome, ${capitalizeFirst(participant.name)}`;
+  $("#welcome-heading").textContent = timeBasedGreeting(participant.name);
 
   const panel = $("#email-panel");
   if (!participant.email_verified) {
@@ -64,6 +100,9 @@ const participantState = {
   latestCompletedMeeting: null,
   readingProgress: null,
   announcements: [],
+  announcementCollapsed: false,
+  latestAnnouncementId: null,
+  announcementPollId: null,
   votingRound: null,
   datePoll: null,
   profile: null,
@@ -75,12 +114,15 @@ const participantState = {
   homeBookId: null,
   personalStats: null,
   clubStats: null,
+  activeRating: null,
+  heroRatingSaving: false,
+  pendingReviewRating: 3,
 };
 
 const portalViewCopy = {
-  books: ["The club shelf", "Books", "Browse current, upcoming, and previously read selections in one cover-forward collection."],
+  books: ["The books that brought us here", "Our reading journey", "Follow the club from finished favourites to the book currently bringing everyone together."],
   personal: ["Your reading journey", "My stats", "A private view of the books, meetings, ratings, and choices that make up your club experience."],
-  club: ["Reading together", "Club stats", "The collective story of your club—shared as totals and trends, never as a member leaderboard."],
+  club: ["Reading together", "Our club story", "The books, tastes, and shared reactions shaping your reading community."],
   members: ["Your reading community", "Members", "Meet the readers who have chosen to appear in the club directory."],
 };
 
@@ -99,27 +141,35 @@ const initializePortalShell = () => {
   const home = document.createElement("section");
   home.className = "portal-view";
   home.dataset.portalView = "home";
-  [".participant-heading", "#email-panel", "#book-page-section", ".support-heading", ".participant-grid", ".decisions-disclosure", ".legacy-participant-sections"].forEach((selector) => home.append($(selector)));
+  [".participant-heading", "#email-panel", ".participant-grid", "#book-page-section", ".decisions-disclosure", ".legacy-participant-sections"].forEach((selector) => home.append($(selector)));
   const homeBookSlot = document.createElement("div");
   homeBookSlot.id = "home-book-slot";
-  home.insertBefore(homeBookSlot, home.querySelector(".support-heading"));
+  home.insertBefore(homeBookSlot, home.querySelector("#book-page-section"));
   homeBookSlot.append(home.querySelector("#book-page-section"));
 
   const books = document.createElement("section");
   books.className = "portal-view";
   books.dataset.portalView = "books";
   books.innerHTML = portalHeading("books");
+  const journeyOverview = document.createElement("section");
+  journeyOverview.id = "books-journey-overview";
+  journeyOverview.innerHTML = '<p class="muted">Loading the club’s reading journey…</p>';
+  books.append(journeyOverview);
   books.append($("#library-section"));
   const libraryHeading = books.querySelector(".library-heading");
-  libraryHeading.querySelector(".eyebrow").textContent = "Find your next book";
-  libraryHeading.querySelector("h2").textContent = "The complete shelf";
-  libraryHeading.querySelector(".library-note").textContent = "Search the collection or narrow it to what the club is reading now, next, or has already discussed.";
+  libraryHeading.querySelector(".eyebrow").textContent = "Every chapter so far";
+  libraryHeading.querySelector("h2").textContent = "Follow the shelf";
+  libraryHeading.querySelector(".library-note").textContent = "Explore the full journey or narrow it to the part of the story you want to revisit.";
   const search = libraryHeading.querySelector("#library-search");
   const controls = document.createElement("div");
   controls.className = "library-controls";
   controls.innerHTML = '<select id="library-status-filter" aria-label="Filter books"><option value="all">All books</option><option value="current">Current</option><option value="up_next">Coming up</option><option value="previously_read">Previously read</option></select><select id="library-sort" aria-label="Sort books"><option value="journey">Club journey</option><option value="title">Title</option><option value="rating">Highest rated</option></select>';
   controls.prepend(search);
   libraryHeading.append(controls);
+  const suggestion = document.createElement("section");
+  suggestion.className = "book-suggestion-section";
+  suggestion.innerHTML = '<div class="suggestion-intro"><div><p class="eyebrow">Help shape what comes next</p><h2>Suggest a book</h2><p>Search Google Books, add a note, and send the title directly to your facilitator.</p></div><span>Reader suggestions</span></div><form class="google-book-search" id="google-book-search-form"><label for="google-book-query">Title, author, or ISBN</label><div><input id="google-book-query" type="search" autocomplete="off" placeholder="Try Octavia Butler or The Dispossessed" required /><button class="primary-button" type="submit">Search Google Books</button></div></form><p class="google-book-status muted" id="google-book-status">Search results will appear here.</p><div class="google-book-results" id="google-book-results"></div><div class="suggestion-preview" id="suggestion-preview" hidden></div>';
+  books.append(suggestion);
 
   const personal = document.createElement("section");
   personal.className = "portal-view";
@@ -133,14 +183,17 @@ const initializePortalShell = () => {
   members.className = "portal-view";
   members.dataset.portalView = "members";
   members.innerHTML = portalHeading("members");
-  members.append($(".members-section"));
-  members.querySelector(".members-section .section-toolbar>div").hidden = true;
+  const membersSection = $(".members-section");
+  membersSection.classList.add("directory-experience");
+  membersSection.querySelector(".section-toolbar").innerHTML = '<div class="directory-community-copy"><span class="directory-community-mark" aria-hidden="true">◎</span><div><p class="eyebrow">Opt-in community</p><h2>Meet the people behind the pages</h2><p>Reader profiles make discussions more personal. Email addresses and private club details are never shown.</p></div></div><button class="public-profile-button" id="edit-directory-profile" type="button">Edit my profile <span aria-hidden="true">→</span></button>';
+  members.append(membersSection);
 
   const book = document.createElement("section");
   book.className = "portal-view";
   book.dataset.portalView = "book";
   book.innerHTML = '<div class="book-detail-toolbar"><button class="quiet-button" id="book-detail-back" type="button">← Back to books</button><div class="book-detail-journey-nav" id="book-detail-journey-nav"></div></div><div id="book-detail-slot"></div>';
   main.replaceChildren(home, books, personal, club, members, book);
+  document.body.insertAdjacentHTML("beforeend", '<dialog class="manage-dialog rating-review-dialog" id="rating-review-dialog"><form id="rating-review-form"><div class="rating-review-dialog-heading"><div><p class="eyebrow">Your take</p><h2 id="rating-review-heading">Rate this book</h2><p class="muted" id="rating-review-book"></p></div><button class="quiet-button" type="button" data-close-rating-review aria-label="Close review window">Close</button></div><div class="rating-review-fields"><div><span class="hero-rating-label">Your rating</span><div class="detail-rating-picker" id="rating-review-stars"></div></div><label>Review <span class="muted">(optional)</span><textarea id="rating-review-text" rows="5" maxlength="4000" placeholder="What stayed with you? What would you tell another reader?"></textarea></label></div><p class="form-error" id="rating-review-error"></p><div class="dialog-buttons"><button class="quiet-button" type="button" data-close-rating-review>Cancel</button><button class="primary-button" type="submit">Save rating &amp; review</button></div></form></dialog>');
 };
 
 initializePortalShell();
@@ -185,8 +238,23 @@ window.addEventListener("popstate", () => {
 });
 
 const renderAnnouncements = (announcements) => {
+  const previousLatestId = participantState.latestAnnouncementId;
   participantState.announcements = announcements;
   const latest = announcements[0];
+  const unreadCount = announcements.filter((item) => !item.read).length;
+  const isFirstLoad = previousLatestId == null;
+  const hasNewUnread = latest && previousLatestId != null && latest.id !== previousLatestId && !latest.read;
+  if (isFirstLoad) participantState.announcementCollapsed = !latest || latest.read;
+  else if (hasNewUnread) participantState.announcementCollapsed = false;
+  participantState.latestAnnouncementId = latest?.id ?? null;
+  const section = $("#announcements-section");
+  section.classList.toggle("is-collapsed", participantState.announcementCollapsed);
+  section.classList.toggle("has-unread", unreadCount > 0);
+  $("#announcement-toggle").setAttribute("aria-expanded", String(!participantState.announcementCollapsed));
+  $("#announcement-toggle").textContent = participantState.announcementCollapsed ? "Expand" : latest && !latest.read ? "Mark read & minimize" : "Minimize";
+  $("#announcement-unread-count").hidden = unreadCount === 0;
+  $("#announcement-unread-count").textContent = `${unreadCount} unread`;
+  $("#announcement-compact-copy").textContent = latest ? `${latest.title} · ${formatTimestamp(latest.published_at)}` : "No announcements right now";
   $("#announcements-content").innerHTML = announcements.length
     ? `<article class="user-card" style="align-items:start">
             <div>
@@ -212,6 +280,16 @@ const renderAnnouncements = (announcements) => {
 
 const loadAnnouncements = async () => renderAnnouncements(await request("/participant/announcements"));
 
+const startAnnouncementRefresh = () => {
+  if (participantState.announcementPollId) return;
+  participantState.announcementPollId = window.setInterval(() => {
+    if (document.visibilityState === "visible") loadAnnouncements().catch(() => {});
+  }, 60000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") loadAnnouncements().catch(() => {});
+  });
+};
+
 const actionButton = (label, target) => `<button class="secondary-button" type="button" data-scroll-target="${target}">${label}</button>`;
 
 const renderActionCenter = () => {
@@ -235,6 +313,25 @@ document.addEventListener("click", (event) => {
 });
 
 $("#view-announcements").addEventListener("click", () => $("#announcements-dialog").showModal());
+$("#announcement-toggle").addEventListener("click", async () => {
+  if (participantState.announcementCollapsed) {
+    participantState.announcementCollapsed = false;
+    renderAnnouncements(participantState.announcements);
+    return;
+  }
+  const latest = participantState.announcements[0];
+  participantState.announcementCollapsed = true;
+  try {
+    if (latest && !latest.read) {
+      await request(`/participant/announcements/${latest.id}/read`, { method: "PUT" });
+      await loadAnnouncements();
+    } else renderAnnouncements(participantState.announcements);
+  } catch (error) {
+    participantState.announcementCollapsed = false;
+    renderAnnouncements(participantState.announcements);
+    toast(error.message);
+  }
+});
 $("#close-announcements-dialog").addEventListener("click", () => $("#announcements-dialog").close());
 $("#announcement-list").addEventListener("click", async (event) => {
   const button = event.target.closest("[data-mark-announcement-read]");
@@ -548,6 +645,33 @@ const renderBookRatingCard = (book, ratingsData, status) => {
   return `<article class="participant-book-card" data-open-book="${book.id}" data-book-id="${book.id}" tabindex="0" role="button" aria-label="Open ${escapeHtml(book.title)}"><img src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" loading="lazy" /><div class="participant-book-card-copy"><span class="book-status ${statusClass}">${statusCopy}</span><h3>${escapeHtml(book.title)}</h3><p>${escapeHtml(book.author)}</p><div class="participant-book-card-meta">${book.page_count ? `<span>${book.page_count} pages</span>` : ""}${ratingsData.count ? `<span>${ratingsData.average}★ club</span>` : "<span>Not rated</span>"}${mine ? `<span>You: ${mine.rating}★</span>` : ""}</div></div><span class="book-open-cue">Open →</span></article>`;
 };
 
+const journeyFeatureBookMarkup = (book, label, className) => {
+  if (!book) return `<div class="journey-book-empty"><span aria-hidden="true">＋</span><div><strong>${escapeHtml(label)}</strong><p>The facilitator’s next selection will appear here.</p></div></div>`;
+  const ratings = ratingsState.dataByBook[book.id];
+  return `<article class="journey-feature-book ${className}" data-open-book="${book.id}" role="button" tabindex="0" aria-label="Open ${escapeHtml(book.title)}"><img src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div><span>${escapeHtml(label)}</span><h2>${escapeHtml(book.title)}</h2><p>${escapeHtml(book.author)}</p><small>${book.page_count ? `${book.page_count} pages` : "Page count unavailable"}${ratings?.count ? ` · ${ratings.average}★ from the club` : " · Not rated yet"}</small></div><b aria-hidden="true">→</b></article>`;
+};
+
+const renderBooksJourneyOverview = () => {
+  const current = participantState.library.current[0];
+  const next = participantState.library.up_next[0];
+  const completed = participantState.library.previously_read.length;
+  const total = completed + participantState.library.current.length + participantState.library.up_next.length;
+  $("#books-journey-overview").innerHTML = `<div class="journey-overview-heading"><div><p class="eyebrow">Where the club is now</p><h2>${completed ? `${completed} finished ${completed === 1 ? "book" : "books"}, with more ahead` : "The first chapter starts here"}</h2></div><div class="journey-counts"><span><strong>${total}</strong> on the shared shelf</span><span><strong>${completed}</strong> completed together</span></div></div><div class="journey-feature-grid">${journeyFeatureBookMarkup(current, "Reading now", "is-current")}${journeyFeatureBookMarkup(next, "Coming up", "is-next")}</div>`;
+};
+
+const renderJourneyShelf = (visible) => {
+  const chapters = [
+    ["current", "Reading now", "The book bringing the club together today"],
+    ["up_next", "Coming up", "The next chapters waiting on the shared shelf"],
+    ["previously_read", "Previously read", "Finished books that became part of the club’s story"],
+  ];
+  return `<div class="journey-shelf-groups">${chapters.map(([status, title, description]) => {
+    const items = visible.filter((item) => item.status === status);
+    if (!items.length) return "";
+    return `<section class="journey-shelf-group ${status}"><header><div><span>${escapeHtml(title)}</span><p>${escapeHtml(description)}</p></div><b>${items.length} ${items.length === 1 ? "book" : "books"}</b></header><div class="participant-book-grid">${items.map(({ book }) => renderBookRatingCard(book, ratingsState.dataByBook[book.id], status)).join("")}</div></section>`;
+  }).join("")}</div>`;
+};
+
 const loadRatings = async () => {
   const list = $("#ratings-list");
   const groups = [
@@ -561,6 +685,7 @@ const loadRatings = async () => {
   const books = [...new Map(groups.flatMap(([, items]) => items).map((book) => [book.id, book])).values()];
   if (!books.length) {
     list.innerHTML = '<p class="muted">No books have been scheduled or completed yet.</p>';
+    renderBooksJourneyOverview();
     return;
   }
   const missing = books.filter((book) => !ratingsState.dataByBook[book.id]);
@@ -571,7 +696,8 @@ const loadRatings = async () => {
   visible = visible.filter(({ book, status }) => (statusFilter === "all" || status === statusFilter) && (!query || `${book.title} ${book.author}`.toLocaleLowerCase().includes(query)));
   if (sort === "title") visible.sort((left, right) => left.book.title.localeCompare(right.book.title));
   if (sort === "rating") visible.sort((left, right) => (ratingsState.dataByBook[right.book.id].average || 0) - (ratingsState.dataByBook[left.book.id].average || 0));
-  list.innerHTML = visible.length ? `<div class="participant-book-grid">${visible.map(({ book, status }) => renderBookRatingCard(book, ratingsState.dataByBook[book.id], status)).join("")}</div>` : '<p class="muted">No books match your search.</p>';
+  list.innerHTML = visible.length ? (sort === "journey" ? renderJourneyShelf(visible) : `<div class="participant-book-grid flat-book-grid">${visible.map(({ book, status }) => renderBookRatingCard(book, ratingsState.dataByBook[book.id], status)).join("")}</div>`) : '<p class="muted">No books match your search.</p>';
+  renderBooksJourneyOverview();
   renderPostMeeting();
   renderActionCenter();
 };
@@ -579,6 +705,136 @@ const loadRatings = async () => {
 $("#library-search").addEventListener("input", () => loadRatings().catch((error) => toast(error.message)));
 $("#library-status-filter").addEventListener("change", () => loadRatings().catch((error) => toast(error.message)));
 $("#library-sort").addEventListener("change", () => loadRatings().catch((error) => toast(error.message)));
+
+const bookSuggestionState = { results: [], selected: null, controller: null, submitted: null };
+const googleBookPreviewResults = [
+  { id: "preview-dispossessed", volumeInfo: { title: "The Dispossessed", authors: ["Ursula K. Le Guin"], publishedDate: "1974", description: "An ambitious science-fiction novel about two societies, freedom, and the compromises communities make." } },
+  { id: "preview-parable", volumeInfo: { title: "Parable of the Sower", authors: ["Octavia E. Butler"], publishedDate: "1993", description: "A young woman builds a new vision of community while travelling through a destabilized future America." } },
+  { id: "preview-memory", volumeInfo: { title: "A Memory Called Empire", authors: ["Arkady Martine"], publishedDate: "2019", description: "A diplomatic mystery about empire, language, identity, and the stories cultures tell about themselves." } },
+];
+
+const googleBookCover = (book) => String(book.volumeInfo?.imageLinks?.thumbnail || "/static/assets/library-tools-logo-classic.svg?v=1").replace(/^http:/, "https:");
+
+const renderGoogleBookResults = () => {
+  $("#google-book-results").innerHTML = bookSuggestionState.results.map((book, index) => {
+    const info = book.volumeInfo || {};
+    const selected = bookSuggestionState.selected?.id === book.id;
+    return `<button class="google-book-result${selected ? " is-selected" : ""}" type="button" data-google-book-index="${index}"><img src="${escapeHtml(googleBookCover(book))}" alt="" loading="lazy" /><span><strong>${escapeHtml(info.title || "Untitled")}</strong><small>${escapeHtml((info.authors || ["Unknown author"]).join(", "))}</small><b>${escapeHtml(info.publishedDate?.slice(0, 4) || "Publication year unavailable")}</b></span><i aria-hidden="true">${selected ? "✓" : "+"}</i></button>`;
+  }).join("");
+};
+
+const renderSuggestionPreview = () => {
+  const preview = $("#suggestion-preview");
+  if (bookSuggestionState.submitted) {
+    const suggestion = bookSuggestionState.submitted;
+    preview.hidden = false;
+    preview.innerHTML = `<div class="suggestion-sent"><span aria-hidden="true">✓</span><div><p class="eyebrow">Suggestion sent</p><h3>${escapeHtml(suggestion.title)}</h3><p>Your facilitator can now review your suggestion and comments. You’ll see it in the club library if they add it.</p></div><button class="secondary-button" type="button" data-suggest-another>Suggest another book</button></div>`;
+    return;
+  }
+  const book = bookSuggestionState.selected;
+  if (!book) { preview.hidden = true; return; }
+  const info = book.volumeInfo || {};
+  preview.hidden = false;
+  preview.innerHTML = `<div class="suggestion-preview-book"><img src="${escapeHtml(googleBookCover(book))}" alt="" /><div><p class="eyebrow">Your selection</p><h3>${escapeHtml(info.title || "Untitled")}</h3><p>${escapeHtml((info.authors || ["Unknown author"]).join(", "))}</p>${info.description ? `<small>${escapeHtml(info.description)}</small>` : ""}</div></div><form class="suggestion-destination" id="book-suggestion-submit-form"><span aria-hidden="true">→</span><div><strong>Send to your facilitator</strong><p>The book will enter a private review queue; it is not automatically added to the club library.</p></div><label for="book-suggestion-comments">Comments <small>Optional</small></label><textarea id="book-suggestion-comments" name="comments" rows="4" maxlength="2000" placeholder="Why would this make a great club read? Add themes, content notes, or anything else worth considering."></textarea><div class="suggestion-submit-row"><small><span data-comment-count>0</span>/2,000</small><button type="submit">Send suggestion</button></div></form>`;
+};
+
+$("#google-book-search-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const query = $("#google-book-query").value.trim();
+  if (!query) return;
+  bookSuggestionState.controller?.abort();
+  bookSuggestionState.controller = new AbortController();
+  $("#google-book-status").textContent = "Searching Google Books…";
+  $("#google-book-results").innerHTML = "";
+  try {
+    const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&printType=books&maxResults=6`, { signal: bookSuggestionState.controller.signal });
+    if (!response.ok) throw new Error("Google Books search is unavailable right now.");
+    const result = await response.json();
+    bookSuggestionState.results = result.items || [];
+    bookSuggestionState.selected = null;
+    bookSuggestionState.submitted = null;
+    renderSuggestionPreview();
+    renderGoogleBookResults();
+    $("#google-book-status").textContent = bookSuggestionState.results.length ? `Choose from ${bookSuggestionState.results.length} Google Books results.` : "No matching books found. Try a title, author, or ISBN.";
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    bookSuggestionState.results = googleBookPreviewResults;
+    bookSuggestionState.selected = null;
+    bookSuggestionState.submitted = null;
+    renderSuggestionPreview();
+    renderGoogleBookResults();
+    $("#google-book-status").textContent = "Live Google Books is unavailable in this test environment. Showing sample results to preview the flow.";
+  }
+});
+
+$("#google-book-results").addEventListener("click", (event) => {
+  const result = event.target.closest("[data-google-book-index]");
+  if (!result) return;
+  bookSuggestionState.selected = bookSuggestionState.results[Number(result.dataset.googleBookIndex)] || null;
+  bookSuggestionState.submitted = null;
+  renderGoogleBookResults();
+  renderSuggestionPreview();
+});
+
+$("#suggestion-preview").addEventListener("input", (event) => {
+  if (event.target.name !== "comments") return;
+  const count = event.target.form?.querySelector("[data-comment-count]");
+  if (count) count.textContent = event.target.value.length.toLocaleString();
+});
+
+$("#suggestion-preview").addEventListener("click", (event) => {
+  if (!event.target.closest("[data-suggest-another]")) return;
+  bookSuggestionState.submitted = null;
+  bookSuggestionState.selected = null;
+  renderGoogleBookResults();
+  renderSuggestionPreview();
+  $("#google-book-query").focus();
+});
+
+$("#suggestion-preview").addEventListener("submit", async (event) => {
+  if (event.target.id !== "book-suggestion-submit-form") return;
+  event.preventDefault();
+  const book = bookSuggestionState.selected;
+  if (!book) return;
+  const info = book.volumeInfo || {};
+  const button = event.target.querySelector("button[type=submit]");
+  button.disabled = true;
+  button.textContent = "Sending…";
+  const published = String(info.publishedDate || "");
+  const publicationDate = /^\d{4}-\d{2}-\d{2}$/.test(published)
+    ? published
+    : /^\d{4}/.test(published) ? `${published.slice(0, 4)}-01-01` : null;
+  const identifiers = info.industryIdentifiers || [];
+  const isbn = identifiers.find((item) => item.type === "ISBN_13")?.identifier
+    || identifiers.find((item) => item.type === "ISBN_10")?.identifier
+    || null;
+  try {
+    const suggestion = await request("/participant/book-suggestions", {
+      method: "POST",
+      body: JSON.stringify({
+        google_books_id: book.id || null,
+        title: info.title || "Untitled",
+        author: (info.authors || ["Unknown author"]).join(", "),
+        description: info.description || null,
+        cover_image_url: info.imageLinks?.thumbnail ? googleBookCover(book) : null,
+        publication_date: publicationDate,
+        isbn,
+        page_count: Number(info.pageCount) > 0 ? Number(info.pageCount) : null,
+        comments: event.target.elements.comments.value.trim() || null,
+      }),
+    });
+    bookSuggestionState.submitted = suggestion;
+    bookSuggestionState.selected = null;
+    renderGoogleBookResults();
+    renderSuggestionPreview();
+    await Promise.all([loadStats(), loadActivity()]);
+    toast("Suggestion sent to your facilitator.");
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = "Send suggestion";
+    toast(error.message);
+  }
+});
 
 $("#ratings-list").addEventListener("click", (event) => {
   const star = event.target.closest("[data-star]");
@@ -660,7 +916,7 @@ const renderActivity = (activity) => {
 
 const loadActivity = async () => renderActivity(await request("/participant/activity"));
 
-const statCardsMarkup = (items) => `<div class="portal-stat-grid">${items.map(([value, label]) => `<article class="portal-stat-card"><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></article>`).join("")}</div>`;
+const statCardsMarkup = (items, className = "") => `<div class="portal-stat-grid${className ? ` ${escapeHtml(className)}` : ""}">${items.map(([value, label, icon]) => `<article class="portal-stat-card">${icon ? `<i aria-hidden="true">${escapeHtml(icon)}</i>` : ""}<strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></article>`).join("")}</div>`;
 
 const statBarsMarkup = (items, emptyCopy) => {
   if (!items.length) return `<p class="muted">${escapeHtml(emptyCopy)}</p>`;
@@ -671,21 +927,42 @@ const statBarsMarkup = (items, emptyCopy) => {
 const renderPersonalStats = (stats) => {
   participantState.personalStats = stats;
   $("#personal-stats-content").innerHTML = `${statCardsMarkup([
-    [stats.meetings_attended, "Meetings attended"],
-    [stats.books_read, "Books read"],
-    [stats.pages_read.toLocaleString(), "Pages read"],
-    [stats.books_rated, "Books rated"],
-  ])}<div class="stats-layout"><section class="stats-panel"><p class="eyebrow">Your taste</p><h2>Favourite genres</h2>${statBarsMarkup(stats.favourite_genres, "Attend a completed meeting to begin your genre portrait.")}</section><section class="stats-panel"><p class="eyebrow">Your ratings</p><h2>${stats.average_rating == null ? "No ratings yet" : `${stats.average_rating}★ average`}</h2>${statBarsMarkup(stats.rating_distribution, "Your rating pattern will appear after you rate a book.")}</section><section class="stats-panel"><p class="eyebrow">Reading now</p><h2>Your shelf</h2>${statCardsMarkup([[stats.finished_books, "Marked finished"], [stats.in_progress_books, "In progress"], [stats.votes_cast, "Votes cast"], [stats.proposals_made, "Books proposed"]])}</section><section class="stats-panel"><p class="eyebrow">Recently</p><h2>Your activity</h2><div class="stats-timeline">${stats.recent.length ? stats.recent.map((item) => `<article><small>${escapeHtml(formatTimestamp(item.occurred_at))}</small><p><strong>${escapeHtml(item.label)}</strong>${item.detail ? `<br><small>${escapeHtml(item.detail)}</small>` : ""}</p></article>`).join("") : '<p class="muted">Ratings, votes, proposals, and progress updates will appear here.</p>'}</div></section></div>`;
+    [stats.meetings_attended, "Meetings attended", "✓"],
+    [stats.books_read, "Books read", "▤"],
+    [stats.pages_read.toLocaleString(), "Pages read", "≋"],
+    [stats.books_rated, "Books rated", "★"],
+  ], "personal-stat-overview")}<div class="stats-layout personal-stats-layout"><section class="stats-panel personal-taste-panel"><p class="eyebrow">Your taste</p><h2>Favourite genres</h2>${statBarsMarkup(stats.favourite_genres, "Attend a completed meeting to begin your genre portrait.")}</section><section class="stats-panel personal-ratings-panel"><p class="eyebrow">Your ratings</p><h2>${stats.average_rating == null ? "No ratings yet" : `${stats.average_rating}★ average`}</h2>${statBarsMarkup(stats.rating_distribution, "Your rating pattern will appear after you rate a book.")}</section><section class="stats-panel personal-shelf-panel"><p class="eyebrow">Reading now</p><h2>Your shelf</h2>${statCardsMarkup([[stats.finished_books, "Marked finished"], [stats.in_progress_books, "In progress"], [stats.votes_cast, "Votes cast"], [stats.proposals_made, "Books proposed"]])}</section><section class="stats-panel personal-activity-panel"><p class="eyebrow">Recently</p><h2>Your activity</h2><div class="stats-timeline">${stats.recent.length ? stats.recent.map((item) => `<article><small>${escapeHtml(formatTimestamp(item.occurred_at))}</small><p><strong>${escapeHtml(item.label)}</strong>${item.detail ? `<br><small>${escapeHtml(item.detail)}</small>` : ""}</p></article>`).join("") : '<p class="muted">Ratings, votes, proposals, and progress updates will appear here.</p>'}</div></section></div>`;
+};
+
+const clubPersonalityCopy = (stats) => {
+  const leadingGenre = stats.favourite_genres[0]?.label;
+  const leadingLength = [...stats.page_length_mix].sort((a, b) => b.value - a.value)[0]?.label;
+  const parts = [];
+  if (leadingGenre) parts.push(`${leadingGenre} leads the club’s shared shelf`);
+  if (leadingLength) parts.push(`${leadingLength.toLowerCase()} is the most common book length`);
+  if (stats.average_rating != null) parts.push(`members give their reads ${stats.average_rating} stars on average`);
+  if (!parts.length) return "As the club reads and reacts together, its shared personality will take shape here.";
+  return `${parts.map((part) => capitalizeFirst(part)).join(". ")}.`;
+};
+
+const clubReadingStoryMarkup = (meetings) => {
+  if (!meetings.length) return '<p class="muted">Completed books will build the club’s story here.</p>';
+  return `<div class="club-story-books">${meetings.map((meeting, index) => {
+    const book = participantState.books.find((item) => item.id === meeting.book_id);
+    const cover = book?.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1";
+    return `<article class="club-story-book" data-open-book="${meeting.book_id}" role="button" tabindex="0"><img src="${escapeHtml(cover)}" alt="" /><div><time>${escapeHtml(formatDate(meeting.meeting_date))}</time><strong>${escapeHtml(meeting.title)}</strong><small>Chapter ${index + 1} of the club story</small></div><span aria-hidden="true">→</span></article>`;
+  }).join("")}</div>`;
 };
 
 const renderClubStats = (stats) => {
   participantState.clubStats = stats;
-  $("#club-stats-content").innerHTML = `${statCardsMarkup([
-    [stats.books_completed, "Books completed"],
-    [stats.meetings_held, "Meetings held"],
-    [stats.pages_read_together.toLocaleString(), "Pages read together"],
-    [stats.average_rating == null ? "—" : `${stats.average_rating}★`, `Club average · ${stats.rating_count} ratings`],
-  ])}<div class="stats-layout"><section class="stats-panel"><p class="eyebrow">The shelf</p><h2>${stats.shelf_total} club books</h2>${statBarsMarkup([{ label: "Completed", value: stats.shelf_completed }, { label: "Current", value: stats.shelf_current }, { label: "Coming up", value: stats.shelf_up_next }], "Books will appear as the facilitator builds the shelf.")}</section><section class="stats-panel"><p class="eyebrow">Favourite territory</p><h2>Top genres</h2>${statBarsMarkup(stats.favourite_genres, "Genres have not been added to the club books yet.")}</section><section class="stats-panel"><p class="eyebrow">Reading commitment</p><h2>Book-length mix</h2>${statBarsMarkup(stats.page_length_mix, "Page counts have not been added yet.")}</section><section class="stats-panel"><p class="eyebrow">Shared reactions</p><h2>Rating distribution</h2>${statBarsMarkup(stats.rating_distribution, "The club has not rated a book yet.")}</section><section class="stats-panel wide"><p class="eyebrow">Club favourites</p><h2>Highest-rated books</h2><div class="top-books-grid">${stats.top_rated_books.length ? stats.top_rated_books.map((book) => `<article class="top-book" data-open-book="${book.book_id}" role="button" tabindex="0"><img src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div><strong>${escapeHtml(book.title)}</strong><p>${escapeHtml(book.author)}</p><b>${book.average_rating}★ · ${book.rating_count} rating${book.rating_count === 1 ? "" : "s"}</b></div></article>`).join("") : '<p class="muted">Top-rated books will appear once members share their ratings.</p>'}</div></section><section class="stats-panel wide"><p class="eyebrow">Across meetings</p><h2>Attendance journey</h2><div class="stats-timeline">${stats.attendance_trend.length ? stats.attendance_trend.map((meeting) => `<article data-open-book="${meeting.book_id}" role="button" tabindex="0"><small>${escapeHtml(formatDate(meeting.meeting_date))}</small><p><strong>${escapeHtml(meeting.title)}</strong></p><b>${meeting.attendance_count} of ${meeting.roster_count}</b></article>`).join("") : '<p class="muted">Completed meetings will build the club timeline.</p>'}</div></section></div>`;
+  const highestRated = stats.top_rated_books[0];
+  $("#club-stats-content").innerHTML = `<section class="club-personality-hero"><div class="club-personality-copy"><p class="eyebrow">Our reading personality</p><h2>${stats.books_completed ? `${stats.books_completed} books into the story` : "A story just beginning"}</h2><p>${escapeHtml(clubPersonalityCopy(stats))}</p>${highestRated ? `<p class="club-favourite-note"><span aria-hidden="true">★</span><strong>Reader favourite:</strong> ${escapeHtml(highestRated.title)}</p>` : ""}</div>${statCardsMarkup([
+    [stats.active_members, "Active readers", "●"],
+    [stats.books_completed, "Books completed", "▤"],
+    [stats.pages_read_together.toLocaleString(), "Pages read together", "≋"],
+    [stats.average_rating == null ? "—" : `${stats.average_rating}★`, `${stats.rating_count} shared ratings`, "★"],
+  ], "club-story-overview")}</section><div class="club-profile-grid"><section class="stats-panel club-genre-panel"><p class="eyebrow">What we reach for</p><h2>Favourite territory</h2>${statBarsMarkup(stats.favourite_genres, "Genres have not been added to the club books yet.")}</section><section class="stats-panel club-length-panel"><p class="eyebrow">Our reading rhythm</p><h2>Book-length mix</h2>${statBarsMarkup(stats.page_length_mix, "Page counts have not been added yet.")}</section></div><section class="stats-panel club-favourites-panel"><div class="club-panel-heading"><div><p class="eyebrow">Reader favourites</p><h2>Books we loved together</h2></div><p>Shared ratings reveal the titles that stayed with the club.</p></div><div class="top-books-grid">${stats.top_rated_books.length ? stats.top_rated_books.map((book) => `<article class="top-book" data-open-book="${book.book_id}" role="button" tabindex="0"><img src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div><strong>${escapeHtml(book.title)}</strong><p>${escapeHtml(book.author)}</p><b>${book.average_rating}★ · ${book.rating_count} rating${book.rating_count === 1 ? "" : "s"}</b></div></article>`).join("") : '<p class="muted">Reader favourites will appear once members share their ratings.</p>'}</div></section><div class="club-pulse-grid"><section class="stats-panel club-shelf-panel"><p class="eyebrow">The shared shelf</p><h2>${stats.shelf_total} books and counting</h2>${statBarsMarkup([{ label: "Completed", value: stats.shelf_completed }, { label: "Reading now", value: stats.shelf_current }, { label: "Coming up", value: stats.shelf_up_next }], "Books will appear as the facilitator builds the shelf.")}</section><section class="stats-panel club-reactions-panel"><p class="eyebrow">Shared reactions</p><h2>How ratings landed</h2>${statBarsMarkup(stats.rating_distribution, "The club has not rated a book yet.")}</section></div><section class="stats-panel club-reading-story"><div class="club-panel-heading"><div><p class="eyebrow">Along the way</p><h2>The club’s reading story</h2></div><p>Every finished book becomes another chapter in the community’s history.</p></div>${clubReadingStoryMarkup(stats.attendance_trend)}</section>`;
 };
 
 const loadStats = async () => {
@@ -710,24 +987,70 @@ const avatarMarkup = (profile) => profile.avatar_url
 
 const renderDirectory = (members) => {
   $("#member-directory").innerHTML = members.length
-    ? members.map((member) => `<article class="directory-card"><div class="discussion-author">${avatarMarkup(member)}<div><strong>${escapeHtml(member.name)}${member.is_self ? " (you)" : ""}</strong>${member.bio ? `<p class="muted">${escapeHtml(member.bio)}</p>` : '<p class="muted">No introduction yet.</p>'}</div></div></article>`).join("")
-    : '<p class="muted">No members have joined the directory yet.</p>';
+    ? members.map((member) => `<article class="directory-card${member.is_self ? " is-self" : ""}"><div class="directory-card-top">${avatarMarkup(member)}<span>${member.is_self ? "Your profile" : "Club reader"}</span></div><div class="directory-card-copy"><h2>${escapeHtml(member.name)}</h2><p>${member.bio ? escapeHtml(member.bio) : "No introduction yet."}</p></div>${member.is_self ? '<small class="directory-self-note">Visible to your fellow club members</small>' : ""}</article>`).join("")
+    : '<div class="directory-empty-state"><span aria-hidden="true">◎</span><h2>The directory is ready for introductions</h2><p>Members appear here only after choosing to share a profile.</p></div>';
 };
 
 const loadDirectory = async () => renderDirectory(await request("/participant/members"));
 
 const readingPaceCopy = (detail, progress) => {
-  const total = detail.book.page_count;
-  const current = Number(progress?.current_page || 0);
+  const { total, current, remaining, days, perDay, perWeek, meetingPassed } = readingPaceData(detail, progress);
   if (!total) return "Add a page count to this book to calculate a reading pace.";
   if (!detail.meeting_date) return `${Math.max(0, total - current)} pages remaining. Schedule a meeting to calculate a pace.`;
+  if (!remaining) return "You’ve reached the end — nicely done.";
+  if (meetingPassed) return `${remaining} pages remaining. The club meeting date has passed, so there’s no active pace target.`;
+  return `${remaining} pages to go · ${perDay} per day or ${perWeek} per week to finish on time.`;
+};
+
+const readingPaceData = (detail, progress) => {
+  const total = Number(detail.book.page_count || 0);
+  const current = Math.min(total || Infinity, Math.max(0, Number(progress?.current_page || 0)));
+  const remaining = Math.max(0, total - current);
+  const percent = total ? Math.round((current / total) * 100) : 0;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const target = new Date(`${detail.meeting_date}T00:00:00`);
-  const days = Math.max(1, Math.ceil((target - today) / 86400000));
-  const remaining = Math.max(0, total - current);
-  if (!remaining) return "You’ve reached the end — nicely done.";
-  return `${remaining} pages remaining · ${days} day${days === 1 ? "" : "s"} · ${Math.ceil(remaining / days)} pages per day or ${Math.ceil((remaining * 7) / days)} pages per week`;
+  const target = detail.meeting_date ? new Date(`${detail.meeting_date}T00:00:00`) : null;
+  const meetingPassed = Boolean(target && target < today);
+  const days = target && !meetingPassed ? Math.max(1, Math.ceil((target - today) / 86400000)) : null;
+  return {
+    total, current, remaining, percent, days, meetingPassed,
+    perDay: days ? Math.ceil(remaining / days) : null,
+    perWeek: days ? Math.ceil((remaining * 7) / days) : null,
+  };
+};
+
+const readingProgressMarkup = (detail, progress) => {
+  const pace = readingPaceData(detail, progress);
+  const status = progress.status || "not_started";
+  const statusOptions = [["not_started", "Not started"], ["reading", "Reading"], ["finished", "Finished"]];
+  const pageMax = pace.total || 100;
+  const sharedMarkup = detail.shared_progress.length
+    ? detail.shared_progress.map((item) => {
+      const memberPage = Number(item.current_page || 0);
+      const memberPercent = pace.total ? Math.min(100, Math.round((memberPage / pace.total) * 100)) : 0;
+      return `<article class="shared-reader-card">${avatarMarkup(item.member)}<div class="shared-reader-copy"><div><strong>${escapeHtml(item.member.name)}</strong><span>${escapeHtml(progressLabels[item.status] || item.status)}${item.current_page != null ? ` · page ${item.current_page}` : ""}</span></div><div class="shared-reader-track" aria-label="${memberPercent}% complete"><span style="width:${memberPercent}%"></span></div></div></article>`;
+    }).join("")
+    : '<div class="shared-progress-empty"><span aria-hidden="true">↗</span><p><strong>Your club can read alongside you.</strong><br />Shared progress appears here without revealing notes or private activity.</p></div>';
+  return `<div class="progress-calm-layout progress-experience"><form class="progress-form progress-calculator" id="detail-progress-form"><fieldset class="reading-status-picker"><legend>Reading status</legend><div>${statusOptions.map(([value, label]) => `<label><input type="radio" name="status" value="${value}"${status === value ? " checked" : ""} /><span>${label}</span></label>`).join("")}</div></fieldset><div class="progress-visual"><div class="progress-ring" data-progress-ring style="--progress:${pace.percent * 3.6}deg" role="img" aria-label="${pace.percent}% complete"><div><strong data-progress-percent>${pace.percent}%</strong><span>complete</span></div></div><div class="page-position"><div class="page-position-heading"><div><span>Current page</span><strong><output data-current-page>${pace.current}</output> <small>/ ${pace.total || "—"}</small></strong></div><label>Exact page<input name="current_page" type="number" min="0" max="${pageMax}" value="${pace.current}"${pace.total ? "" : " disabled"} /></label></div><input class="page-range" data-page-range type="range" min="0" max="${pageMax}" value="${pace.current}" step="1" style="--range-progress:${pace.percent}%" aria-label="Current page"${pace.total ? "" : " disabled"} /><div class="page-range-labels"><span>Beginning</span><span>${pace.total ? `Page ${pace.total}` : "Page count needed"}</span></div></div></div><div class="pace-dashboard"><article><span>Pages left</span><strong data-pages-remaining>${pace.total ? pace.remaining : "—"}</strong></article><article><span>Days left</span><strong data-days-remaining>${pace.days ?? "—"}</strong></article><article><span>Daily pace</span><strong><b data-pages-daily>${pace.perDay ?? "—"}</b><small> pages</small></strong></article><article><span>Weekly pace</span><strong><b data-pages-weekly>${pace.perWeek ?? "—"}</b><small> pages</small></strong></article></div><p class="pace-guidance" id="pace-result">${escapeHtml(readingPaceCopy(detail, progress))}</p><div class="progress-form-footer"><label class="progress-sharing"><input name="shared_with_club" type="checkbox"${progress.shared_with_club ? " checked" : ""} /><span><strong>Share with the club</strong><small>Members see your status and page—not your private notes.</small></span></label><button class="primary-button" type="submit">Save progress</button></div></form><aside class="shared-progress-list shared-progress-panel"><div class="shared-progress-heading"><div><p class="eyebrow">Reading together</p><h4>Club progress</h4></div><span>${detail.shared_progress.length} sharing</span></div><div class="shared-reader-list">${sharedMarkup}</div></aside></div>`;
+};
+
+const updateReadingProgressPreview = (form, value) => {
+  const pace = readingPaceData(participantState.activeBookDetail, { current_page: value });
+  const number = form.elements.current_page;
+  const range = form.querySelector("[data-page-range]");
+  number.value = pace.current;
+  range.value = pace.current;
+  range.style.setProperty("--range-progress", `${pace.percent}%`);
+  form.querySelector("[data-current-page]").textContent = pace.current;
+  form.querySelector("[data-progress-percent]").textContent = `${pace.percent}%`;
+  const ring = form.querySelector("[data-progress-ring]");
+  ring.style.setProperty("--progress", `${pace.percent * 3.6}deg`);
+  ring.setAttribute("aria-label", `${pace.percent}% complete`);
+  form.querySelector("[data-pages-remaining]").textContent = pace.total ? pace.remaining : "—";
+  form.querySelector("[data-days-remaining]").textContent = pace.days ?? "—";
+  form.querySelector("[data-pages-daily]").textContent = pace.perDay ?? "—";
+  form.querySelector("[data-pages-weekly]").textContent = pace.perWeek ?? "—";
+  form.querySelector("#pace-result").textContent = readingPaceCopy(participantState.activeBookDetail, { current_page: pace.current });
 };
 
 const bookJourneyNeighbors = (bookId) => {
@@ -737,42 +1060,183 @@ const bookJourneyNeighbors = (bookId) => {
   return { previous: index > 0 ? ids[index - 1] : null, next: index >= 0 && index < ids.length - 1 ? ids[index + 1] : null };
 };
 
+const sessionAttendanceMarkup = (session) => {
+  if (session.my_attendance_source === "facilitator") {
+    const differs = session.my_participant_report !== null && session.my_participant_report !== session.my_attended;
+    return `<div class="session-attendance is-confirmed"><div class="session-attendance-copy"><span class="session-attendance-icon">✓</span><div><strong>Attendance confirmed</strong><small>The facilitator recorded you as ${session.my_attended ? "attending" : "not attending"}.${differs ? ` Your earlier report was ${session.my_participant_report ? "attended" : "did not attend"}.` : ""}</small></div></div><span class="session-attendance-state">${session.my_attended ? "Attended" : "Did not attend"}</span></div>`;
+  }
+  const hasReport = session.my_attendance_source === "participant";
+  return `<div class="session-attendance ${hasReport ? "has-report" : ""}"><div class="session-attendance-copy"><span class="session-attendance-icon">${hasReport ? "✓" : "?"}</span><div><strong>${hasReport ? "Your attendance" : "Were you there?"}</strong><small>${hasReport ? "Self-reported and already included in My stats." : "Add this past discussion to your personal reading stats."}</small></div></div><div class="session-attendance-actions" role="group" aria-label="Attendance for ${escapeHtml(formatDate(session.meeting_date))}"><button type="button" data-report-attendance="${session.id}" data-attended="true" class="${session.my_attended === true ? "active" : ""}">I attended</button><button type="button" data-report-attendance="${session.id}" data-attended="false" class="${session.my_attended === false ? "active" : ""}">I didn’t attend</button></div></div>`;
+};
+
 const sessionArchiveMarkup = (detail) => {
   const sessions = detail.sessions.filter((session) => session.status === "completed");
   if (!sessions.length) return "";
-  return `<section class="book-hub-panel book-session-panel" data-book-hub-panel="session"><div class="book-panel-heading"><div><p class="eyebrow">Previous session</p><h3>${sessions.length === 1 ? "The club’s conversation" : `${sessions.length} club sessions`}</h3></div><p>A participant-safe recap with shared totals and facilitator discussion notes.</p></div><div class="session-archive-stats"><article class="portal-stat-card"><strong>${sessions.length}</strong><span>Session${sessions.length === 1 ? "" : "s"}</span></article><article class="portal-stat-card"><strong>${detail.total_attendance}</strong><span>Total attendance</span></article><article class="portal-stat-card"><strong>${detail.reading_impact_pages.toLocaleString()}</strong><span>Pages read together</span></article><article class="portal-stat-card"><strong>${detail.shared_progress.length}</strong><span>Shared progress updates</span></article></div><div class="session-list">${sessions.map((session) => `<article class="session-summary-card"><header><div><h4>${escapeHtml(formatDate(session.meeting_date))}</h4><small>${escapeHtml([session.meeting_time, session.location].filter(Boolean).join(" · ") || "Meeting details not recorded")}</small></div><strong>${session.attendance_count} of ${session.roster_count} attended</strong></header>${session.discussion_notes ? `<p>${escapeHtml(session.discussion_notes)}</p>` : '<p class="muted">No discussion recap was added.</p>'}</article>`).join("")}</div></section>`;
+  return `<section class="book-hub-panel book-session-panel" data-book-hub-panel="session"><div class="book-panel-heading"><div><p class="eyebrow">Previous session</p><h3>${sessions.length === 1 ? "The club’s conversation" : `${sessions.length} club sessions`}</h3></div><p>A participant-safe recap with shared totals and facilitator discussion notes.</p></div><div class="session-archive-stats"><article class="portal-stat-card"><strong>${sessions.length}</strong><span>Session${sessions.length === 1 ? "" : "s"}</span></article><article class="portal-stat-card"><strong>${detail.total_attendance}</strong><span>Total attendance</span></article><article class="portal-stat-card"><strong>${detail.reading_impact_pages.toLocaleString()}</strong><span>Pages read together</span></article><article class="portal-stat-card"><strong>${detail.shared_progress.length}</strong><span>Shared progress updates</span></article></div><div class="session-list">${sessions.map((session) => `<article class="session-summary-card"><header><div><h4>${escapeHtml(formatDate(session.meeting_date))}</h4><small>${escapeHtml([session.meeting_time, session.location].filter(Boolean).join(" · ") || "Meeting details not recorded")}</small></div><strong>${session.attendance_count} of ${session.roster_count} attended</strong></header>${session.discussion_notes ? `<p>${escapeHtml(session.discussion_notes)}</p>` : '<p class="muted">No discussion recap was added.</p>'}${sessionAttendanceMarkup(session)}</article>`).join("")}</div></section>`;
 };
+
+const ratingStarsMarkup = (rating, { id, label, outputId }) => `<div class="hero-rating-control" id="${id}" data-rating-output="${outputId}" role="slider" tabindex="0" aria-label="${label}" aria-valuemin="1" aria-valuemax="5" aria-valuestep="0.5" aria-valuenow="${rating || 1}" aria-valuetext="${rating ? `${rating} out of 5 stars` : "Not rated"}">${[1, 2, 3, 4, 5].map((star) => {
+  const fill = rating >= star ? 100 : rating >= star - 0.5 ? 50 : 0;
+  return `<span class="hero-star" data-rating-star="${star}" aria-hidden="true"><span class="hero-star-empty">★</span><span class="hero-star-fill" style="width:${fill}%">★</span></span>`;
+}).join("")}</div>`;
+
+const paintRatingControl = (control, value) => {
+  if (!control) return;
+  control.querySelectorAll("[data-rating-star]").forEach((star) => {
+    const index = Number(star.dataset.ratingStar);
+    star.querySelector(".hero-star-fill").style.width = `${value >= index ? 100 : value >= index - 0.5 ? 50 : 0}%`;
+  });
+  control.setAttribute("aria-valuenow", String(value || 1));
+  control.setAttribute("aria-valuetext", value ? `${value} out of 5 stars` : "Not rated");
+  const label = document.getElementById(control.dataset.ratingOutput);
+  if (label) label.textContent = value ? `${value} out of 5` : "Not rated";
+};
+
+const paintHeroRating = (value) => paintRatingControl($("#hero-rating-control"), value);
+
+const ratingFromPointer = (star, clientX) => {
+  const bounds = star.getBoundingClientRect();
+  const whole = Number(star.dataset.ratingStar);
+  return Math.max(1, clientX - bounds.left < bounds.width / 2 ? whole - 0.5 : whole);
+};
+
+const saveHeroRating = async (rating) => {
+  if (participantState.heroRatingSaving) return;
+  participantState.heroRatingSaving = true;
+  $("#hero-rating-control")?.setAttribute("aria-busy", "true");
+  try {
+    await request(`/participant/books/${participantState.activeBookId}/rating`, {
+      method: "PUT",
+      body: JSON.stringify({ rating, review_text: participantState.activeRating?.review_text || null }),
+    });
+    delete ratingsState.dataByBook[participantState.activeBookId];
+    await Promise.all([loadRatings(), loadActivity(), loadClubActivity()]);
+    await openBookPage(participantState.activeBookId);
+    toast(`Your ${rating}-star rating was saved.`);
+  } catch (error) {
+    paintHeroRating(participantState.activeRating?.rating || 0);
+    toast(error.message);
+  } finally {
+    participantState.heroRatingSaving = false;
+    $("#hero-rating-control")?.removeAttribute("aria-busy");
+  }
+};
+
+const openRatingReviewDialog = () => {
+  const book = participantState.activeBookDetail?.book;
+  if (!book) return;
+  const rating = participantState.activeRating?.rating || 3;
+  participantState.pendingReviewRating = rating;
+  $("#rating-review-heading").textContent = participantState.activeRating ? "Update your review" : "Rate this book";
+  $("#rating-review-book").textContent = `${book.title} by ${book.author}`;
+  $("#rating-review-stars").innerHTML = `${ratingStarsMarkup(rating, { id: "review-dialog-rating-control", label: "Your rating and review", outputId: "review-dialog-rating-value" })}<output class="rating-value" id="review-dialog-rating-value">${rating} out of 5</output>`;
+  $("#rating-review-text").value = participantState.activeRating?.review_text || "";
+  $("#rating-review-error").textContent = "";
+  $("#rating-review-dialog").showModal();
+};
+
+document.addEventListener("click", (event) => {
+  if (event.target.closest("[data-open-rating-review]")) openRatingReviewDialog();
+  if (event.target.closest("[data-close-rating-review]")) $("#rating-review-dialog").close();
+});
+
+$("#rating-review-dialog").addEventListener("pointermove", (event) => {
+  const star = event.target.closest("[data-rating-star]");
+  if (star) paintRatingControl(star.closest(".hero-rating-control"), ratingFromPointer(star, event.clientX));
+});
+
+$("#rating-review-dialog").addEventListener("pointerout", (event) => {
+  const control = event.target.closest("#review-dialog-rating-control");
+  if (control && !control.contains(event.relatedTarget)) paintRatingControl(control, participantState.pendingReviewRating);
+});
+
+$("#rating-review-dialog").addEventListener("click", (event) => {
+  const star = event.target.closest("[data-rating-star]");
+  if (!star) return;
+  participantState.pendingReviewRating = ratingFromPointer(star, event.clientX);
+  paintRatingControl(star.closest(".hero-rating-control"), participantState.pendingReviewRating);
+});
+
+$("#rating-review-dialog").addEventListener("keydown", (event) => {
+  const control = event.target.closest("#review-dialog-rating-control");
+  if (!control || !["ArrowLeft", "ArrowDown", "ArrowRight", "ArrowUp", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const current = Number(control.getAttribute("aria-valuenow")) || participantState.pendingReviewRating;
+  participantState.pendingReviewRating = event.key === "Home" ? 1 : event.key === "End" ? 5 : Math.min(5, Math.max(1, current + (["ArrowRight", "ArrowUp"].includes(event.key) ? 0.5 : -0.5)));
+  paintRatingControl(control, participantState.pendingReviewRating);
+});
+
+$("#rating-review-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const submit = event.currentTarget.querySelector('[type="submit"]');
+  submit.disabled = true;
+  try {
+    await request(`/participant/books/${participantState.activeBookId}/rating`, {
+      method: "PUT",
+      body: JSON.stringify({ rating: participantState.pendingReviewRating, review_text: $("#rating-review-text").value.trim() || null }),
+    });
+    $("#rating-review-dialog").close();
+    delete ratingsState.dataByBook[participantState.activeBookId];
+    await Promise.all([loadRatings(), loadActivity(), loadClubActivity()]);
+    await openBookPage(participantState.activeBookId);
+    toast("Your rating and review were saved.");
+  } catch (error) {
+    $("#rating-review-error").textContent = error.message;
+  } finally {
+    submit.disabled = false;
+  }
+});
 
 const discussionMarkup = (posts) => {
   const roots = posts.filter((post) => post.parent_id == null);
   const replies = posts.filter((post) => post.parent_id != null);
-  const postMarkup = (post, reply = false) => `<article class="${reply ? "discussion-reply" : "discussion-thread"}"><div class="discussion-author">${avatarMarkup(post.author)}<div><strong>${escapeHtml(post.author.name)}</strong><small class="user-meta">${escapeHtml(formatTimestamp(post.created_at))}</small></div></div><p class="discussion-body${post.spoiler ? " spoiler-text" : ""}"${post.spoiler ? ` data-reveal-spoiler="true" data-body="${escapeHtml(post.body)}"` : ""}>${post.spoiler ? "Spoiler — click to reveal" : escapeHtml(post.body)}</p><div class="post-meeting-actions"><button class="quiet-button reaction-button${post.reacted_by_me ? " is-active" : ""}" type="button" data-react-post="${post.id}">♥ ${post.reaction_count}</button>${reply ? "" : `<button class="quiet-button" type="button" data-detail-reply="${post.id}">Reply</button>`}${post.author.is_self ? `<button class="quiet-button" type="button" data-detail-delete-post="${post.id}">Delete</button>` : ""}</div>${reply ? "" : `<form class="reply-form" data-detail-reply-form="${post.id}" hidden><textarea rows="2" maxlength="4000" placeholder="Write a reply"></textarea><label><input type="checkbox" name="spoiler" /> Contains spoilers</label><button class="secondary-button" type="submit">Post reply</button></form><div class="discussion-replies">${replies.filter((item) => item.parent_id === post.id).map((item) => postMarkup(item, true)).join("")}</div>`}</article>`;
+  const postMarkup = (post, reply = false) => {
+    const childReplies = reply ? [] : replies.filter((item) => item.parent_id === post.id);
+    return `<article class="${reply ? "discussion-reply" : "discussion-thread"}"><header class="discussion-author">${avatarMarkup(post.author)}<div><strong>${escapeHtml(post.author.name)}</strong><small class="user-meta">${escapeHtml(formatTimestamp(post.created_at))}</small></div>${post.spoiler ? '<span class="spoiler-badge">Spoiler</span>' : ""}</header><p class="discussion-body${post.spoiler ? " spoiler-text" : ""}"${post.spoiler ? ` data-reveal-spoiler="true" data-body="${escapeHtml(post.body)}"` : ""}>${post.spoiler ? "Tap to reveal this comment" : escapeHtml(post.body)}</p><div class="post-meeting-actions discussion-actions"><button class="quiet-button reaction-button${post.reacted_by_me ? " is-active" : ""}" type="button" data-react-post="${post.id}" aria-label="${post.reacted_by_me ? "Remove reaction" : "React to this post"}">♥ <span>${post.reaction_count}</span></button>${reply ? "" : `<button class="quiet-button" type="button" data-detail-reply="${post.id}">Reply</button>`}${post.author.is_self ? `<button class="quiet-button" type="button" data-detail-delete-post="${post.id}">Delete</button>` : ""}</div>${reply ? "" : `<form class="reply-form thread-reply-form" data-detail-reply-form="${post.id}" hidden><textarea rows="2" maxlength="4000" placeholder="Add to this thread…"></textarea><div><label><input type="checkbox" name="spoiler" /> Contains spoilers</label><button class="secondary-button" type="submit">Post reply</button></div></form>${childReplies.length ? `<div class="discussion-replies"><p class="reply-count">${childReplies.length} ${childReplies.length === 1 ? "reply" : "replies"}</p>${childReplies.map((item) => postMarkup(item, true)).join("")}</div>` : ""}`}</article>`;
+  };
   return roots.length ? roots.map((post) => postMarkup(post)).join("") : '<p class="muted">No posts yet. Start the conversation.</p>';
+};
+
+const staticRatingMarkup = (rating) => `<span class="static-rating-stars" style="--rating-width:${Math.max(0, Math.min(100, (Number(rating) / 5) * 100))}%" role="img" aria-label="${rating} out of 5 stars"><span aria-hidden="true">★★★★★</span><span aria-hidden="true">★★★★★</span></span>`;
+
+const ratingsAndReviewsMarkup = (ratings, mine) => {
+  const scores = [5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5, 1];
+  const buckets = scores.map((score) => ({
+    score,
+    count: ratings.ratings.filter((item) => item.rating === score).length,
+  })).filter((item) => item.count > 0);
+  const maxCount = Math.max(1, ...buckets.map((item) => item.count));
+  const writtenCount = ratings.ratings.filter((item) => item.review_text).length;
+  const reviews = ratings.ratings.length
+    ? ratings.ratings.map((item) => {
+      const initial = Array.from(item.participant_name || "?")[0]?.toLocaleUpperCase() || "?";
+      const isMine = item.participant_id === ratingsState.participantId;
+      return `<article class="reader-review${isMine ? " is-mine" : ""}"><div class="review-reader"><span class="review-avatar">${escapeHtml(initial)}</span><div><strong>${escapeHtml(item.participant_name)}${isMine ? " (you)" : ""}</strong>${staticRatingMarkup(item.rating)}</div></div><blockquote class="review-copy${item.review_text ? "" : " is-empty"}">${item.review_text ? `“${escapeHtml(item.review_text)}”` : "Rated without a written review."}</blockquote><strong class="review-number">${item.rating}</strong></article>`;
+    }).join("")
+    : '<div class="ratings-empty"><span aria-hidden="true">★</span><p><strong>No ratings yet.</strong><br />Be the first reader to share a reaction.</p></div>';
+  return `<div class="ratings-overview"><section class="ratings-score-card"><p class="eyebrow">Club average</p><strong class="ratings-score">${ratings.average ?? "—"}</strong>${ratings.average != null ? staticRatingMarkup(ratings.average) : ""}<p>${ratings.count} reader${ratings.count === 1 ? "" : "s"} rated this book</p><button class="ratings-review-button" type="button" data-open-rating-review>${mine?.review_text ? "Edit your review" : "Write a review"}</button></section><section class="ratings-breakdown"><div><p class="eyebrow">Rating spread</p><h4>How the club rated it</h4></div><div class="rating-distribution">${buckets.length ? buckets.map((item) => `<div class="rating-distribution-row"><span>${item.score}★</span><div><span style="width:${(item.count / maxCount) * 100}%"></span></div><strong>${item.count}</strong></div>`).join("") : '<p class="muted">The distribution will appear when readers rate the book.</p>'}</div></section></div><div class="reviews-heading"><div><p class="eyebrow">Reader reviews</p><h4>What the club thought</h4></div><span>${writtenCount} written · ${ratings.count} rated</span></div><div class="reader-review-list">${reviews}</div>`;
 };
 
 const renderBookPage = ({ detail, ratings, progress, posts }) => {
   const book = detail.book;
   const mine = ratings.ratings.find((item) => item.participant_id === ratingsState.participantId);
+  participantState.activeRating = mine || null;
   const tab = participantState.bookHubTab;
   const hasSession = detail.sessions.some((session) => session.status === "completed");
   const isCurrentBook = participantState.upcomingMeeting?.meeting?.book?.id === book.id;
   const neighbors = bookJourneyNeighbors(book.id);
   $("#book-detail-journey-nav").innerHTML = hasSession ? `${neighbors.previous ? `<button class="quiet-button" type="button" data-open-book="${neighbors.previous}">← Previous book</button>` : ""}${neighbors.next ? `<button class="quiet-button" type="button" data-open-book="${neighbors.next}">Next book →</button>` : ""}` : "";
-  const distribution = [5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5, 1]
-    .filter((score) => ratings.ratings.some((item) => item.rating === score))
-    .map((score) => `${score}★ ${ratings.ratings.filter((item) => item.rating === score).length}`)
-    .join(" · ") || "No ratings yet";
   const bookActivity = participantState.clubActivity.filter((item) => item.book.id === book.id && item.kind !== "discussion");
   const activityMarkup = bookActivity.length
-    ? `<div class="conversation-updates">${bookActivity.slice(0, 6).map((item) => `<article class="conversation-update">${avatarMarkup(item.actor)}<div><p><strong>${escapeHtml(item.actor.name)}</strong> ${item.kind === "rating" ? "rated this book" : "updated their reading progress"}${item.detail ? ` · ${escapeHtml(item.detail)}` : ""}</p><small>${escapeHtml(formatTimestamp(item.created_at))}</small></div></article>`).join("")}</div>`
+    ? `<aside class="conversation-activity" aria-label="Recent club activity"><span class="conversation-activity-label">Latest</span><div class="conversation-updates">${bookActivity.slice(0, 4).map((item) => `<article class="conversation-update">${avatarMarkup(item.actor)}<div><strong>${escapeHtml(item.actor.name)}</strong><span>${item.kind === "rating" ? escapeHtml((item.detail || "rated").replace(" stars", "★")) : escapeHtml((item.detail || "updated progress").replace("reading · ", ""))}</span></div></article>`).join("")}</div></aside>`
     : "";
-  const tabs = [...(hasSession ? [["session", "Session recap"]] : []), ["conversation","Conversation"],["ratings","Ratings"],["progress","Reading progress"]];
-  $("#book-page-content").innerHTML = `<div class="book-page-hero"><img class="book-page-cover" src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div class="book-page-intro"><p class="eyebrow">${escapeHtml(book.author)}</p><h2>${escapeHtml(book.title)}</h2><p class="book-page-summary">${escapeHtml(book.description || "No description has been added yet.")}</p><div class="book-quick-meta"><span>${book.page_count ? `${book.page_count} pages` : "Page count unavailable"}</span><span>${ratings.average != null ? `${ratings.average}★ from ${ratings.count}` : "No ratings yet"}</span>${hasSession ? "<span>Previously read</span>" : ""}</div><details class="book-about book-about-hero"><summary>About this book</summary><p>${escapeHtml(book.description || "No description has been added yet.")}</p><p>${book.page_count ? `${book.page_count} pages${book.genres ? " · " : ""}` : ""}${escapeHtml(book.genres || "")}</p></details>${isCurrentBook ? meetingHeroMarkup(participantState.upcomingMeeting) : ""}</div></div>
+  const tabs = [...(hasSession ? [["session", "Session recap"]] : []), ["conversation","Conversation"],["ratings","Ratings and Reviews"],["progress","Reading progress"]];
+  $("#book-page-content").innerHTML = `<div class="book-page-hero"><img class="book-page-cover" src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div class="book-page-intro"><p class="eyebrow">${escapeHtml(book.author)}</p><h2>${escapeHtml(book.title)}</h2><p class="book-page-summary">${escapeHtml(book.description || "No description has been added yet.")}</p><div class="book-quick-meta"><span>${book.page_count ? `${book.page_count} pages` : "Page count unavailable"}</span><span>${ratings.average != null ? `${ratings.average}★ from ${ratings.count}` : "No ratings yet"}</span>${hasSession ? "<span>Previously read</span>" : ""}</div><div class="hero-rating-row"><div><span class="hero-rating-label">${isCurrentBook ? "Your rating so far" : "Your rating"}</span><div class="hero-rating-picker">${ratingStarsMarkup(mine?.rating || 0, { id: "hero-rating-control", label: "Your rating", outputId: "hero-rating-value" })}<output id="hero-rating-value">${mine ? `${mine.rating} out of 5` : "Not rated"}</output></div></div><button class="hero-review-link" type="button" data-open-rating-review>${mine?.review_text ? "Edit your review" : "Write a review"}</button></div><details class="book-about book-about-hero"><summary>About this book</summary><p>${escapeHtml(book.description || "No description has been added yet.")}</p><p>${book.page_count ? `${book.page_count} pages${book.genres ? " · " : ""}` : ""}${escapeHtml(book.genres || "")}</p></details>${isCurrentBook ? meetingHeroMarkup(participantState.upcomingMeeting) : ""}</div></div>
     <div class="book-hub-tabs" role="tablist" aria-label="Book sections">${tabs.map(([value,label]) => `<button type="button" role="tab" data-book-hub-tab="${value}" aria-selected="${tab === value}" class="${tab === value ? "active" : ""}">${label}${value === "conversation" && posts.length ? ` <span>${posts.length}</span>` : ""}</button>`).join("")}</div>
     ${sessionArchiveMarkup(detail)}
-    <section class="book-hub-panel" data-book-hub-panel="conversation"${tab === "conversation" ? "" : " hidden"}><div class="book-panel-heading"><div><p class="eyebrow">Club conversation</p><h3>Read and respond</h3></div><p>Progress updates, ratings, and discussion in one place.</p></div>${activityMarkup}<form class="discussion-compose conversation-composer" id="detail-discussion-form"><textarea rows="3" maxlength="4000" placeholder="Share a thought or question with your club…"></textarea><div class="composer-actions"><label><input type="checkbox" name="spoiler" /> Contains spoilers</label><button class="primary-button" type="submit">Post</button></div></form><div id="detail-discussion-list">${discussionMarkup(posts)}</div></section>
-    <section class="book-hub-panel" data-book-hub-panel="ratings"${tab === "ratings" ? "" : " hidden"}><div class="book-panel-heading"><div><p class="eyebrow">Club ratings</p><h3>${ratings.average != null ? `${ratings.average}★ average` : "No ratings yet"}</h3></div><p>${distribution}</p></div><div class="ratings-calm-layout"><div class="your-rating-editor"><p class="eyebrow">Your rating</p><output class="rating-value" id="detail-rating-value">${mine?.rating || 3}★</output><input class="rating-range" id="detail-rating" type="range" min="1" max="5" step="0.5" value="${mine?.rating || 3}" aria-label="Rating in half-star increments" /><textarea id="detail-review" rows="3" maxlength="4000" placeholder="Add an optional review">${escapeHtml(mine?.review_text || "")}</textarea><button class="primary-button" id="save-detail-rating" type="button">${mine ? "Update rating" : "Save rating"}</button></div><div class="club-review-list">${ratings.ratings.length ? ratings.ratings.map((item) => `<article><p><strong>${escapeHtml(item.participant_name)}</strong><span>${item.rating}★</span></p>${item.review_text ? `<p>${escapeHtml(item.review_text)}</p>` : ""}</article>`).join("") : '<p class="muted">Be the first to rate this book.</p>'}</div></div></section>
-    <section class="book-hub-panel" data-book-hub-panel="progress"${tab === "progress" ? "" : " hidden"}><div class="book-panel-heading"><div><p class="eyebrow">Reading progress</p><h3>Stay on pace</h3></div><p>Private unless you choose to share it.</p></div><div class="progress-calm-layout"><form class="progress-form" id="detail-progress-form"><label>Status<select name="status"><option value="not_started"${progress.status === "not_started" ? " selected" : ""}>Not started</option><option value="reading"${progress.status === "reading" ? " selected" : ""}>Reading</option><option value="finished"${progress.status === "finished" ? " selected" : ""}>Finished</option></select></label><div class="progress-form-row"><label>Current page<input name="current_page" type="number" min="0" ${book.page_count ? `max="${book.page_count}"` : ""} value="${progress.current_page ?? 0}" /></label><label>Book club day<input value="${detail.meeting_date ? escapeHtml(formatDate(detail.meeting_date)) : "Not scheduled"}" disabled /></label></div><div class="pace-result" id="pace-result">${escapeHtml(readingPaceCopy(detail, progress))}</div><label class="preference-option"><input name="shared_with_club" type="checkbox"${progress.shared_with_club ? " checked" : ""} /><span><strong>Share my progress</strong><small>Members can see your status and current page.</small></span></label><button class="primary-button" type="submit">Save progress</button></form><div class="shared-progress-list"><p class="eyebrow">Reading together</p>${detail.shared_progress.length ? detail.shared_progress.map((item) => `<div class="shared-progress-item"><strong>${escapeHtml(item.member.name)}</strong><span>${escapeHtml(progressLabels[item.status] || item.status)}${item.current_page != null ? ` · page ${item.current_page}` : ""}</span></div>`).join("") : '<p class="muted">No one has shared progress yet.</p>'}</div></div></section>`;
+    <section class="book-hub-panel conversation-panel" data-book-hub-panel="conversation"${tab === "conversation" ? "" : " hidden"}><div class="book-panel-heading conversation-heading"><div><p class="eyebrow">Club conversation</p><h3>What readers are noticing</h3></div><p>${posts.length} contribution${posts.length === 1 ? "" : "s"} across ${posts.filter((post) => post.parent_id == null).length} thread${posts.filter((post) => post.parent_id == null).length === 1 ? "" : "s"}.</p></div>${activityMarkup}<form class="discussion-compose conversation-composer" id="detail-discussion-form"><div class="composer-intro"><span aria-hidden="true">✦</span><div><strong>Start a new thread</strong><small>Share a question, passage, or thought with the club.</small></div></div><textarea rows="2" maxlength="4000" placeholder="What’s on your mind about this book?"></textarea><div class="composer-actions"><label><input type="checkbox" name="spoiler" /> Contains spoilers</label><button class="primary-button" type="submit">Post to club</button></div></form><div class="conversation-thread-grid" id="detail-discussion-list">${discussionMarkup(posts)}</div></section>
+    <section class="book-hub-panel ratings-panel" data-book-hub-panel="ratings"${tab === "ratings" ? "" : " hidden"}>${ratingsAndReviewsMarkup(ratings, mine)}</section>
+    <section class="book-hub-panel" data-book-hub-panel="progress"${tab === "progress" ? "" : " hidden"}><div class="book-panel-heading progress-panel-heading"><div><p class="eyebrow">Reading progress</p><h3>Stay on pace</h3></div><p>Move the page marker to see the pace you need before book club day${detail.meeting_date ? ` on ${escapeHtml(formatDate(detail.meeting_date))}` : ""}.</p></div>${readingProgressMarkup(detail, progress)}</section>`;
   document.querySelectorAll("[data-book-hub-panel]").forEach((panel) => { panel.hidden = panel.dataset.bookHubPanel !== tab; });
 };
 
@@ -798,12 +1262,57 @@ const openBookPage = async (bookId, { scroll = false, portalView = participantSt
 document.addEventListener("click", (event) => { const button = event.target.closest("[data-open-book]"); if (button) openBookPage(button.dataset.openBook, { scroll: true, portalView: "book", updateHistory: true }).catch((error) => toast(error.message)); });
 document.addEventListener("keydown", (event) => { const card = event.target.closest('[data-open-book][role="button"]'); if (card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); card.click(); } });
 $("#book-page-content").addEventListener("input", (event) => {
-  if (event.target.id === "detail-rating") $("#detail-rating-value").textContent = `${event.target.value}★`;
-  if (event.target.name === "current_page" && $("#pace-result")) {
-    $("#pace-result").textContent = readingPaceCopy(participantState.activeBookDetail, { current_page: Number(event.target.value || 0) });
+  if ((event.target.name === "current_page" || event.target.matches("[data-page-range]")) && event.target.closest("#detail-progress-form")) {
+    updateReadingProgressPreview(event.target.closest("#detail-progress-form"), Number(event.target.value || 0));
   }
 });
+$("#book-page-content").addEventListener("pointermove", (event) => {
+  const star = event.target.closest("[data-rating-star]");
+  if (star) paintRatingControl(star.closest(".hero-rating-control"), ratingFromPointer(star, event.clientX));
+});
+$("#book-page-content").addEventListener("pointerout", (event) => {
+  const control = event.target.closest(".hero-rating-control");
+  if (control && !control.contains(event.relatedTarget)) paintRatingControl(control, participantState.activeRating?.rating || 0);
+});
+$("#book-page-content").addEventListener("keydown", (event) => {
+  const control = event.target.closest(".hero-rating-control");
+  if (!control || !["ArrowLeft", "ArrowDown", "ArrowRight", "ArrowUp", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const current = Number(control.getAttribute("aria-valuenow")) || participantState.activeRating?.rating || 1;
+  const rating = event.key === "Home" ? 1 : event.key === "End" ? 5 : Math.min(5, Math.max(1, current + (["ArrowRight", "ArrowUp"].includes(event.key) ? 0.5 : -0.5)));
+  paintRatingControl(control, rating);
+  clearTimeout(saveHeroRating.keyboardTimer);
+  saveHeroRating.keyboardTimer = setTimeout(() => saveHeroRating(rating), 350);
+});
 $("#book-page-content").addEventListener("click", async (event) => {
+  const attendanceButton = event.target.closest("[data-report-attendance]");
+  if (attendanceButton) {
+    const meetingId = Number(attendanceButton.dataset.reportAttendance);
+    const attended = attendanceButton.dataset.attended === "true";
+    const group = attendanceButton.closest(".session-attendance-actions");
+    group?.querySelectorAll("button").forEach((button) => { button.disabled = true; });
+    try {
+      await request(`/participant/meetings/${meetingId}/attendance`, {
+        method: "PUT",
+        body: JSON.stringify({ attended }),
+      });
+      await Promise.all([loadStats(), loadActivity()]);
+      await openBookPage(participantState.activeBookId);
+      toast(attended ? "Attendance added to My stats." : "Attendance updated.");
+    } catch (error) {
+      group?.querySelectorAll("button").forEach((button) => { button.disabled = false; });
+      toast(error.message);
+    }
+    return;
+  }
+  const ratingStar = event.target.closest("[data-rating-star]");
+  if (ratingStar) {
+    const control = ratingStar.closest(".hero-rating-control");
+    const rating = ratingFromPointer(ratingStar, event.clientX);
+    paintRatingControl(control, rating);
+    await saveHeroRating(rating);
+    return;
+  }
   const tabButton = event.target.closest("[data-book-hub-tab], [data-book-hub-tab-target]");
   if (tabButton) {
     const selected = tabButton.dataset.bookHubTab || tabButton.dataset.bookHubTabTarget;
@@ -824,8 +1333,7 @@ $("#book-page-content").addEventListener("click", async (event) => {
   const react = event.target.closest("[data-react-post]");
   const remove = event.target.closest("[data-detail-delete-post]");
   try {
-    if (event.target.id === "save-detail-rating") await request(`/participant/books/${participantState.activeBookId}/rating`, { method: "PUT", body: JSON.stringify({ rating: Number($("#detail-rating").value), review_text: $("#detail-review").value.trim() || null }) });
-    else if (react) await request(`/participant/discussion/${react.dataset.reactPost}/reaction`, { method: "PUT" });
+    if (react) await request(`/participant/discussion/${react.dataset.reactPost}/reaction`, { method: "PUT" });
     else if (remove) await request(`/participant/discussion/${remove.dataset.detailDeletePost}`, { method: "DELETE" });
     else return;
     delete ratingsState.dataByBook[participantState.activeBookId];
@@ -884,7 +1392,7 @@ $("#profile-form").addEventListener("submit", async (event) => {
       }),
     });
     $("#profile-dialog").close();
-    $("#welcome-heading").textContent = `Welcome, ${capitalizeFirst(participantState.profile.name)}`;
+    $("#welcome-heading").textContent = timeBasedGreeting(participantState.profile.name);
     await loadDirectory();
     toast("Profile saved.");
   } catch (error) { $("#profile-error").textContent = error.message; }
@@ -1033,6 +1541,7 @@ $("#notification-form").addEventListener("submit", async (event) => {
     }
     renderPostMeeting();
     renderActionCenter();
+    startAnnouncementRefresh();
   } catch {
     location.href = "/";
   }

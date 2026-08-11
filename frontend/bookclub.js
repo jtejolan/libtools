@@ -972,6 +972,11 @@ const renderRoster = () => {
       const noteIndicatorHtml = entry.notes
         ? `<span class="roster-note-indicator" title="${escapeHtml(entry.notes)}">✎ Note</span>`
         : "";
+      const participantAttendanceHtml = entry.attendance_source === "participant"
+        ? `<button class="status-pill self-reported-attendance" type="button" data-confirm-attendance="${member.id}" title="Confirm this participant’s self-reported attendance">Self-reported · Confirm</button>`
+        : entry.attendance_source === "facilitator" && entry.participant_attended !== null && entry.participant_attended !== entry.attended
+          ? `<span class="status-pill attendance-report-difference" title="The facilitator record is used for stats">Reported: ${entry.participant_attended ? "attended" : "did not attend"}</span>`
+          : "";
       return `<article class="roster-member-card ${attended ? "is-attended" : ""}" data-roster-toggle="${member.id}" role="button" tabindex="0" aria-pressed="${attended ? "true" : "false"}" aria-label="${escapeHtml(member.name)}, ${attended ? "attended. Tap to mark as not attended." : "tap to mark as attended."}">
         <div class="roster-card-main">
           <span class="avatar">${escapeHtml(initials(member.name))}</span>
@@ -980,7 +985,7 @@ const renderRoster = () => {
             <span class="roster-card-status">${attended ? "Attended" : "Tap to check in"}</span>
           </div>
         </div>
-        <div class="roster-card-flags">${newMemberBadgeHtml}${pendingBadgeHtml}${noteIndicatorHtml}</div>
+        <div class="roster-card-flags">${newMemberBadgeHtml}${participantAttendanceHtml}${pendingBadgeHtml}${noteIndicatorHtml}</div>
         <details class="roster-card-menu" data-roster-menu>
           <summary class="roster-card-menu-trigger" aria-label="More actions for ${escapeHtml(member.name)}">⋮</summary>
           <div class="roster-card-menu-panel">
@@ -1589,6 +1594,21 @@ const setView = async (view) => {
 // immediate optimistic class flip (for a snappy transition) before the save
 // resolves and a full re-render settles the roster into its final state.
 $("#roster-table").addEventListener("click", async (event) => {
+  const confirm = event.target.closest("[data-confirm-attendance]");
+  if (confirm) {
+    const memberId = Number(confirm.dataset.confirmAttendance);
+    const entry = state.roster.find((item) => item.member_id === memberId);
+    if (!entry) return;
+    confirm.disabled = true;
+    try {
+      await saveParticipation(memberId, { attended: entry.attended });
+      showToast("Self-reported attendance confirmed.");
+    } catch (error) {
+      showToast(error.message);
+      await loadSelectedMeeting();
+    }
+    return;
+  }
   if (event.target.closest("[data-roster-menu], [data-open-followup]")) return;
   const card = event.target.closest("[data-roster-toggle]");
   if (!card) return;
@@ -1610,7 +1630,7 @@ $("#roster-table").addEventListener("click", async (event) => {
 
 $("#roster-table").addEventListener("keydown", (event) => {
   if (event.key !== "Enter" && event.key !== " ") return;
-  if (event.target.closest("[data-roster-menu], [data-open-followup]")) return;
+  if (event.target.closest("[data-roster-menu], [data-open-followup], [data-confirm-attendance]")) return;
   const card = event.target.closest("[data-roster-toggle]");
   if (!card) return;
   event.preventDefault();

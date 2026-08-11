@@ -8,6 +8,8 @@ from sqlalchemy.orm import selectinload
 from bookclub import crud, models, participant_auth
 from bookclub.participant_schemas import (
     AnnouncementResponse,
+    BookSuggestionCreate,
+    BookSuggestionResponse,
     ClubActivityItem,
     DiscussionPostCreate,
     DiscussionPostResponse,
@@ -23,6 +25,8 @@ from bookclub.participant_schemas import (
     ParticipantLibraryResponse,
     ParticipantBookJourneyResponse,
     ParticipantBookSessionResponse,
+    ParticipantAttendanceResponse,
+    ParticipantAttendanceUpdate,
     ParticipantProfileResponse,
     ParticipantProfileUpdate,
     ReadingProgressResponse,
@@ -56,6 +60,64 @@ def _record_activity(db, *, club_id, member_id, book_id, kind, detail=None, refe
         detail=detail,
         reference_id=reference_id,
     ))
+
+
+def _book_suggestion_response(suggestion, proposer_name: str | None) -> BookSuggestionResponse:
+    return BookSuggestionResponse(
+        id=suggestion.id,
+        google_books_id=suggestion.google_books_id,
+        title=suggestion.title,
+        author=suggestion.author,
+        description=suggestion.description,
+        cover_image_url=suggestion.cover_image_url,
+        publication_date=suggestion.publication_date,
+        isbn=suggestion.isbn,
+        page_count=suggestion.page_count,
+        comments=suggestion.comments,
+        status=suggestion.status,
+        book_id=suggestion.book_id,
+        proposed_by_name=proposer_name,
+        created_at=suggestion.created_at,
+    )
+
+
+@router.post(
+    "/book-suggestions",
+    response_model=BookSuggestionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_book_suggestion(
+    value: BookSuggestionCreate,
+    club: participant_auth.CurrentParticipantClub,
+    participant: participant_auth.CurrentParticipant,
+    db: DatabaseSession,
+):
+    suggestion = models.BookClubBookSuggestion(
+        club_id=club.id,
+        participant_id=participant.id,
+        **value.model_dump(),
+    )
+    db.add(suggestion)
+    db.commit()
+    db.refresh(suggestion)
+    return _book_suggestion_response(suggestion, participant.name)
+
+
+@router.get("/book-suggestions", response_model=list[BookSuggestionResponse])
+def list_own_book_suggestions(
+    club: participant_auth.CurrentParticipantClub,
+    participant: participant_auth.CurrentParticipant,
+    db: DatabaseSession,
+):
+    suggestions = list(db.scalars(
+        select(models.BookClubBookSuggestion)
+        .where(
+            models.BookClubBookSuggestion.club_id == club.id,
+            models.BookClubBookSuggestion.participant_id == participant.id,
+        )
+        .order_by(models.BookClubBookSuggestion.created_at.desc())
+    ))
+    return [_book_suggestion_response(item, participant.name) for item in suggestions]
 
 
 def _meeting_response(meeting, club, member, db) -> ParticipantMeetingResponse:
@@ -425,6 +487,16 @@ def participant_book_detail(
         roster_count=len(meeting.participants),
         attendance_count=sum(1 for entry in meeting.participants if entry.attended),
         pages_read=sum(1 for entry in meeting.participants if entry.attended) * (book.page_count or 0),
+        my_attended=(
+            next((entry.attended for entry in meeting.participants
+                  if entry.member_id == member.id and entry.attendance_source), None)
+        ),
+        my_attendance_source=next((entry.attendance_source for entry in meeting.participants
+                                   if entry.member_id == member.id), None),
+        my_participant_report=next((entry.participant_attended for entry in meeting.participants
+                                    if entry.member_id == member.id), None),
+        my_attendance_updated_at=next((entry.attendance_updated_at for entry in meeting.participants
+                                      if entry.member_id == member.id), None),
     ) for meeting in meetings]
     completed_sessions = [item for item in sessions if item.status == "completed"]
     return ParticipantBookJourneyResponse(
@@ -441,6 +513,53 @@ def participant_book_detail(
         sessions=sessions,
         total_attendance=sum(item.attendance_count for item in completed_sessions),
         reading_impact_pages=sum(item.pages_read for item in completed_sessions),
+    )
+
+
+@router.put(
+    "/meetings/{meeting_id}/attendance",
+    response_model=ParticipantAttendanceResponse,
+)
+def report_participant_attendance(
+    meeting_id: int,
+    changes: ParticipantAttendanceUpdate,
+    club: participant_auth.CurrentParticipantClub,
+    member: participant_auth.CurrentParticipantMember,
+    db: DatabaseSession,
+):
+    meeting = db.scalar(select(models.BookClubMeeting).where(
+        models.BookClubMeeting.id == meeting_id,
+        models.BookClubMeeting.club_id == club.id,
+    ))
+    if meeting is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+    if meeting.status != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Attendance can be reported after the meeting is completed.",
+        )
+    participation = db.scalar(select(models.BookClubParticipation).where(
+        models.BookClubParticipation.meeting_id == meeting.id,
+        models.BookClubParticipation.member_id == member.id,
+    ))
+    if participation is None:
+        participation = models.BookClubParticipation(meeting=meeting, member=member)
+        db.add(participation)
+    now = datetime.now(timezone.utc)
+    participation.participant_attended = changes.attended
+    participation.participant_attendance_updated_at = now
+    if participation.attendance_source != "facilitator":
+        participation.attended = changes.attended
+        participation.attendance_source = "participant"
+        participation.attendance_updated_at = now
+    db.commit()
+    db.refresh(participation)
+    return ParticipantAttendanceResponse(
+        meeting_id=meeting.id,
+        attended=participation.attended,
+        attendance_source=participation.attendance_source or "participant",
+        participant_attended=changes.attended,
+        attendance_updated_at=participation.attendance_updated_at or now,
     )
 
 
@@ -560,14 +679,17 @@ def participant_library(
         )
     )
     upcoming_ids = []
-    completed_ids = set()
+    completed_ids = []
     for meeting in meetings:
         if meeting.status == "completed":
-            completed_ids.add(meeting.book_id)
+            if meeting.book_id not in completed_ids:
+                completed_ids.append(meeting.book_id)
         elif meeting.status == "planned" and meeting.meeting_date >= date.today():
-            upcoming_ids.append(meeting.book_id)
+            if meeting.book_id not in upcoming_ids:
+                upcoming_ids.append(meeting.book_id)
     current_ids = set(upcoming_ids[:1])
-    up_next_ids = set(upcoming_ids[1:])
+    scheduled_up_next_ids = upcoming_ids[1:]
+    completed_id_set = set(completed_ids)
     winning_ids = set(
         db.scalars(
             select(models.BookClubVotingRound.winning_book_id).where(
@@ -577,12 +699,15 @@ def participant_library(
             )
         )
     )
-    up_next_ids.update(winning_ids - current_ids - completed_ids)
-    previous_ids = completed_ids | {book.id for book in books if book.is_past_selection}
+    unscheduled_winning_ids = winning_ids - current_ids - completed_id_set - set(scheduled_up_next_ids)
+    unscheduled_previous_ids = {book.id for book in books if book.is_past_selection} - completed_id_set
+    books_by_id = {book.id: book for book in books}
     return ParticipantLibraryResponse(
-        current=[book for book in books if book.id in current_ids],
-        up_next=[book for book in books if book.id in up_next_ids],
-        previously_read=[book for book in books if book.id in previous_ids],
+        current=[books_by_id[book_id] for book_id in upcoming_ids[:1] if book_id in books_by_id],
+        up_next=[books_by_id[book_id] for book_id in scheduled_up_next_ids if book_id in books_by_id]
+        + [book for book in books if book.id in unscheduled_winning_ids],
+        previously_read=[books_by_id[book_id] for book_id in completed_ids if book_id in books_by_id]
+        + [book for book in books if book.id in unscheduled_previous_ids],
     )
 
 
@@ -799,6 +924,12 @@ def personal_activity(
             models.BookClubBookCandidate.proposed_by_participant_id == participant.id,
         )
     ).all())
+    suggestions = list(db.scalars(
+        select(models.BookClubBookSuggestion).where(
+            models.BookClubBookSuggestion.club_id == club.id,
+            models.BookClubBookSuggestion.participant_id == participant.id,
+        )
+    ))
     progress_rows = list(db.execute(
         select(models.BookClubReadingProgress, models.BookClubBook.title)
         .join(models.BookClubBook, models.BookClubBook.id == models.BookClubReadingProgress.book_id)
@@ -815,13 +946,14 @@ def personal_activity(
     recent.extend(PersonalActivityItem(kind="book_vote", label=f"Voted for {title}", occurred_at=vote.created_at) for vote, title in book_votes)
     recent.extend(PersonalActivityItem(kind="date_vote", label="Voted on a meeting date", detail=option_date.isoformat(), occurred_at=vote.created_at) for vote, option_date in date_votes)
     recent.extend(PersonalActivityItem(kind="proposal", label=f"Proposed {title}", detail=candidate.status, occurred_at=candidate.created_at) for candidate, title in proposals)
+    recent.extend(PersonalActivityItem(kind="proposal", label=f"Suggested {suggestion.title}", detail=suggestion.status, occurred_at=suggestion.created_at) for suggestion in suggestions)
     recent.extend(PersonalActivityItem(kind="progress", label=f"Updated {title}", detail=progress.status.replace("_", " "), occurred_at=progress.updated_at) for progress, title in progress_rows)
     recent.sort(key=lambda item: item.occurred_at, reverse=True)
     return PersonalActivityResponse(
         ratings_count=len(ratings),
         book_votes_count=len(book_votes),
         date_votes_count=len(date_votes),
-        proposals_count=len(proposals),
+        proposals_count=len(proposals) + len(suggestions),
         attended_meetings_count=int(attended_count),
         recent=recent[:8],
     )

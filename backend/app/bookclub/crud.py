@@ -435,8 +435,12 @@ def update_participation(
             meeting=meeting, member=member
         )
         db.add(participation)
-    for field, value in _data(changes, exclude_unset=True).items():
+    values = _data(changes, exclude_unset=True)
+    for field, value in values.items():
         setattr(participation, field, value)
+    if "attended" in values:
+        participation.attendance_source = "facilitator"
+        participation.attendance_updated_at = datetime.now(timezone.utc)
     return _commit(db, participation)
 
 

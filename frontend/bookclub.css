@@ -716,6 +716,9 @@ footer { padding: 26px 38px; display: flex; justify-content: space-between; gap:
 .roster-note-indicator { padding: 4px 9px; border-radius: 999px; color: var(--orange); background: rgba(227,170,66,.16); font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
 .roster-email-badge { max-width: 100%; overflow: hidden; border: 0; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .roster-email-badge:hover { filter: brightness(.95); }
+.self-reported-attendance { border: 0; color: var(--forest); background: rgba(227,170,66,.2); cursor: pointer; }
+.self-reported-attendance:hover { background: rgba(227,170,66,.3); }
+.attendance-report-difference { color: var(--orange); background: rgba(227,170,66,.14); }
 .roster-card-menu { position: absolute; top: 8px; right: 8px; z-index: 2; }
 .roster-card-menu[open] { z-index: 20; }
 .roster-card-menu summary { list-style: none; }

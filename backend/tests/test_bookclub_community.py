@@ -309,6 +309,81 @@ class BookClubCommunityTests(unittest.TestCase):
         self.assertEqual(club.json()["top_rated_books"][0]["title"], "Dune")
         self.assertNotIn("reader@example.com", club.text)
 
+    def test_participant_can_self_report_completed_meeting_attendance(self) -> None:
+        meeting = self.create_meeting()
+        book_id = meeting["book_id"]
+        self.facilitator.patch(f"/bookclub/books/{book_id}", json={"page_count": 412})
+
+        too_early = self.reader.put(
+            f"/participant/meetings/{meeting['id']}/attendance",
+            json={"attended": True},
+        )
+        self.assertEqual(too_early.status_code, 409, too_early.text)
+        self.facilitator.patch(
+            f"/bookclub/meetings/{meeting['id']}", json={"status": "completed"}
+        )
+
+        reported = self.reader.put(
+            f"/participant/meetings/{meeting['id']}/attendance",
+            json={"attended": True},
+        )
+        self.assertEqual(reported.status_code, 200, reported.text)
+        self.assertTrue(reported.json()["attended"])
+        self.assertEqual(reported.json()["attendance_source"], "participant")
+
+        journey = self.reader.get(f"/participant/books/{book_id}/detail").json()
+        session = journey["sessions"][0]
+        self.assertTrue(session["my_attended"])
+        self.assertTrue(session["my_participant_report"])
+        self.assertEqual(session["my_attendance_source"], "participant")
+        self.assertEqual(session["attendance_count"], 1)
+        personal = self.reader.get("/participant/stats/personal").json()
+        self.assertEqual(personal["meetings_attended"], 1)
+        self.assertEqual(personal["pages_read"], 412)
+
+        roster = self.facilitator.get(
+            f"/bookclub/meetings/{meeting['id']}/roster"
+        ).json()
+        self.assertEqual(roster[0]["attendance_source"], "participant")
+        self.assertTrue(roster[0]["participant_attended"])
+
+    def test_facilitator_attendance_is_authoritative_after_self_report(self) -> None:
+        meeting = self.create_meeting()
+        self.facilitator.patch(
+            f"/bookclub/meetings/{meeting['id']}", json={"status": "completed"}
+        )
+        self.reader.put(
+            f"/participant/meetings/{meeting['id']}/attendance",
+            json={"attended": True},
+        )
+
+        corrected = self.facilitator.put(
+            f"/bookclub/meetings/{meeting['id']}/members/{self.reader_member_id}",
+            json={"attended": False},
+        )
+        self.assertEqual(corrected.status_code, 200, corrected.text)
+        self.assertFalse(corrected.json()["attended"])
+        self.assertEqual(corrected.json()["attendance_source"], "facilitator")
+        self.assertTrue(corrected.json()["participant_attended"])
+
+        later_report = self.reader.put(
+            f"/participant/meetings/{meeting['id']}/attendance",
+            json={"attended": True},
+        )
+        self.assertEqual(later_report.status_code, 200, later_report.text)
+        self.assertFalse(later_report.json()["attended"])
+        self.assertEqual(later_report.json()["attendance_source"], "facilitator")
+        self.assertEqual(
+            self.reader.get("/participant/stats/personal").json()["meetings_attended"],
+            0,
+        )
+        session = self.reader.get(
+            f"/participant/books/{meeting['book_id']}/detail"
+        ).json()["sessions"][0]
+        self.assertFalse(session["my_attended"])
+        self.assertTrue(session["my_participant_report"])
+        self.assertEqual(session["my_attendance_source"], "facilitator")
+
     def test_participant_member_experience_profile_library_discussion_and_read_state(self) -> None:
         meeting = self.create_meeting()
         question = self.facilitator.post(

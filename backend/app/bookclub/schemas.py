@@ -376,6 +376,10 @@ class ParticipationResponse(BaseModel):
     meeting_id: int
     member_id: int
     attended: bool
+    participant_attended: bool | None = None
+    participant_attendance_updated_at: datetime | None = None
+    attendance_source: str | None = None
+    attendance_updated_at: datetime | None = None
     rsvp_status: str | None = None
     notes: str | None = None
     member: MemberResponse

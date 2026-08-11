@@ -172,11 +172,15 @@ printed one at a time from "Send a book" via `window.print()`
 
 Responsive invitation destination rendered at `/clubs/{slug}`. It fetches
 `GET /api/public/clubs/{slug}` and presents the club identity, organizer,
-current book, upcoming meeting, public `.ics`/Google Calendar actions, account
-benefits, and previous-book shelf. Its membership panel reflects the club's
-open/invitation-only/closed enrollment policy. When a participant session is
-present, it changes from generic signup links to an account-aware open/join
-action and supports joining a second open club without another account.
+current book, and upcoming meeting with public `.ics`/Google Calendar actions in
+one unified opening hero before a consolidated membership invitation and the
+previous-book shelf. The compact
+invitation pairs Join/sign-in actions with the participant features they unlock,
+including conversation, reading progress, ratings and reviews, stats, and
+club decisions. Its membership controls reflect the club's open/invitation-only/
+closed enrollment policy. When a participant session is present, they change
+from generic signup links to an account-aware open/join action and support
+joining a second open club without another account.
 
 ## `bookclub.libtools.app` participant community
 
@@ -195,25 +199,41 @@ action and supports joining a second open club without another account.
   and verification only; the old facilitator creation card is removed.
 - `bookclub-participant.html` is a small routed participant portal with
   **Home**, **Books**, **My stats**, **Club stats**, and **Members** views.
-  Home remains calm and current-book-first. A compact book hero leads directly into three visible workspaces:
-  **Conversation**, **Ratings**, and **Reading progress**. Conversation merges
-  social activity with spoiler-aware discussions, replies, and reactions;
-  Ratings includes the club average, individual reviews, and 0.5-star input;
-  Reading progress includes optional sharing and the automatic daily/weekly
-  pace calculator. Books is a cover-forward searchable/filterable shelf modeled
-  on the facilitator collection. Choosing a title opens a stable query-routed
+  Home uses a conversational morning, afternoon, evening, or late-night greeting
+  that includes the participant's name, and remains calm and current-book-first.
+  A compact book hero leads directly into three visible workspaces:
+  **Conversation**, **Ratings and Reviews**, and **Reading progress**. Conversation uses
+  a compact horizontal activity ribbon above an orderly single-column thread feed,
+  with visually nested replies, spoiler-aware posts, and reactions;
+  the hero includes an immediately saved, keyboard-accessible clickable star
+  rating with half-star precision. Its review shortcut opens a focused modal
+  with the same star control and a written-review field; Ratings and Reviews is a
+  read-only visual dashboard with a large aggregate score, rating-distribution
+  bars, and an orderly member review feed;
+  Reading progress includes optional sharing plus a live graphical calculator
+  with a completion ring, page slider, exact-page entry, and automatic
+  daily/weekly pace targets. Books is a dedicated club reading journey with a
+  current/next chapter, shared-shelf milestones, and a connected cover-forward
+  searchable/filterable history modeled on the facilitator collection. It also
+  includes a frontend-only Google Books suggestion flow that previews the title
+  destined for the facilitator queue without claiming to submit it before the
+  backend is connected. Choosing a club title opens a stable query-routed
   book view; completed titles default to a participant-safe session recap with
   previous/next book navigation, aggregate attendance, reader-pages, and public
-  discussion notes. Meeting RSVP and the latest announcement appear as compact
-  supporting cards, while book/date votes stay in a collapsed **Open
+  discussion notes. The latest announcement expands automatically when its
+  newest item is unread, can be marked read and minimized into a compact strip,
+  and retains an unread-count badge plus minute/visibility refresh checks for
+  new posts. Book/date votes stay in a collapsed **Open
   decisions** section until needed. The page also provides a club switcher,
   announcement archive with read state, calendar actions, a grouped searchable
   immediate/digest notification preferences, and an opt-in member directory
   whose responses never expose roster email or staff notes. My stats summarizes
   the signed-in reader's meetings, books, pages, ratings, genres, progress, and
-  recent activity. Club stats shows aggregate shelf, genre, length, rating, and
-  attendance trends without leaderboards or individual attendance. It has no
-  facilitator role or management link.
+  recent activity. Club stats is presented as **Our club story**: a community
+  personality summary, favourite genres, book-length patterns, reader-favourite
+  titles, shelf momentum, shared rating patterns, and a book-focused timeline of
+  completed reads. It omits attendance reporting, leaderboards, and individual
+  comparisons. It has no facilitator role or management link.
 - `bookclub-manage.html` is now served from
   `libtools.app/bookclub/community`, authenticated by the regular Libtools
   session and selected club. It shares the Book Club Manager's green sidebar,
@@ -236,3 +256,10 @@ action and supports joining a second open club without another account.
   `libtools.app/clubs/{slug}` (primary app) and
   `bookclub.libtools.app/clubs/{slug}` (`bookclub_public_app`) — one file,
   two hosts.
+## Participant attendance history
+
+Completed session cards on the participant book page let signed-in members self-report whether they attended. The report immediately contributes to personal and club statistics and is identified as self-reported in the facilitator roster. Facilitators can confirm the report or toggle the roster attendance to correct it; once a facilitator records attendance, that authoritative value remains in use even if the participant submits another report.
+
+## Reader book suggestions
+
+The participant Books page has a Google Books search and a persistent suggestion form. Selecting a result preserves its catalogue metadata and opens an optional comments field before submission. Suggestions are independent of formal voting rounds, appear in the facilitator Community page under Book suggestions, and can be added to the club library or dismissed. Accepted suggestions retain their review status and point to the newly created club book.

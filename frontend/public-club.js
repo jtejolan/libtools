@@ -59,9 +59,9 @@ const renderMeeting = (meeting) => {
 };
 
 const enrollmentCopy = {
-  open: { badge: "Open to readers", message: "Anyone with this club invitation can join and participate." },
-  invite_only: { badge: "Invitation only", message: "Use the email address your facilitator added to the roster." },
-  closed: { badge: "Membership closed", message: "This club is not accepting new participant accounts right now." },
+  open: { badge: "Open to readers", message: "This invitation is all you need." },
+  invite_only: { badge: "Invitation only", message: "Use your roster email to join." },
+  closed: { badge: "Membership closed", message: "New accounts are not being accepted." },
 };
 
 const setLinkAction = (element, label, handler) => {
@@ -106,7 +106,7 @@ const configureMembership = async (club) => {
         location.href = "/dashboard";
       });
       $("#enrollment-badge").textContent = "You’re a member";
-      $("#membership-message").textContent = "Continue to your dashboard for RSVPs, votes, announcements, and discussions.";
+      $("#membership-message").textContent = "Your reader space is ready.";
       secondary.href = "/";
       secondary.textContent = "View all my clubs";
       return;

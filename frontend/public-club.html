@@ -11,9 +11,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/static/platform.css?v=7" />
-    <link rel="stylesheet" href="/static/public-club.css?v=1" />
+    <link rel="stylesheet" href="/static/public-club.css?v=6" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/public-club.js?v=5" defer></script>
+    <script src="/static/public-club.js?v=6" defer></script>
   </head>
   <body class="public-club-page">
     <div class="public-shell">
@@ -30,35 +30,27 @@
             <p class="club-description" id="club-description">Loading club information…</p>
             <p class="organizer-line" id="organizer-line" hidden></p>
 
-            <div class="membership-panel" id="membership-panel" hidden>
-              <div class="membership-copy"><span class="enrollment-badge" id="enrollment-badge"></span><p id="membership-message"></p></div>
-              <div class="membership-actions" id="participant-actions">
-                <a class="public-primary" id="join-club-link" href="#">Join this club <span aria-hidden="true">→</span></a>
-                <a class="public-secondary" id="participant-login-link" href="#">Participant sign in</a>
-              </div>
-              <p class="membership-error" id="membership-error" role="alert"></p>
-            </div>
           </div>
 
           <article class="current-book-card" id="current-book-card" hidden>
             <div class="current-cover" id="public-cover" aria-hidden="true">BC</div>
             <div class="current-book-copy"><p>Currently reading</p><h2 id="current-book-title"></h2><span id="current-book-author"></span><p class="current-book-description" id="current-book-description"></p></div>
           </article>
-        </section>
-
-        <section class="meeting-section" id="meeting-section" aria-labelledby="meeting-heading">
-          <div class="section-heading"><p class="public-eyebrow"><span></span>Next gathering</p><h2 id="meeting-heading">Come to the next discussion</h2></div>
-          <article class="meeting-card" id="meeting-details"><div class="meeting-empty"><strong>Next meeting coming soon</strong><span>Check back for the next selection.</span></div></article>
+          <section class="meeting-section hero-meeting" id="meeting-section" aria-labelledby="meeting-heading">
+            <div class="section-heading"><p class="public-eyebrow"><span></span>Next gathering</p><h2 id="meeting-heading">Come to the discussion</h2></div>
+            <article class="meeting-card" id="meeting-details"><div class="meeting-empty"><strong>Next meeting coming soon</strong><span>Check back for the next selection.</span></div></article>
+          </section>
         </section>
 
         <section class="account-benefits" id="account-benefits" aria-labelledby="benefits-heading">
-          <div class="benefits-intro"><p class="public-eyebrow"><span></span>More than a meeting reminder</p><h2 id="benefits-heading">Join the conversation between meetings.</h2><p>A free reader account gives you a voice in what your club reads and when it gets together.</p></div>
-          <ul class="benefit-grid">
-            <li><span aria-hidden="true">✓</span><div><strong>Respond</strong><small>RSVP and add meetings to your calendar.</small></div></li>
-            <li><span aria-hidden="true">✦</span><div><strong>Help decide</strong><small>Vote on books and possible meeting dates.</small></div></li>
-            <li><span aria-hidden="true">★</span><div><strong>Share your take</strong><small>Rate books and add comments after reading.</small></div></li>
-            <li><span aria-hidden="true">→</span><div><strong>Stay connected</strong><small>See announcements and optionally track progress.</small></div></li>
-          </ul>
+          <div class="benefits-intro"><p class="public-eyebrow"><span></span>Join the club</p><h2 id="benefits-heading">Your club continues here.</h2><p>Join free to take part between meetings.</p></div>
+          <div class="benefits-feature-area"><p class="benefits-label">Membership includes</p><ul class="benefit-grid">
+            <li><span aria-hidden="true">✓</span><div><strong>Stay in the loop</strong><small>RSVP to meetings and catch every club announcement.</small></div></li>
+            <li><span aria-hidden="true">“</span><div><strong>Talk between meetings</strong><small>Start discussions, reply to readers, and share reactions.</small></div></li>
+            <li><span aria-hidden="true">★</span><div><strong>Track your reading</strong><small>Log progress, review books, and see your reading stats.</small></div></li>
+            <li><span aria-hidden="true">✦</span><div><strong>Help shape the club</strong><small>Vote on what to read and when the club should meet.</small></div></li>
+          </ul></div>
+          <div class="membership-panel" id="membership-panel" hidden><div class="membership-copy"><span class="enrollment-badge" id="enrollment-badge"></span><p id="membership-message"></p></div><div class="membership-actions" id="participant-actions"><a class="public-primary" id="join-club-link" href="#">Join this club <span aria-hidden="true">→</span></a><a class="public-secondary" id="participant-login-link" href="#">Participant sign in</a></div><p class="membership-error" id="membership-error" role="alert"></p></div>
         </section>
 
         <section class="shelf-section" id="shelf-section" hidden aria-labelledby="shelf-heading">

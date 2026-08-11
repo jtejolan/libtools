@@ -311,6 +311,48 @@ class CommunityOverviewResponse(BaseModel):
     pending_book_proposals: int = 0
 
 
+class BookSuggestionCreate(BaseModel):
+    google_books_id: str | None = Field(default=None, max_length=100)
+    title: str = Field(min_length=1, max_length=300)
+    author: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=10000)
+    cover_image_url: str | None = Field(default=None, max_length=1000)
+    publication_date: date | None = None
+    isbn: str | None = Field(default=None, max_length=20)
+    page_count: int | None = Field(default=None, ge=1)
+    comments: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("title", "author")
+    @classmethod
+    def required_suggestion_text(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Text cannot be blank")
+        return cleaned
+
+    @field_validator("comments", "description", "google_books_id", "isbn")
+    @classmethod
+    def optional_suggestion_text(cls, value: str | None) -> str | None:
+        return value.strip() or None if value is not None else None
+
+
+class BookSuggestionResponse(BaseModel):
+    id: int
+    google_books_id: str | None = None
+    title: str
+    author: str
+    description: str | None = None
+    cover_image_url: str | None = None
+    publication_date: date | None = None
+    isbn: str | None = None
+    page_count: int | None = None
+    comments: str | None = None
+    status: str
+    book_id: int | None = None
+    proposed_by_name: str | None = None
+    created_at: datetime
+
+
 class RsvpUpdate(BaseModel):
     status: str | None
 
@@ -384,6 +426,22 @@ class ParticipantBookSessionResponse(BaseModel):
     roster_count: int = 0
     attendance_count: int = 0
     pages_read: int = 0
+    my_attended: bool | None = None
+    my_attendance_source: str | None = None
+    my_participant_report: bool | None = None
+    my_attendance_updated_at: datetime | None = None
+
+
+class ParticipantAttendanceUpdate(BaseModel):
+    attended: bool
+
+
+class ParticipantAttendanceResponse(BaseModel):
+    meeting_id: int
+    attended: bool
+    attendance_source: str
+    participant_attended: bool
+    attendance_updated_at: datetime
 
 
 class ParticipantBookJourneyResponse(ParticipantBookDetailResponse):

@@ -20,6 +20,7 @@ from bookclub.participant_schemas import (
     AnnouncementUpdate,
     BroadcastEmailRequest,
     BroadcastEmailResponse,
+    BookSuggestionResponse,
     CandidateResponse,
     CommunityAccountStatus,
     CommunityOverviewResponse,
@@ -35,6 +36,7 @@ from bookclub.participant_schemas import (
 from bookclub.participant_models import ParticipantAccount
 from bookclub.participant_unsubscribe import issue_unsubscribe_token
 from bookclub.voting_routes import build_round_response
+from bookclub.participant_community_routes import _book_suggestion_response
 from dependencies import DatabaseSession
 
 # Community administration is part of the regular Book Club Manager. These
@@ -219,6 +221,12 @@ def community_overview(club: SelectedClub, db: DatabaseSession):
             models.BookClubBookCandidate.status == "pending",
         )
     ) or 0
+    pending_proposals += db.scalar(
+        select(func.count(models.BookClubBookSuggestion.id)).where(
+            models.BookClubBookSuggestion.club_id == club.id,
+            models.BookClubBookSuggestion.status == "pending",
+        )
+    ) or 0
     return CommunityOverviewResponse(
         member_count=len(accounts),
         linked_account_count=linked,
@@ -231,6 +239,86 @@ def community_overview(club: SelectedClub, db: DatabaseSession):
         rsvp_counts=counts,
         pending_book_proposals=pending_proposals,
     )
+
+
+@router.get("/book-suggestions", response_model=list[BookSuggestionResponse])
+def list_book_suggestions(club: SelectedClub, db: DatabaseSession):
+    rows = list(db.execute(
+        select(models.BookClubBookSuggestion, ParticipantAccount.name)
+        .join(ParticipantAccount, ParticipantAccount.id == models.BookClubBookSuggestion.participant_id)
+        .where(models.BookClubBookSuggestion.club_id == club.id)
+        .order_by(
+            (models.BookClubBookSuggestion.status == "pending").desc(),
+            models.BookClubBookSuggestion.created_at.desc(),
+        )
+    ).all())
+    return [_book_suggestion_response(item, name) for item, name in rows]
+
+
+def _club_book_suggestion(db, club_id: int, suggestion_id: int):
+    return db.scalar(select(models.BookClubBookSuggestion).where(
+        models.BookClubBookSuggestion.id == suggestion_id,
+        models.BookClubBookSuggestion.club_id == club_id,
+    ))
+
+
+@router.post("/book-suggestions/{suggestion_id}/accept", response_model=BookSuggestionResponse)
+def accept_book_suggestion(
+    suggestion_id: int, club: SelectedClub, db: DatabaseSession
+):
+    suggestion = _club_book_suggestion(db, club.id, suggestion_id)
+    if suggestion is None:
+        raise _not_found("Book suggestion not found")
+    if suggestion.status == "pending":
+        book = db.scalar(select(models.BookClubBook).where(
+            models.BookClubBook.club_id == club.id,
+            func.lower(models.BookClubBook.title) == suggestion.title.lower(),
+            func.lower(models.BookClubBook.author) == suggestion.author.lower(),
+        ))
+        if book is None and suggestion.isbn:
+            book = db.scalar(select(models.BookClubBook).where(
+                models.BookClubBook.club_id == club.id,
+                models.BookClubBook.isbn == suggestion.isbn,
+            ))
+        if book is None:
+            book = crud.create_book(db, schemas.BookCreate(
+                title=suggestion.title,
+                author=suggestion.author,
+                cover_image_url=suggestion.cover_image_url,
+                description=suggestion.description,
+                publication_date=suggestion.publication_date,
+                isbn=suggestion.isbn,
+                page_count=suggestion.page_count,
+                catalogue_url=(
+                    f"https://books.google.com/books?id={suggestion.google_books_id}"
+                    if suggestion.google_books_id else None
+                ),
+            ))
+        suggestion.book_id = book.id
+        suggestion.status = "accepted"
+        db.commit()
+        db.refresh(suggestion)
+    proposer_name = db.scalar(select(ParticipantAccount.name).where(
+        ParticipantAccount.id == suggestion.participant_id
+    ))
+    return _book_suggestion_response(suggestion, proposer_name)
+
+
+@router.post("/book-suggestions/{suggestion_id}/dismiss", response_model=BookSuggestionResponse)
+def dismiss_book_suggestion(
+    suggestion_id: int, club: SelectedClub, db: DatabaseSession
+):
+    suggestion = _club_book_suggestion(db, club.id, suggestion_id)
+    if suggestion is None:
+        raise _not_found("Book suggestion not found")
+    if suggestion.status == "pending":
+        suggestion.status = "dismissed"
+        db.commit()
+        db.refresh(suggestion)
+    proposer_name = db.scalar(select(ParticipantAccount.name).where(
+        ParticipantAccount.id == suggestion.participant_id
+    ))
+    return _book_suggestion_response(suggestion, proposer_name)
 
 
 @router.get("/announcements", response_model=list[AnnouncementResponse])

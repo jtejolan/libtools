@@ -2,7 +2,7 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const API = "/bookclub/community";
 const PARTICIPANT_PORTAL_ORIGIN = "https://bookclub.libtools.app";
-const state = { books: [], announcements: [], discussions: [], overview: null, club: null };
+const state = { books: [], announcements: [], discussions: [], suggestions: [], overview: null, club: null };
 
 const request = async (url, options = {}) => {
   const response = await fetch(url, { ...options, cache: "no-store", headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...options.headers } });
@@ -175,6 +175,31 @@ $("#discussion-moderation-list").addEventListener("click", async (event) => {
   try { await request(`${API}/discussion/${button.dataset.removeDiscussion}`, { method: "DELETE" }); await loadDiscussions(); toast("Discussion post removed."); }
   catch (error) { toast(error.message); }
 });
+
+const renderBookSuggestions = () => {
+  const pending = state.suggestions.filter((item) => item.status === "pending");
+  $("#suggestion-queue-count").textContent = `${pending.length} awaiting review`;
+  $("#book-suggestion-list").innerHTML = state.suggestions.length ? state.suggestions.map((item) => {
+    const actions = item.status === "pending" ? `<button class="secondary-button" type="button" data-accept-suggestion="${item.id}">Add to library</button><button class="quiet-button" type="button" data-dismiss-suggestion="${item.id}">Dismiss</button>` : "";
+    const statusLabel = item.status === "accepted" ? "Added to library" : item.status;
+    return `<article class="user-card reader-suggestion-card"><img src="${escapeHtml(item.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div><div class="suggestion-card-heading"><div><h3>${escapeHtml(item.title)}</h3><p class="user-meta">${escapeHtml(item.author)} · suggested by ${escapeHtml(item.proposed_by_name || "a reader")}</p></div><span class="status${item.status === "dismissed" ? " disabled" : ""}">${escapeHtml(statusLabel)}</span></div>${item.comments ? `<blockquote><span>Reader comment</span>${escapeHtml(item.comments)}</blockquote>` : '<p class="suggestion-no-comment">No comment was included.</p>'}</div><div class="user-actions">${actions}</div></article>`;
+  }).join("") : '<p class="empty-state">Reader suggestions will appear here, even when no book vote is open.</p>';
+};
+const loadBookSuggestions = async () => { state.suggestions = await request(`${API}/book-suggestions`); renderBookSuggestions(); };
+$("#book-suggestion-list").addEventListener("click", async (event) => {
+  const accept = event.target.closest("[data-accept-suggestion]");
+  const dismiss = event.target.closest("[data-dismiss-suggestion]");
+  if (!accept && !dismiss) return;
+  const action = accept ? "accept" : "dismiss";
+  const id = (accept || dismiss).dataset[accept ? "acceptSuggestion" : "dismissSuggestion"];
+  try {
+    await request(`${API}/book-suggestions/${id}/${action}`, { method: "POST" });
+    state.books = await request(`${API}/books?limit=500`);
+    await Promise.all([loadBookSuggestions(), loadOverview()]);
+    toast(accept ? "Suggestion added to the club library." : "Suggestion dismissed.");
+  } catch (error) { toast(error.message); }
+});
+
 const openAnnouncement = (item = null) => {
   const form = $("#announcement-form"); form.reset(); $("#announcement-error").textContent = "";
   $("#announcement-dialog-title").textContent = item ? "Edit announcement" : "New announcement";
@@ -226,4 +251,4 @@ $("#add-date-option-button").addEventListener("click", async () => { const input
 $("#close-date-poll").addEventListener("click", async () => { if (!confirm("Close the poll and select the leading date?")) return; try { renderDatePoll(await request(`${API}/date-poll/close`, { method: "POST" })); toast("Date poll closed."); } catch (error) { toast(error.message); } });
 
 $("#logout").addEventListener("click", async () => { await request("/auth/logout", { method: "POST" }); location.href = "/login"; });
-(async () => { try { const user = await request("/auth/me"); const club = await request("/bookclub/clubs/selected"); applyManagerShell(user, club); document.title = `${club.name} — Community`; state.books = await request(`${API}/books?limit=500`); await Promise.all([loadOverview(), loadVoting(), loadDatePoll(), loadAnnouncements(), loadDiscussions()]); } catch { location.href = "/bookclub"; } })();
+(async () => { try { const user = await request("/auth/me"); const club = await request("/bookclub/clubs/selected"); applyManagerShell(user, club); document.title = `${club.name} — Community`; state.books = await request(`${API}/books?limit=500`); await Promise.all([loadOverview(), loadVoting(), loadBookSuggestions(), loadDatePoll(), loadAnnouncements(), loadDiscussions()]); } catch { location.href = "/bookclub"; } })();

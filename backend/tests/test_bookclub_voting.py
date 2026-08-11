@@ -200,6 +200,78 @@ class VotingRoutesTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 404, response.text)
 
+    def test_book_suggestion_queue_works_without_an_open_vote(self) -> None:
+        submitted = self.reader_a.post("/participant/book-suggestions", json={
+            "google_books_id": "example-volume-id",
+            "title": "A Psalm for the Wild-Built",
+            "author": "Becky Chambers",
+            "description": "A hopeful science-fiction novella.",
+            "publication_date": "2021-01-01",
+            "isbn": "9781250236210",
+            "page_count": 160,
+            "comments": "Short, optimistic, and full of questions about purpose.",
+        })
+        self.assertEqual(submitted.status_code, 201, submitted.text)
+        self.assertEqual(submitted.json()["status"], "pending")
+        self.assertIn("optimistic", submitted.json()["comments"])
+
+        own = self.reader_a.get("/participant/book-suggestions")
+        self.assertEqual(own.status_code, 200, own.text)
+        self.assertEqual(len(own.json()), 1)
+        self.assertEqual(self.reader_b.get("/participant/book-suggestions").json(), [])
+
+        overview = self.facilitator.get("/bookclub/community/overview").json()
+        self.assertEqual(overview["pending_book_proposals"], 1)
+        queue = self.facilitator.get("/bookclub/community/book-suggestions")
+        self.assertEqual(queue.status_code, 200, queue.text)
+        self.assertEqual(queue.json()[0]["proposed_by_name"], "reader-a")
+        self.assertIn("questions about purpose", queue.json()[0]["comments"])
+
+        accepted = self.facilitator.post(
+            f"/bookclub/community/book-suggestions/{submitted.json()['id']}/accept"
+        )
+        self.assertEqual(accepted.status_code, 200, accepted.text)
+        self.assertEqual(accepted.json()["status"], "accepted")
+        self.assertIsNotNone(accepted.json()["book_id"])
+        catalogue = self.facilitator.get("/bookclub/community/books").json()
+        self.assertIn("A Psalm for the Wild-Built", [book["title"] for book in catalogue])
+        self.assertEqual(
+            self.facilitator.get("/bookclub/community/overview").json()["pending_book_proposals"],
+            0,
+        )
+        self.assertEqual(
+            self.reader_a.get("/participant/stats/personal").json()["proposals_made"],
+            1,
+        )
+
+    def test_facilitator_can_dismiss_a_book_suggestion(self) -> None:
+        submitted = self.reader_a.post("/participant/book-suggestions", json={
+            "title": "Too Similar to Last Month",
+            "author": "A. Reader",
+            "comments": "Maybe save this for later.",
+        }).json()
+        dismissed = self.facilitator.post(
+            f"/bookclub/community/book-suggestions/{submitted['id']}/dismiss"
+        )
+        self.assertEqual(dismissed.status_code, 200, dismissed.text)
+        self.assertEqual(dismissed.json()["status"], "dismissed")
+        self.assertNotIn(
+            "Too Similar to Last Month",
+            [book["title"] for book in self.facilitator.get("/bookclub/community/books").json()],
+        )
+
+    def test_accepting_an_existing_title_links_without_duplicating_it(self) -> None:
+        suggestion = self.reader_a.post("/participant/book-suggestions", json={
+            "title": "Dune", "author": "Someone", "comments": "Worth revisiting."
+        }).json()
+        accepted = self.facilitator.post(
+            f"/bookclub/community/book-suggestions/{suggestion['id']}/accept"
+        )
+        self.assertEqual(accepted.status_code, 200, accepted.text)
+        self.assertEqual(accepted.json()["book_id"], self.book_a)
+        catalogue = self.facilitator.get("/bookclub/community/books").json()
+        self.assertEqual([book["title"] for book in catalogue].count("Dune"), 1)
+
     def test_rejected_candidate_cannot_be_voted_for(self) -> None:
         self.open_round(candidate_book_ids=[self.book_a])
         proposed = self.reader_a.post(

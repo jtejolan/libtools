@@ -246,6 +246,14 @@ class BookClubParticipation(Base):
     attended: Mapped[bool] = mapped_column(
         Boolean(), default=False, server_default="0"
     )
+    participant_attended: Mapped[bool | None] = mapped_column(Boolean())
+    participant_attendance_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    attendance_source: Mapped[str | None] = mapped_column(String(20))
+    attendance_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     rsvp_status: Mapped[str | None] = mapped_column(String(20))
     notes: Mapped[str | None] = mapped_column(Text())
 
@@ -547,6 +555,39 @@ class BookClubBookCandidate(Base):
     )
 
     book: Mapped[BookClubBook] = relationship()
+
+
+class BookClubBookSuggestion(Base):
+    """A participant's catalogue suggestion before it becomes a club book."""
+
+    __tablename__ = "bookclub_book_suggestions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    club_id: Mapped[int] = mapped_column(
+        ForeignKey("book_clubs.id", ondelete="CASCADE"), index=True
+    )
+    participant_id: Mapped[int] = mapped_column(
+        ForeignKey("bookclub_participant_accounts.id", ondelete="CASCADE"), index=True
+    )
+    book_id: Mapped[int | None] = mapped_column(
+        ForeignKey("bookclub_books.id", ondelete="SET NULL"), index=True
+    )
+    google_books_id: Mapped[str | None] = mapped_column(String(100))
+    title: Mapped[str] = mapped_column(String(300))
+    author: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str | None] = mapped_column(Text())
+    cover_image_url: Mapped[str | None] = mapped_column(String(1000))
+    publication_date: Mapped[date | None] = mapped_column(Date())
+    isbn: Mapped[str | None] = mapped_column(String(20))
+    page_count: Mapped[int | None] = mapped_column(Integer())
+    comments: Mapped[str | None] = mapped_column(Text())
+    status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class BookClubVote(Base):
