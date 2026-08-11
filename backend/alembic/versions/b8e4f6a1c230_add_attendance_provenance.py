@@ -25,7 +25,7 @@ def upgrade() -> None:
     op.execute(
         "UPDATE bookclub_participation "
         "SET attendance_source = 'facilitator', attendance_updated_at = CURRENT_TIMESTAMP "
-        "WHERE attended = 1"
+        "WHERE attended IS TRUE"
     )
 
 
