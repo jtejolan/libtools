@@ -1,0 +1,59 @@
+.participant-portal-nav{position:sticky;top:0;z-index:30;display:flex;justify-content:center;gap:5px;padding:8px 18px;border-bottom:1px solid var(--line);background:rgba(255,250,241,.94);backdrop-filter:blur(12px)}
+.participant-portal-nav button{min-height:38px;padding:0 15px;border:0;border-radius:999px;background:transparent;color:var(--muted);font-weight:700}
+.participant-portal-nav button:hover{background:rgba(22,62,52,.06);color:var(--forest)}
+.participant-portal-nav button.active{background:var(--forest);color:var(--paper)}
+.portal-view[hidden]{display:none!important}
+.portal-page-heading{display:flex;align-items:end;justify-content:space-between;gap:24px;margin-bottom:24px}
+.portal-page-heading h1{margin:2px 0 5px;font-family:var(--serif);font-size:clamp(40px,6vw,62px);font-weight:500;line-height:1}
+.portal-page-heading .intro{max-width:670px;margin:0}
+.portal-view>.ratings-section,.portal-view>.members-section{margin-top:0}
+.portal-view>.ratings-section{padding:0;border:0;background:transparent}
+.portal-view>.ratings-section>.library-heading{padding:22px;border:1px solid var(--line);border-radius:16px;background:rgba(255,250,241,.92)}
+.library-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.library-controls input,.library-controls select{min-height:42px}
+.participant-book-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(225px,1fr));gap:16px}
+.participant-book-card{position:relative;display:grid;grid-template-columns:76px minmax(0,1fr);gap:14px;min-height:168px;padding:16px;border:1px solid var(--line);border-radius:15px;background:rgba(255,250,241,.92);box-shadow:0 8px 24px rgba(22,62,52,.045);cursor:pointer;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.participant-book-card:hover,.participant-book-card:focus-within{transform:translateY(-2px);border-color:rgba(185,107,57,.5);box-shadow:0 14px 28px rgba(22,62,52,.09)}
+.participant-book-card img{width:76px;aspect-ratio:2/3;border-radius:8px;object-fit:cover;background:rgba(22,62,52,.08)}
+.participant-book-card-copy{min-width:0}
+.participant-book-card h3{margin:7px 0 2px;font-family:var(--serif);font-size:22px;font-weight:600;line-height:1.05}
+.participant-book-card p{margin:0;color:var(--muted);font-size:12px}
+.participant-book-card-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.participant-book-card-meta span{padding:4px 7px;border-radius:999px;background:rgba(22,62,52,.06);font-size:10px}
+.participant-book-card .book-open-cue{position:absolute;right:14px;bottom:13px;color:var(--orange);font-size:11px;font-weight:800}
+.book-status{display:inline-flex;padding:4px 7px;border-radius:999px;background:rgba(22,62,52,.08);color:var(--forest);font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.book-status.current{background:var(--forest);color:var(--paper)}
+.book-status.up-next{background:rgba(224,175,101,.3)}
+.book-status.previous{background:rgba(110,157,154,.18)}
+.book-detail-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.book-detail-toolbar p{margin:0;color:var(--muted);font-size:12px}
+.book-session-panel{margin-top:10px}
+.session-archive-stats,.portal-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.portal-stat-card{min-height:112px;padding:18px;display:grid;align-content:center;border:1px solid var(--line);border-radius:13px;background:rgba(255,250,241,.9)}
+.portal-stat-card strong{font-family:var(--serif);font-size:34px;font-weight:600;line-height:1}
+.portal-stat-card span{margin-top:6px;color:var(--muted);font-size:11px}
+.stats-layout{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+.stats-panel{padding:22px;border:1px solid var(--line);border-radius:16px;background:rgba(255,250,241,.9)}
+.stats-panel.wide{grid-column:1/-1}
+.stats-panel .portal-stat-grid{grid-template-columns:1fr 1fr}
+.stats-panel h2{margin:2px 0 16px;font-family:var(--serif);font-size:28px;font-weight:500}
+.stat-bar-list{display:grid;gap:12px}
+.stat-bar-row{display:grid;grid-template-columns:minmax(100px,1fr) minmax(100px,2fr) auto;align-items:center;gap:12px;font-size:12px}
+.stat-bar-track{height:8px;overflow:hidden;border-radius:99px;background:rgba(22,62,52,.08)}
+.stat-bar-track span{display:block;height:100%;border-radius:inherit;background:var(--orange)}
+.stats-timeline{display:grid;gap:0}
+.stats-timeline article{display:grid;grid-template-columns:110px minmax(0,1fr) auto;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid var(--line)}
+.stats-timeline article:last-child{border:0}
+.stats-timeline p,.stats-timeline small{margin:0}
+.stats-timeline small{color:var(--muted)}
+.top-books-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.top-book{display:grid;grid-template-columns:46px 1fr;gap:10px;padding:11px;border-radius:11px;background:rgba(22,62,52,.05);cursor:pointer}
+.top-book img{width:46px;aspect-ratio:2/3;border-radius:5px;object-fit:cover}
+.top-book p{margin:2px 0;color:var(--muted);font-size:11px}
+.session-list{display:grid;gap:10px;margin-top:16px}
+.session-summary-card{padding:16px;border-radius:12px;background:rgba(22,62,52,.05)}
+.session-summary-card header{display:flex;justify-content:space-between;gap:14px}
+.session-summary-card h4,.session-summary-card p{margin:0}
+.session-summary-card>p{margin-top:10px;white-space:pre-wrap}
+@media(max-width:800px){.site-header{position:relative}.participant-portal-nav{justify-content:flex-start;overflow-x:auto}.participant-portal-nav button{flex:0 0 auto}.portal-page-heading{align-items:flex-start;flex-direction:column}.library-controls{width:100%}.library-controls>*{flex:1 1 150px}.session-archive-stats,.portal-stat-grid{grid-template-columns:1fr 1fr}.stats-layout{grid-template-columns:1fr}.stats-panel.wide{grid-column:auto}.stats-timeline article{grid-template-columns:1fr auto}.stats-timeline article>small{grid-column:1/-1}}
+@media(max-width:480px){.session-archive-stats,.portal-stat-grid{grid-template-columns:1fr}.participant-book-grid{grid-template-columns:1fr}}

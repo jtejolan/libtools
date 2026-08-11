@@ -71,10 +71,118 @@ const participantState = {
   activeBookDetail: null,
   clubActivity: [],
   bookHubTab: "conversation",
+  portalView: "home",
+  homeBookId: null,
+  personalStats: null,
+  clubStats: null,
 };
+
+const portalViewCopy = {
+  books: ["The club shelf", "Books", "Browse current, upcoming, and previously read selections in one cover-forward collection."],
+  personal: ["Your reading journey", "My stats", "A private view of the books, meetings, ratings, and choices that make up your club experience."],
+  club: ["Reading together", "Club stats", "The collective story of your club—shared as totals and trends, never as a member leaderboard."],
+  members: ["Your reading community", "Members", "Meet the readers who have chosen to appear in the club directory."],
+};
+
+const portalHeading = (view) => {
+  const [eyebrow, title, intro] = portalViewCopy[view];
+  return `<header class="portal-page-heading"><div><p class="eyebrow">${eyebrow}</p><h1>${title}</h1><p class="intro">${intro}</p></div></header>`;
+};
+
+const initializePortalShell = () => {
+  const main = $("main.dashboard");
+  const header = $(".site-header");
+  header.insertAdjacentHTML("afterend", `<nav class="participant-portal-nav" aria-label="Participant portal">${[
+    ["home", "Home"], ["books", "Books"], ["personal", "My stats"], ["club", "Club stats"], ["members", "Members"],
+  ].map(([view, label]) => `<button type="button" data-portal-nav="${view}">${label}</button>`).join("")}</nav>`);
+
+  const home = document.createElement("section");
+  home.className = "portal-view";
+  home.dataset.portalView = "home";
+  [".participant-heading", "#email-panel", "#book-page-section", ".support-heading", ".participant-grid", ".decisions-disclosure", ".legacy-participant-sections"].forEach((selector) => home.append($(selector)));
+  const homeBookSlot = document.createElement("div");
+  homeBookSlot.id = "home-book-slot";
+  home.insertBefore(homeBookSlot, home.querySelector(".support-heading"));
+  homeBookSlot.append(home.querySelector("#book-page-section"));
+
+  const books = document.createElement("section");
+  books.className = "portal-view";
+  books.dataset.portalView = "books";
+  books.innerHTML = portalHeading("books");
+  books.append($("#library-section"));
+  const libraryHeading = books.querySelector(".library-heading");
+  libraryHeading.querySelector(".eyebrow").textContent = "Find your next book";
+  libraryHeading.querySelector("h2").textContent = "The complete shelf";
+  libraryHeading.querySelector(".library-note").textContent = "Search the collection or narrow it to what the club is reading now, next, or has already discussed.";
+  const search = libraryHeading.querySelector("#library-search");
+  const controls = document.createElement("div");
+  controls.className = "library-controls";
+  controls.innerHTML = '<select id="library-status-filter" aria-label="Filter books"><option value="all">All books</option><option value="current">Current</option><option value="up_next">Coming up</option><option value="previously_read">Previously read</option></select><select id="library-sort" aria-label="Sort books"><option value="journey">Club journey</option><option value="title">Title</option><option value="rating">Highest rated</option></select>';
+  controls.prepend(search);
+  libraryHeading.append(controls);
+
+  const personal = document.createElement("section");
+  personal.className = "portal-view";
+  personal.dataset.portalView = "personal";
+  personal.innerHTML = `${portalHeading("personal")}<div id="personal-stats-content"><p class="muted">Loading your reading journey…</p></div>`;
+  const club = document.createElement("section");
+  club.className = "portal-view";
+  club.dataset.portalView = "club";
+  club.innerHTML = `${portalHeading("club")}<div id="club-stats-content"><p class="muted">Loading club stats…</p></div>`;
+  const members = document.createElement("section");
+  members.className = "portal-view";
+  members.dataset.portalView = "members";
+  members.innerHTML = portalHeading("members");
+  members.append($(".members-section"));
+  members.querySelector(".members-section .section-toolbar>div").hidden = true;
+
+  const book = document.createElement("section");
+  book.className = "portal-view";
+  book.dataset.portalView = "book";
+  book.innerHTML = '<div class="book-detail-toolbar"><button class="quiet-button" id="book-detail-back" type="button">← Back to books</button><p>Use the previous and next books to move through the club journey.</p></div><div id="book-detail-slot"></div>';
+  main.replaceChildren(home, books, personal, club, members, book);
+};
+
+initializePortalShell();
 
 const formatTimestamp = (value) =>
   new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
+
+const setPortalView = (view, { updateHistory = true } = {}) => {
+  const selected = document.querySelector(`[data-portal-view="${view}"]`) ? view : "home";
+  participantState.portalView = selected;
+  document.querySelectorAll("[data-portal-view]").forEach((section) => { section.hidden = section.dataset.portalView !== selected; });
+  document.querySelectorAll("[data-portal-nav]").forEach((button) => {
+    const active = button.dataset.portalNav === selected || (selected === "book" && button.dataset.portalNav === "books");
+    button.classList.toggle("active", active);
+    if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
+  });
+  if (updateHistory && selected !== "book") history.pushState({ view: selected }, "", selected === "home" ? location.pathname : `${location.pathname}?view=${selected}`);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
+
+setPortalView("home", { updateHistory: false });
+
+document.querySelector(".participant-portal-nav").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-portal-nav]");
+  if (!button) return;
+  if (button.dataset.portalNav === "home" && participantState.homeBookId) {
+    openBookPage(participantState.homeBookId, { portalView: "home", updateHistory: true }).catch((error) => toast(error.message));
+    return;
+  }
+  setPortalView(button.dataset.portalNav);
+});
+
+$("#book-detail-back").addEventListener("click", () => setPortalView("books"));
+
+window.addEventListener("popstate", () => {
+  const params = new URLSearchParams(location.search);
+  const view = params.get("view") || "home";
+  const bookId = params.get("book");
+  if (view === "book" && bookId) openBookPage(bookId, { portalView: "book", updateHistory: false }).catch(() => setPortalView("books", { updateHistory: false }));
+  else if (view === "home" && participantState.homeBookId) openBookPage(participantState.homeBookId, { portalView: "home", updateHistory: false }).catch(() => {});
+  else setPortalView(view, { updateHistory: false });
+});
 
 const renderAnnouncements = (announcements) => {
   participantState.announcements = announcements;
@@ -433,20 +541,23 @@ $("#date-poll-content").addEventListener("click", async (event) => {
 
 const ratingsState = { participantId: null, pendingStars: {}, dataByBook: {}, mineByBook: {} };
 
-const renderBookRatingCard = (book, ratingsData) => {
+const renderBookRatingCard = (book, ratingsData, status) => {
   const mine = ratingsData.ratings.find((entry) => entry.participant_id === ratingsState.participantId);
-  const averageCopy = ratingsData.count ? `${ratingsData.average}★ average (${ratingsData.count} rating${ratingsData.count > 1 ? "s" : ""})` : "No ratings yet";
-  return `<article class="user-card rating-card" data-book-id="${book.id}"><div><h3>${escapeHtml(book.title)}</h3><p class="user-meta">${escapeHtml(book.author)} · ${averageCopy}${mine ? ` · You rated ${mine.rating}★` : ""}</p></div><button class="secondary-button" type="button" data-open-book="${book.id}">View book</button></article>`;
+  const statusCopy = { current: "Current", up_next: "Coming up", previously_read: "Previously read" }[status];
+  const statusClass = { current: "current", up_next: "up-next", previously_read: "previous" }[status];
+  return `<article class="participant-book-card" data-open-book="${book.id}" data-book-id="${book.id}" tabindex="0" role="button" aria-label="Open ${escapeHtml(book.title)}"><img src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" loading="lazy" /><div class="participant-book-card-copy"><span class="book-status ${statusClass}">${statusCopy}</span><h3>${escapeHtml(book.title)}</h3><p>${escapeHtml(book.author)}</p><div class="participant-book-card-meta">${book.page_count ? `<span>${book.page_count} pages</span>` : ""}${ratingsData.count ? `<span>${ratingsData.average}★ club</span>` : "<span>Not rated</span>"}${mine ? `<span>You: ${mine.rating}★</span>` : ""}</div></div><span class="book-open-cue">Open →</span></article>`;
 };
 
 const loadRatings = async () => {
   const list = $("#ratings-list");
   const groups = [
-    ["Currently reading", participantState.library.current],
-    ["Up next", participantState.library.up_next],
-    ["Previously read", participantState.library.previously_read],
+    ["current", participantState.library.current],
+    ["up_next", participantState.library.up_next],
+    ["previously_read", participantState.library.previously_read],
   ];
   const query = $("#library-search").value.trim().toLocaleLowerCase();
+  const statusFilter = $("#library-status-filter").value;
+  const sort = $("#library-sort").value;
   const books = [...new Map(groups.flatMap(([, items]) => items).map((book) => [book.id, book])).values()];
   if (!books.length) {
     list.innerHTML = '<p class="muted">No books have been scheduled or completed yet.</p>';
@@ -456,15 +567,18 @@ const loadRatings = async () => {
   const loaded = await Promise.all(missing.map((book) => request(`/participant/books/${book.id}/ratings`)));
   missing.forEach((book, index) => { ratingsState.dataByBook[book.id] = loaded[index]; });
   ratingsState.mineByBook = Object.fromEntries(books.map((book) => [book.id, ratingsState.dataByBook[book.id].ratings.find((entry) => entry.participant_id === ratingsState.participantId) || null]));
-  list.innerHTML = groups.map(([label, items]) => {
-    const filtered = items.filter((book) => !query || `${book.title} ${book.author}`.toLocaleLowerCase().includes(query));
-    return filtered.length ? `<section class="library-group"><h3>${label}</h3><div class="user-list">${filtered.map((book) => renderBookRatingCard(book, ratingsState.dataByBook[book.id])).join("")}</div></section>` : "";
-  }).join("") || '<p class="muted">No books match your search.</p>';
+  let visible = groups.flatMap(([status, items]) => items.map((book) => ({ book, status })));
+  visible = visible.filter(({ book, status }) => (statusFilter === "all" || status === statusFilter) && (!query || `${book.title} ${book.author}`.toLocaleLowerCase().includes(query)));
+  if (sort === "title") visible.sort((left, right) => left.book.title.localeCompare(right.book.title));
+  if (sort === "rating") visible.sort((left, right) => (ratingsState.dataByBook[right.book.id].average || 0) - (ratingsState.dataByBook[left.book.id].average || 0));
+  list.innerHTML = visible.length ? `<div class="participant-book-grid">${visible.map(({ book, status }) => renderBookRatingCard(book, ratingsState.dataByBook[book.id], status)).join("")}</div>` : '<p class="muted">No books match your search.</p>';
   renderPostMeeting();
   renderActionCenter();
 };
 
 $("#library-search").addEventListener("input", () => loadRatings().catch((error) => toast(error.message)));
+$("#library-status-filter").addEventListener("change", () => loadRatings().catch((error) => toast(error.message)));
+$("#library-sort").addEventListener("change", () => loadRatings().catch((error) => toast(error.message)));
 
 $("#ratings-list").addEventListener("click", (event) => {
   const star = event.target.closest("[data-star]");
@@ -546,6 +660,43 @@ const renderActivity = (activity) => {
 
 const loadActivity = async () => renderActivity(await request("/participant/activity"));
 
+const statCardsMarkup = (items) => `<div class="portal-stat-grid">${items.map(([value, label]) => `<article class="portal-stat-card"><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></article>`).join("")}</div>`;
+
+const statBarsMarkup = (items, emptyCopy) => {
+  if (!items.length) return `<p class="muted">${escapeHtml(emptyCopy)}</p>`;
+  const maximum = Math.max(...items.map((item) => item.value), 1);
+  return `<div class="stat-bar-list">${items.map((item) => `<div class="stat-bar-row"><strong>${escapeHtml(item.label)}</strong><div class="stat-bar-track"><span style="width:${Math.round((item.value / maximum) * 100)}%"></span></div><b>${item.value}</b></div>`).join("")}</div>`;
+};
+
+const renderPersonalStats = (stats) => {
+  participantState.personalStats = stats;
+  $("#personal-stats-content").innerHTML = `${statCardsMarkup([
+    [stats.meetings_attended, "Meetings attended"],
+    [stats.books_read, "Books read"],
+    [stats.pages_read.toLocaleString(), "Pages read"],
+    [stats.books_rated, "Books rated"],
+  ])}<div class="stats-layout"><section class="stats-panel"><p class="eyebrow">Your taste</p><h2>Favourite genres</h2>${statBarsMarkup(stats.favourite_genres, "Attend a completed meeting to begin your genre portrait.")}</section><section class="stats-panel"><p class="eyebrow">Your ratings</p><h2>${stats.average_rating == null ? "No ratings yet" : `${stats.average_rating}★ average`}</h2>${statBarsMarkup(stats.rating_distribution, "Your rating pattern will appear after you rate a book.")}</section><section class="stats-panel"><p class="eyebrow">Reading now</p><h2>Your shelf</h2>${statCardsMarkup([[stats.finished_books, "Marked finished"], [stats.in_progress_books, "In progress"], [stats.votes_cast, "Votes cast"], [stats.proposals_made, "Books proposed"]])}</section><section class="stats-panel"><p class="eyebrow">Recently</p><h2>Your activity</h2><div class="stats-timeline">${stats.recent.length ? stats.recent.map((item) => `<article><small>${escapeHtml(formatTimestamp(item.occurred_at))}</small><p><strong>${escapeHtml(item.label)}</strong>${item.detail ? `<br><small>${escapeHtml(item.detail)}</small>` : ""}</p></article>`).join("") : '<p class="muted">Ratings, votes, proposals, and progress updates will appear here.</p>'}</div></section></div>`;
+};
+
+const renderClubStats = (stats) => {
+  participantState.clubStats = stats;
+  $("#club-stats-content").innerHTML = `${statCardsMarkup([
+    [stats.books_completed, "Books completed"],
+    [stats.meetings_held, "Meetings held"],
+    [stats.pages_read_together.toLocaleString(), "Pages read together"],
+    [stats.average_rating == null ? "—" : `${stats.average_rating}★`, `Club average · ${stats.rating_count} ratings`],
+  ])}<div class="stats-layout"><section class="stats-panel"><p class="eyebrow">The shelf</p><h2>${stats.shelf_total} club books</h2>${statBarsMarkup([{ label: "Completed", value: stats.shelf_completed }, { label: "Current", value: stats.shelf_current }, { label: "Coming up", value: stats.shelf_up_next }], "Books will appear as the facilitator builds the shelf.")}</section><section class="stats-panel"><p class="eyebrow">Favourite territory</p><h2>Top genres</h2>${statBarsMarkup(stats.favourite_genres, "Genres have not been added to the club books yet.")}</section><section class="stats-panel"><p class="eyebrow">Reading commitment</p><h2>Book-length mix</h2>${statBarsMarkup(stats.page_length_mix, "Page counts have not been added yet.")}</section><section class="stats-panel"><p class="eyebrow">Shared reactions</p><h2>Rating distribution</h2>${statBarsMarkup(stats.rating_distribution, "The club has not rated a book yet.")}</section><section class="stats-panel wide"><p class="eyebrow">Club favourites</p><h2>Highest-rated books</h2><div class="top-books-grid">${stats.top_rated_books.length ? stats.top_rated_books.map((book) => `<article class="top-book" data-open-book="${book.book_id}" role="button" tabindex="0"><img src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div><strong>${escapeHtml(book.title)}</strong><p>${escapeHtml(book.author)}</p><b>${book.average_rating}★ · ${book.rating_count} rating${book.rating_count === 1 ? "" : "s"}</b></div></article>`).join("") : '<p class="muted">Top-rated books will appear once members share their ratings.</p>'}</div></section><section class="stats-panel wide"><p class="eyebrow">Across meetings</p><h2>Attendance journey</h2><div class="stats-timeline">${stats.attendance_trend.length ? stats.attendance_trend.map((meeting) => `<article data-open-book="${meeting.book_id}" role="button" tabindex="0"><small>${escapeHtml(formatDate(meeting.meeting_date))}</small><p><strong>${escapeHtml(meeting.title)}</strong></p><b>${meeting.attendance_count} of ${meeting.roster_count}</b></article>`).join("") : '<p class="muted">Completed meetings will build the club timeline.</p>'}</div></section></div>`;
+};
+
+const loadStats = async () => {
+  const [personal, club] = await Promise.all([
+    request("/participant/stats/personal"),
+    request("/participant/stats/club"),
+  ]);
+  renderPersonalStats(personal);
+  renderClubStats(club);
+};
+
 const loadClubActivity = async () => {
   const activity = await request("/participant/club-activity");
   participantState.clubActivity = activity;
@@ -579,6 +730,23 @@ const readingPaceCopy = (detail, progress) => {
   return `${remaining} pages remaining · ${days} day${days === 1 ? "" : "s"} · ${Math.ceil(remaining / days)} pages per day or ${Math.ceil((remaining * 7) / days)} pages per week`;
 };
 
+const bookJourneyNeighbors = (bookId) => {
+  const books = [
+    ...participantState.library.previously_read,
+    ...participantState.library.current,
+    ...participantState.library.up_next,
+  ];
+  const ids = [...new Set(books.map((book) => book.id))];
+  const index = ids.indexOf(Number(bookId));
+  return { previous: index > 0 ? ids[index - 1] : null, next: index >= 0 && index < ids.length - 1 ? ids[index + 1] : null };
+};
+
+const sessionArchiveMarkup = (detail) => {
+  const sessions = detail.sessions.filter((session) => session.status === "completed");
+  if (!sessions.length) return "";
+  return `<section class="book-hub-panel book-session-panel" data-book-hub-panel="session"><div class="book-panel-heading"><div><p class="eyebrow">Previous session</p><h3>${sessions.length === 1 ? "The club’s conversation" : `${sessions.length} club sessions`}</h3></div><p>A participant-safe recap with shared totals and facilitator discussion notes.</p></div><div class="session-archive-stats"><article class="portal-stat-card"><strong>${sessions.length}</strong><span>Session${sessions.length === 1 ? "" : "s"}</span></article><article class="portal-stat-card"><strong>${detail.total_attendance}</strong><span>Total attendance</span></article><article class="portal-stat-card"><strong>${detail.reading_impact_pages.toLocaleString()}</strong><span>Pages read together</span></article><article class="portal-stat-card"><strong>${detail.shared_progress.length}</strong><span>Shared progress updates</span></article></div><div class="session-list">${sessions.map((session) => `<article class="session-summary-card"><header><div><h4>${escapeHtml(formatDate(session.meeting_date))}</h4><small>${escapeHtml([session.meeting_time, session.location].filter(Boolean).join(" · ") || "Meeting details not recorded")}</small></div><strong>${session.attendance_count} of ${session.roster_count} attended</strong></header>${session.discussion_notes ? `<p>${escapeHtml(session.discussion_notes)}</p>` : '<p class="muted">No discussion recap was added.</p>'}</article>`).join("")}</div></section>`;
+};
+
 const discussionMarkup = (posts) => {
   const roots = posts.filter((post) => post.parent_id == null);
   const replies = posts.filter((post) => post.parent_id != null);
@@ -590,6 +758,9 @@ const renderBookPage = ({ detail, ratings, progress, posts }) => {
   const book = detail.book;
   const mine = ratings.ratings.find((item) => item.participant_id === ratingsState.participantId);
   const tab = participantState.bookHubTab;
+  const hasSession = detail.sessions.some((session) => session.status === "completed");
+  const isCurrentBook = participantState.upcomingMeeting?.meeting?.book?.id === book.id;
+  const neighbors = bookJourneyNeighbors(book.id);
   const distribution = [5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5, 1]
     .filter((score) => ratings.ratings.some((item) => item.rating === score))
     .map((score) => `${score}★ ${ratings.ratings.filter((item) => item.rating === score).length}`)
@@ -598,29 +769,38 @@ const renderBookPage = ({ detail, ratings, progress, posts }) => {
   const activityMarkup = bookActivity.length
     ? `<div class="conversation-updates">${bookActivity.slice(0, 6).map((item) => `<article class="conversation-update">${avatarMarkup(item.actor)}<div><p><strong>${escapeHtml(item.actor.name)}</strong> ${item.kind === "rating" ? "rated this book" : "updated their reading progress"}${item.detail ? ` · ${escapeHtml(item.detail)}` : ""}</p><small>${escapeHtml(formatTimestamp(item.created_at))}</small></div></article>`).join("")}</div>`
     : "";
-  $("#book-page-content").innerHTML = `<div class="book-page-hero"><img class="book-page-cover" src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div class="book-page-intro"><p class="eyebrow">${escapeHtml(book.author)}</p><h2>${escapeHtml(book.title)}</h2><p class="book-page-summary">${escapeHtml(book.description || "No description has been added yet.")}</p><div class="book-quick-meta"><span>${book.page_count ? `${book.page_count} pages` : "Page count unavailable"}</span><span>${ratings.average != null ? `${ratings.average}★ from ${ratings.count}` : "No ratings yet"}</span></div>${meetingHeroMarkup(participantState.upcomingMeeting)}</div></div>
-    <div class="book-hub-tabs" role="tablist" aria-label="Current book sections">${[["conversation","Conversation"],["ratings","Ratings"],["progress","Reading progress"]].map(([value,label]) => `<button type="button" role="tab" data-book-hub-tab="${value}" aria-selected="${tab === value}" class="${tab === value ? "active" : ""}">${label}${value === "conversation" && posts.length ? ` <span>${posts.length}</span>` : ""}</button>`).join("")}</div>
+  const tabs = [...(hasSession ? [["session", "Session recap"]] : []), ["conversation","Conversation"],["ratings","Ratings"],["progress","Reading progress"]];
+  $("#book-page-content").innerHTML = `<div class="book-page-hero"><img class="book-page-cover" src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div class="book-page-intro"><p class="eyebrow">${escapeHtml(book.author)}</p><h2>${escapeHtml(book.title)}</h2><p class="book-page-summary">${escapeHtml(book.description || "No description has been added yet.")}</p><div class="book-quick-meta"><span>${book.page_count ? `${book.page_count} pages` : "Page count unavailable"}</span><span>${ratings.average != null ? `${ratings.average}★ from ${ratings.count}` : "No ratings yet"}</span>${hasSession ? "<span>Previously read</span>" : ""}</div><div class="book-primary-actions">${neighbors.previous ? `<button class="secondary-button" type="button" data-open-book="${neighbors.previous}">← Previous book</button>` : ""}${neighbors.next ? `<button class="secondary-button" type="button" data-open-book="${neighbors.next}">Next book →</button>` : ""}${book.catalogue_url ? `<a class="secondary-button" href="${escapeHtml(book.catalogue_url)}" target="_blank" rel="noopener">Find in catalogue ↗</a>` : ""}</div>${isCurrentBook ? meetingHeroMarkup(participantState.upcomingMeeting) : ""}</div></div>
+    <div class="book-hub-tabs" role="tablist" aria-label="Book sections">${tabs.map(([value,label]) => `<button type="button" role="tab" data-book-hub-tab="${value}" aria-selected="${tab === value}" class="${tab === value ? "active" : ""}">${label}${value === "conversation" && posts.length ? ` <span>${posts.length}</span>` : ""}</button>`).join("")}</div>
+    ${sessionArchiveMarkup(detail)}
     <section class="book-hub-panel" data-book-hub-panel="conversation"${tab === "conversation" ? "" : " hidden"}><div class="book-panel-heading"><div><p class="eyebrow">Club conversation</p><h3>Read and respond</h3></div><p>Progress updates, ratings, and discussion in one place.</p></div>${activityMarkup}<form class="discussion-compose conversation-composer" id="detail-discussion-form"><textarea rows="3" maxlength="4000" placeholder="Share a thought or question with your club…"></textarea><div class="composer-actions"><label><input type="checkbox" name="spoiler" /> Contains spoilers</label><button class="primary-button" type="submit">Post</button></div></form><div id="detail-discussion-list">${discussionMarkup(posts)}</div></section>
     <section class="book-hub-panel" data-book-hub-panel="ratings"${tab === "ratings" ? "" : " hidden"}><div class="book-panel-heading"><div><p class="eyebrow">Club ratings</p><h3>${ratings.average != null ? `${ratings.average}★ average` : "No ratings yet"}</h3></div><p>${distribution}</p></div><div class="ratings-calm-layout"><div class="your-rating-editor"><p class="eyebrow">Your rating</p><output class="rating-value" id="detail-rating-value">${mine?.rating || 3}★</output><input class="rating-range" id="detail-rating" type="range" min="1" max="5" step="0.5" value="${mine?.rating || 3}" aria-label="Rating in half-star increments" /><textarea id="detail-review" rows="3" maxlength="4000" placeholder="Add an optional review">${escapeHtml(mine?.review_text || "")}</textarea><button class="primary-button" id="save-detail-rating" type="button">${mine ? "Update rating" : "Save rating"}</button></div><div class="club-review-list">${ratings.ratings.length ? ratings.ratings.map((item) => `<article><p><strong>${escapeHtml(item.participant_name)}</strong><span>${item.rating}★</span></p>${item.review_text ? `<p>${escapeHtml(item.review_text)}</p>` : ""}</article>`).join("") : '<p class="muted">Be the first to rate this book.</p>'}</div></div></section>
     <section class="book-hub-panel" data-book-hub-panel="progress"${tab === "progress" ? "" : " hidden"}><div class="book-panel-heading"><div><p class="eyebrow">Reading progress</p><h3>Stay on pace</h3></div><p>Private unless you choose to share it.</p></div><div class="progress-calm-layout"><form class="progress-form" id="detail-progress-form"><label>Status<select name="status"><option value="not_started"${progress.status === "not_started" ? " selected" : ""}>Not started</option><option value="reading"${progress.status === "reading" ? " selected" : ""}>Reading</option><option value="finished"${progress.status === "finished" ? " selected" : ""}>Finished</option></select></label><div class="progress-form-row"><label>Current page<input name="current_page" type="number" min="0" ${book.page_count ? `max="${book.page_count}"` : ""} value="${progress.current_page ?? 0}" /></label><label>Book club day<input value="${detail.meeting_date ? escapeHtml(formatDate(detail.meeting_date)) : "Not scheduled"}" disabled /></label></div><div class="pace-result" id="pace-result">${escapeHtml(readingPaceCopy(detail, progress))}</div><label class="preference-option"><input name="shared_with_club" type="checkbox"${progress.shared_with_club ? " checked" : ""} /><span><strong>Share my progress</strong><small>Members can see your status and current page.</small></span></label><button class="primary-button" type="submit">Save progress</button></form><div class="shared-progress-list"><p class="eyebrow">Reading together</p>${detail.shared_progress.length ? detail.shared_progress.map((item) => `<div class="shared-progress-item"><strong>${escapeHtml(item.member.name)}</strong><span>${escapeHtml(progressLabels[item.status] || item.status)}${item.current_page != null ? ` · page ${item.current_page}` : ""}</span></div>`).join("") : '<p class="muted">No one has shared progress yet.</p>'}</div></div></section>
     <details class="book-about"><summary>About this book</summary><p>${escapeHtml(book.description || "No description has been added yet.")}</p><p class="muted">${book.page_count ? `${book.page_count} pages · ` : ""}${escapeHtml(book.genres || "")}</p></details>`;
+  document.querySelectorAll("[data-book-hub-panel]").forEach((panel) => { panel.hidden = panel.dataset.bookHubPanel !== tab; });
 };
 
-const openBookPage = async (bookId, { scroll = false } = {}) => {
-  if (participantState.activeBookId !== Number(bookId)) participantState.bookHubTab = "conversation";
+const openBookPage = async (bookId, { scroll = false, portalView = participantState.portalView === "book" ? "book" : "home", updateHistory = false } = {}) => {
+  const changedBook = participantState.activeBookId !== Number(bookId);
   participantState.activeBookId = Number(bookId);
   const id = participantState.activeBookId;
   const [detail, ratings, progress, posts] = await Promise.all([
     request(`/participant/books/${id}/detail`), request(`/participant/books/${id}/ratings`),
     request(`/participant/books/${id}/reading-progress`), request(`/participant/books/${id}/discussion`),
   ]);
+  if (changedBook) participantState.bookHubTab = portalView === "book" && detail.sessions.some((session) => session.status === "completed") ? "session" : "conversation";
   participantState.activeBookDetail = detail;
+  const workspace = $("#book-page-section");
+  $(portalView === "book" ? "#book-detail-slot" : "#home-book-slot").append(workspace);
+  workspace.querySelector(".book-stage-kicker").innerHTML = portalView === "book" ? "<span></span>Club book" : "<span></span>Current club read";
   renderBookPage({ detail, ratings, progress, posts });
-  history.replaceState(null, "", `${location.pathname}?book=${id}`);
+  setPortalView(portalView, { updateHistory: false });
+  if (updateHistory) history.pushState({ view: portalView, bookId: id }, "", portalView === "book" ? `${location.pathname}?view=book&book=${id}` : location.pathname);
   if (scroll) $("#book-page-section").scrollIntoView({ behavior: "smooth", block: "start" });
 };
 
-document.addEventListener("click", (event) => { const button = event.target.closest("[data-open-book]"); if (button) openBookPage(button.dataset.openBook, { scroll: true }).catch((error) => toast(error.message)); });
+document.addEventListener("click", (event) => { const button = event.target.closest("[data-open-book]"); if (button) openBookPage(button.dataset.openBook, { scroll: true, portalView: "book", updateHistory: true }).catch((error) => toast(error.message)); });
+document.addEventListener("keydown", (event) => { const card = event.target.closest('[data-open-book][role="button"]'); if (card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); card.click(); } });
 $("#book-page-content").addEventListener("input", (event) => {
   if (event.target.id === "detail-rating") $("#detail-rating-value").textContent = `${event.target.value}★`;
   if (event.target.name === "current_page" && $("#pace-result")) {
@@ -837,15 +1017,24 @@ $("#notification-form").addEventListener("submit", async (event) => {
       request("/participant/profile"),
       loadClubSwitcher(participant.club_slug),
     ]);
-    await Promise.all([loadAnnouncements(), loadRsvp(), loadVoting(), loadDatePoll(), loadRatings(), loadActivity(), loadClubActivity(), loadNotificationPreferences(), loadDirectory()]);
-    const requestedBook = new URLSearchParams(location.search).get("book");
-    const featuredBook = requestedBook
-      ? participantState.books.find((book) => book.id === Number(requestedBook))
-      : participantState.library.current[0]
+    await Promise.all([loadAnnouncements(), loadRsvp(), loadVoting(), loadDatePoll(), loadRatings(), loadActivity(), loadClubActivity(), loadNotificationPreferences(), loadDirectory(), loadStats()]);
+    const params = new URLSearchParams(location.search);
+    const requestedView = params.get("view") || "home";
+    const requestedBook = params.get("book");
+    const featuredBook = participantState.library.current[0]
         || participantState.library.previously_read[0]
         || participantState.books[0];
-    if (featuredBook) await openBookPage(featuredBook.id);
-    else $("#book-page-content").innerHTML = '<div class="book-page-empty"><h2>Your club’s next read will live here</h2><p>Once a book is scheduled, members can track progress, rate it, and discuss it together.</p></div>';
+    participantState.homeBookId = featuredBook?.id || null;
+    const detailBook = requestedBook ? participantState.books.find((book) => book.id === Number(requestedBook)) : null;
+    if (requestedView === "book" && detailBook) await openBookPage(detailBook.id, { portalView: "book", updateHistory: false });
+    else if (featuredBook) {
+      await openBookPage(featuredBook.id, { portalView: "home", updateHistory: false });
+      if (requestedView !== "home") setPortalView(requestedView, { updateHistory: false });
+    }
+    else {
+      $("#book-page-content").innerHTML = '<div class="book-page-empty"><h2>Your club’s next read will live here</h2><p>Once a book is scheduled, members can track progress, rate it, and discuss it together.</p></div>';
+      setPortalView(requestedView, { updateHistory: false });
+    }
     renderPostMeeting();
     renderActionCenter();
   } catch {

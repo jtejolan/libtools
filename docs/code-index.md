@@ -47,9 +47,9 @@ guaranteed exact) · **Purpose** (one clause) · **Detail in**.
 | `backend/app/bookclub/scheduling.py` | 34 | Free-text meeting-time parsing + start/end datetime computation, shared by `models.py` and `crud.py` | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/email_delivery.py` | 26 | Thin bookclub email wrapper | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/participant_models.py` | — | Global `ParticipantAccount` identity and tokens; club membership lives on linked roster rows | `docs/backend/bookclub.md` |
-| `backend/app/bookclub/participant_schemas.py` | — | Participant auth, ratings, polls, announcement, RSVP, activation overview, broadcast/unsubscribe schemas | `docs/backend/bookclub.md` |
+| `backend/app/bookclub/participant_schemas.py` | — | Participant auth, ratings, polls, announcement, RSVP, book-journey, and personal/club stats schemas | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/facilitator_routes.py` | — | `/bookclub/community/*` overview, announcements, polls and supporting routes, using regular selected-club access | `docs/backend/bookclub.md` |
-| `backend/app/bookclub/participant_community_routes.py` | — | Participant book detail, social feed, discussions, shared progress, RSVP/calendar, profiles and preferences APIs | `docs/backend/bookclub.md` |
+| `backend/app/bookclub/participant_community_routes.py` | — | Participant book journey, safe stats, social feed, discussions, progress, RSVP/calendar, profiles and preferences APIs | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/voting_routes.py` | 125 | `/participant/voting-round/*` — propose/vote, `build_round_response()` reused by `facilitator_routes.py` | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/date_poll_routes.py` | 77 | `/participant/date-poll/*` — vote (no propose, facilitator-only options), `build_poll_response()` reused by `facilitator_routes.py`; independent from `voting_routes.py` by design | `docs/backend/bookclub.md` |
 | `backend/app/bookclub/participant_unsubscribe.py` | 46 | Signs/verifies unsubscribe tokens via `itsdangerous` — no DB table, reused `LIBTOOLS_SESSION_SECRET` with a distinct salt | `docs/backend/bookclub.md` |
@@ -115,7 +115,7 @@ from `backend/` — see root `CLAUDE.md` for full commands.
 | `frontend/public-club.html` / `.js` / `.css` | — | Responsive public invitation page with current book, meeting calendar, account-aware joining, feature summary, and reading history | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-landing.html` / `.js` / `.css` | 117 / 158 / 181 | Responsive participant landing page — invitation link/code lookup, global reader sign-in, and multi-club chooser | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-account.html` / `bookclub-account.js` | 114 / 214 | Participant join/login/forgot-password/verify-email/reset-password — one shared shell keyed by URL path, mirrors `account.html`/`account.js` | `docs/frontend/bookclub.md` |
-| `frontend/bookclub-participant.html` / `bookclub-participant.js` | — | Participant dashboard — next meeting/calendar/RSVP, current reading/progress, announcements, decisions, personal activity, preferences, ratings and reviews | `docs/frontend/bookclub.md` |
+| `frontend/bookclub-participant.html` / `bookclub-participant.js` / `bookclub-participant.css` | — | Routed participant portal — home, cover shelf, book/session detail, personal stats, club stats, directory, and current reading interactions | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-manage.html` / `bookclub-manage.js` | — | Focused community console inside the Book Club Manager green-sidebar shell: health/activation overview, RSVP summary, polls and announcements | `docs/frontend/bookclub.md` |
 | `frontend/bookclub-unsubscribe.html` / `bookclub-unsubscribe.js` | 43 / 49 | Public unsubscribe confirmation page — click-to-confirm (not an auto-GET) so email-client link prefetching can't trigger it | `docs/frontend/bookclub.md` |
 | `frontend/lendery.html` / `lendery.js` | 466 / 2458 | Lendery inventory app — largest JS file in repo | `docs/frontend/lendery.md` |

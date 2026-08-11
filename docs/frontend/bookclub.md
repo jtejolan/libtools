@@ -193,22 +193,27 @@ action and supports joining a second open club without another account.
   calendar actions on the subdomain.
 - `bookclub-account.html` handles participant registration, login, recovery,
   and verification only; the old facilitator creation card is removed.
-- `bookclub-participant.html` is a calm, current-book-first participant home.
-  A compact book hero leads directly into three visible workspaces:
+- `bookclub-participant.html` is a small routed participant portal with
+  **Home**, **Books**, **My stats**, **Club stats**, and **Members** views.
+  Home remains calm and current-book-first. A compact book hero leads directly into three visible workspaces:
   **Conversation**, **Ratings**, and **Reading progress**. Conversation merges
   social activity with spoiler-aware discussions, replies, and reactions;
   Ratings includes the club average, individual reviews, and 0.5-star input;
   Reading progress includes optional sharing and the automatic daily/weekly
-  pace calculator. Choosing another library book replaces the featured book
-  and scrolls to it. Meeting RSVP and the latest announcement appear as compact
+  pace calculator. Books is a cover-forward searchable/filterable shelf modeled
+  on the facilitator collection. Choosing a title opens a stable query-routed
+  book view; completed titles default to a participant-safe session recap with
+  previous/next book navigation, aggregate attendance, reader-pages, and public
+  discussion notes. Meeting RSVP and the latest announcement appear as compact
   supporting cards, while book/date votes stay in a collapsed **Open
   decisions** section until needed. The page also provides a club switcher,
   announcement archive with read state, calendar actions, a grouped searchable
-  library, immediate/digest notification preferences, and an opt-in member
-  directory whose responses never expose roster email or staff notes. Personal
-  activity summaries remain available through account/profile surfaces rather
-  than competing with the current book. It has no facilitator role or
-  management link.
+  immediate/digest notification preferences, and an opt-in member directory
+  whose responses never expose roster email or staff notes. My stats summarizes
+  the signed-in reader's meetings, books, pages, ratings, genres, progress, and
+  recent activity. Club stats shows aggregate shelf, genre, length, rating, and
+  attendance trends without leaderboards or individual attendance. It has no
+  facilitator role or management link.
 - `bookclub-manage.html` is now served from
   `libtools.app/bookclub/community`, authenticated by the regular Libtools
   session and selected club. It shares the Book Club Manager's green sidebar,

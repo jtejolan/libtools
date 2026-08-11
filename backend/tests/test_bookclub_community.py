@@ -263,6 +263,52 @@ class BookClubCommunityTests(unittest.TestCase):
         for key, value in preferences.items():
             self.assertEqual(current[key], value)
 
+    def test_participant_book_journey_and_stats_use_safe_aggregates(self) -> None:
+        meeting = self.create_meeting()
+        book_id = meeting["book_id"]
+        book = self.facilitator.patch(f"/bookclub/books/{book_id}", json={
+            "page_count": 412,
+            "genres": "Science Fiction, Classics",
+        })
+        self.assertEqual(book.status_code, 200, book.text)
+        completed = self.facilitator.patch(f"/bookclub/meetings/{meeting['id']}", json={
+            "status": "completed",
+            "discussion_notes": "The group debated power, ecology, and destiny.",
+        })
+        self.assertEqual(completed.status_code, 200, completed.text)
+        attended = self.facilitator.put(
+            f"/bookclub/meetings/{meeting['id']}/members/{self.reader_member_id}",
+            json={"attended": True, "notes": "Private facilitator note"},
+        )
+        self.assertEqual(attended.status_code, 200, attended.text)
+        self.reader.put(f"/participant/books/{book_id}/rating", json={"rating": 4.5})
+        self.reader.put(f"/participant/books/{book_id}/reading-progress", json={
+            "status": "finished", "current_page": 412,
+        })
+
+        journey = self.reader.get(f"/participant/books/{book_id}/detail")
+        self.assertEqual(journey.status_code, 200, journey.text)
+        self.assertEqual(journey.json()["sessions"][0]["attendance_count"], 1)
+        self.assertEqual(journey.json()["reading_impact_pages"], 412)
+        self.assertIn("ecology", journey.json()["sessions"][0]["discussion_notes"])
+        self.assertNotIn("Private facilitator note", journey.text)
+
+        personal = self.reader.get("/participant/stats/personal")
+        self.assertEqual(personal.status_code, 200, personal.text)
+        self.assertEqual(personal.json()["meetings_attended"], 1)
+        self.assertEqual(personal.json()["books_read"], 1)
+        self.assertEqual(personal.json()["pages_read"], 412)
+        self.assertEqual(personal.json()["average_rating"], 4.5)
+        self.assertEqual(personal.json()["finished_books"], 1)
+
+        club = self.reader.get("/participant/stats/club")
+        self.assertEqual(club.status_code, 200, club.text)
+        self.assertEqual(club.json()["books_completed"], 1)
+        self.assertEqual(club.json()["pages_read_together"], 412)
+        self.assertEqual(club.json()["attendance_trend"][0]["attendance_count"], 1)
+        self.assertEqual(club.json()["top_rated_books"][0]["title"], "Dune")
+        self.assertNotIn("reader@example.com", club.text)
+
     def test_participant_member_experience_profile_library_discussion_and_read_state(self) -> None:
         meeting = self.create_meeting()
         question = self.facilitator.post(

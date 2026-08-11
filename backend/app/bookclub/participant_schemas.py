@@ -374,6 +374,24 @@ class ParticipantBookDetailResponse(BaseModel):
     shared_progress: list[SharedReadingProgressResponse] = Field(default_factory=list)
 
 
+class ParticipantBookSessionResponse(BaseModel):
+    id: int
+    meeting_date: date
+    meeting_time: str | None = None
+    location: str | None = None
+    status: str
+    discussion_notes: str | None = None
+    roster_count: int = 0
+    attendance_count: int = 0
+    pages_read: int = 0
+
+
+class ParticipantBookJourneyResponse(ParticipantBookDetailResponse):
+    sessions: list[ParticipantBookSessionResponse] = Field(default_factory=list)
+    total_attendance: int = 0
+    reading_impact_pages: int = 0
+
+
 class ClubActivityItem(BaseModel):
     id: int
     kind: str
@@ -416,6 +434,62 @@ class PersonalActivityResponse(BaseModel):
     proposals_count: int
     attended_meetings_count: int
     recent: list[PersonalActivityItem]
+
+
+class StatBreakdownItem(BaseModel):
+    label: str
+    value: int
+
+
+class PersonalStatsResponse(BaseModel):
+    meetings_attended: int
+    books_read: int
+    pages_read: int
+    books_rated: int
+    average_rating: float | None = None
+    votes_cast: int
+    proposals_made: int
+    finished_books: int
+    in_progress_books: int
+    rating_distribution: list[StatBreakdownItem] = Field(default_factory=list)
+    favourite_genres: list[StatBreakdownItem] = Field(default_factory=list)
+    recent: list[PersonalActivityItem] = Field(default_factory=list)
+
+
+class ClubBookStatResponse(BaseModel):
+    book_id: int
+    title: str
+    author: str
+    cover_image_url: str | None = None
+    average_rating: float
+    rating_count: int
+
+
+class ClubMeetingStatResponse(BaseModel):
+    meeting_id: int
+    book_id: int
+    title: str
+    meeting_date: date
+    attendance_count: int
+    roster_count: int
+
+
+class ClubStatsResponse(BaseModel):
+    books_completed: int
+    meetings_held: int
+    pages_read_together: int
+    average_rating: float | None = None
+    rating_count: int
+    active_members: int
+    shelf_total: int
+    shelf_current: int
+    shelf_up_next: int
+    shelf_completed: int
+    page_length_mix: list[StatBreakdownItem] = Field(default_factory=list)
+    favourite_genres: list[StatBreakdownItem] = Field(default_factory=list)
+    rating_distribution: list[StatBreakdownItem] = Field(default_factory=list)
+    top_rated_books: list[ClubBookStatResponse] = Field(default_factory=list)
+    attendance_trend: list[ClubMeetingStatResponse] = Field(default_factory=list)
 
 
 class ParticipantProfileUpdate(BaseModel):

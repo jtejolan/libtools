@@ -80,11 +80,13 @@ Announcements are managed at `/bookclub/community/announcements`, read at
 row staff later use to record attendance.
 
 Participant community routes also expose the grouped club library, a club-stat
-book detail hub, half-star ratings, the latest completed meeting, opt-in member
+book detail hub with participant-safe session recaps, half-star ratings, the latest completed meeting, opt-in member
 profiles/directory, spoiler-aware discussions/replies/reactions, optional
 private-or-shared page progress, per-club notification preferences, a personal
-activity aggregate, the durable social feed, a Google Calendar link, and an
-authenticated `.ics` meeting download. Facilitators can review and remove
+activity aggregate, separate personal and club reading-stat aggregates, the durable social feed,
+a Google Calendar link, and an authenticated `.ics` meeting download. The stats
+routes return totals and trends without member rankings, email, private roster
+notes, or individual attendance. Facilitators can review and remove
 discussion posts through `/bookclub/community/discussion`.
 
 The participant landing page also supports account-first navigation. A global
@@ -118,7 +120,7 @@ flags, discussion reactions, and the durable social activity feed.
 | `router` | `/participant/auth` | `participant_routes.py` | 13 | Global and club-scoped participant registration/login, enrollment-aware joining, club listing/selection, session, verification, password reset, and the facilitator "preview as reader" auto-login (`GET /preview-login`) |
 | `router` | `/bookclub` | `routes.py` | 47 | Members (including bulk community-access state and verification resend), books (incl. Google Books search and read-only `/{book_id}/insights` aggregation), meetings, roster/participation, onboarding/arrival email preview/send/**mark-sent** and reminder preview/send, giveaway draw, templates, transit labels, discussion questions — whole router requires `require_selected_club` |
 | `router` | `/bookclub/community` | `facilitator_routes.py` | — | Community overview, announcements, book/date polls, plus supporting scoped endpoints |
-| `router` | `/participant` | `participant_community_routes.py` | — | Announcements/read state, meeting preparation/RSVP/calendar, grouped library, discussions, member profiles/directory, reading progress, notification preferences, and personal activity |
+| `router` | `/participant` | `participant_community_routes.py` | — | Announcements/read state, meeting preparation/RSVP/calendar, grouped library and session journey, discussions, member profiles/directory, reading progress, preferences, and personal/club stats |
 
 ## Other modules
 

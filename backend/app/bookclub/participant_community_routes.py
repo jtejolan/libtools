@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Response, status
@@ -14,9 +15,14 @@ from bookclub.participant_schemas import (
     NotificationPreferencesUpdate,
     PersonalActivityItem,
     PersonalActivityResponse,
+    PersonalStatsResponse,
+    ClubBookStatResponse,
+    ClubMeetingStatResponse,
+    ClubStatsResponse,
     ParticipantMeetingResponse,
     ParticipantLibraryResponse,
-    ParticipantBookDetailResponse,
+    ParticipantBookJourneyResponse,
+    ParticipantBookSessionResponse,
     ParticipantProfileResponse,
     ParticipantProfileUpdate,
     ReadingProgressResponse,
@@ -24,6 +30,7 @@ from bookclub.participant_schemas import (
     RsvpUpdate,
     SharedReadingProgressResponse,
     SocialMemberResponse,
+    StatBreakdownItem,
 )
 from dependencies import DatabaseSession
 
@@ -371,7 +378,7 @@ def save_reading_progress(
     )
 
 
-@router.get("/books/{book_id}/detail", response_model=ParticipantBookDetailResponse)
+@router.get("/books/{book_id}/detail", response_model=ParticipantBookJourneyResponse)
 def participant_book_detail(
     book_id: int,
     club: participant_auth.CurrentParticipantClub,
@@ -379,10 +386,15 @@ def participant_book_detail(
     db: DatabaseSession,
 ):
     book = _participant_book(db, club.id, book_id)
-    meetings = list(db.scalars(select(models.BookClubMeeting).where(
-        models.BookClubMeeting.club_id == club.id,
-        models.BookClubMeeting.book_id == book_id,
-    ).order_by(models.BookClubMeeting.meeting_date)))
+    meetings = list(db.scalars(
+        select(models.BookClubMeeting)
+        .options(selectinload(models.BookClubMeeting.participants))
+        .where(
+            models.BookClubMeeting.club_id == club.id,
+            models.BookClubMeeting.book_id == book_id,
+        )
+        .order_by(models.BookClubMeeting.meeting_date)
+    ))
     meeting_ids = [meeting.id for meeting in meetings]
     attended_count = db.scalar(select(func.count(models.BookClubParticipation.id)).where(
         models.BookClubParticipation.meeting_id.in_(meeting_ids),
@@ -403,7 +415,19 @@ def participant_book_detail(
         select(models.BookClubMember).where(models.BookClubMember.id.in_(member_ids))
     )} if member_ids else {}
     future = next((meeting for meeting in meetings if meeting.meeting_date >= date.today()), None)
-    return ParticipantBookDetailResponse(
+    sessions = [ParticipantBookSessionResponse(
+        id=meeting.id,
+        meeting_date=meeting.meeting_date,
+        meeting_time=meeting.meeting_time,
+        location=meeting.location,
+        status=meeting.status,
+        discussion_notes=meeting.discussion_notes,
+        roster_count=len(meeting.participants),
+        attendance_count=sum(1 for entry in meeting.participants if entry.attended),
+        pages_read=sum(1 for entry in meeting.participants if entry.attended) * (book.page_count or 0),
+    ) for meeting in meetings]
+    completed_sessions = [item for item in sessions if item.status == "completed"]
+    return ParticipantBookJourneyResponse(
         book=book,
         meeting_date=(future or (meetings[-1] if meetings else None)).meeting_date if meetings else None,
         meetings_count=len(meetings),
@@ -414,6 +438,9 @@ def participant_book_detail(
             current_page=row.current_page,
             updated_at=row.updated_at,
         ) for row in shared if row.member_id in member_rows],
+        sessions=sessions,
+        total_attendance=sum(item.attendance_count for item in completed_sessions),
+        reading_impact_pages=sum(item.pages_read for item in completed_sessions),
     )
 
 
@@ -797,4 +824,155 @@ def personal_activity(
         proposals_count=len(proposals),
         attended_meetings_count=int(attended_count),
         recent=recent[:8],
+    )
+
+
+def _genre_counts(books) -> list[StatBreakdownItem]:
+    counts = Counter(
+        genre.strip()
+        for book in books
+        for genre in (book.genres or "").split(",")
+        if genre.strip()
+    )
+    return [StatBreakdownItem(label=label, value=value) for label, value in counts.most_common(6)]
+
+
+def _rating_distribution(ratings) -> list[StatBreakdownItem]:
+    counts = Counter(float(rating.rating) for rating in ratings)
+    return [
+        StatBreakdownItem(label=f"{score:g}★", value=counts.get(score, 0))
+        for score in (5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5, 1)
+        if counts.get(score, 0)
+    ]
+
+
+@router.get("/stats/personal", response_model=PersonalStatsResponse)
+def participant_personal_stats(
+    club: participant_auth.CurrentParticipantClub,
+    participant: participant_auth.CurrentParticipant,
+    member: participant_auth.CurrentParticipantMember,
+    db: DatabaseSession,
+):
+    attended_rows = list(db.execute(
+        select(models.BookClubParticipation, models.BookClubMeeting, models.BookClubBook)
+        .join(models.BookClubMeeting, models.BookClubMeeting.id == models.BookClubParticipation.meeting_id)
+        .join(models.BookClubBook, models.BookClubBook.id == models.BookClubMeeting.book_id)
+        .where(
+            models.BookClubParticipation.member_id == member.id,
+            models.BookClubParticipation.attended.is_(True),
+            models.BookClubMeeting.club_id == club.id,
+        )
+        .order_by(models.BookClubMeeting.meeting_date)
+    ).all())
+    ratings = list(db.scalars(select(models.BookClubRating).where(
+        models.BookClubRating.club_id == club.id,
+        models.BookClubRating.participant_id == participant.id,
+    )))
+    progress = list(db.scalars(select(models.BookClubReadingProgress).where(
+        models.BookClubReadingProgress.club_id == club.id,
+        models.BookClubReadingProgress.member_id == member.id,
+    )))
+    activity = personal_activity(club, participant, member, db)
+    attended_books = list({book.id: book for _, _, book in attended_rows}.values())
+    return PersonalStatsResponse(
+        meetings_attended=len(attended_rows),
+        books_read=len(attended_books),
+        pages_read=sum(book.page_count or 0 for _, _, book in attended_rows),
+        books_rated=len(ratings),
+        average_rating=round(sum(row.rating for row in ratings) / len(ratings), 2) if ratings else None,
+        votes_cast=activity.book_votes_count + activity.date_votes_count,
+        proposals_made=activity.proposals_count,
+        finished_books=sum(row.status == "finished" for row in progress),
+        in_progress_books=sum(row.status == "reading" for row in progress),
+        rating_distribution=_rating_distribution(ratings),
+        favourite_genres=_genre_counts(attended_books),
+        recent=activity.recent,
+    )
+
+
+@router.get("/stats/club", response_model=ClubStatsResponse)
+def participant_club_stats(
+    club: participant_auth.CurrentParticipantClub,
+    db: DatabaseSession,
+):
+    books = list(db.scalars(select(models.BookClubBook).where(
+        models.BookClubBook.club_id == club.id
+    )))
+    meetings = list(db.scalars(
+        select(models.BookClubMeeting)
+        .options(
+            selectinload(models.BookClubMeeting.participants),
+            selectinload(models.BookClubMeeting.book),
+        )
+        .where(
+            models.BookClubMeeting.club_id == club.id,
+            models.BookClubMeeting.status == "completed",
+        )
+        .order_by(models.BookClubMeeting.meeting_date)
+    ))
+    ratings = list(db.scalars(select(models.BookClubRating).where(
+        models.BookClubRating.club_id == club.id
+    )))
+    library = participant_library(club, db)
+    completed_books = list({meeting.book.id: meeting.book for meeting in meetings}.values())
+    rating_groups = {}
+    for rating in ratings:
+        rating_groups.setdefault(rating.book_id, []).append(rating.rating)
+    books_by_id = {book.id: book for book in books}
+    top_rated = sorted(
+        (
+            ClubBookStatResponse(
+                book_id=book_id,
+                title=books_by_id[book_id].title,
+                author=books_by_id[book_id].author,
+                cover_image_url=books_by_id[book_id].cover_image_url,
+                average_rating=round(sum(values) / len(values), 2),
+                rating_count=len(values),
+            )
+            for book_id, values in rating_groups.items()
+            if book_id in books_by_id
+        ),
+        key=lambda item: (-item.average_rating, -item.rating_count, item.title.casefold()),
+    )[:6]
+    page_mix = Counter()
+    for book in books:
+        if book.page_count is None:
+            page_mix["Unknown"] += 1
+        elif book.page_count < 250:
+            page_mix["Under 250 pages"] += 1
+        elif book.page_count <= 400:
+            page_mix["250–400 pages"] += 1
+        else:
+            page_mix["Over 400 pages"] += 1
+    attendance_trend = [ClubMeetingStatResponse(
+        meeting_id=meeting.id,
+        book_id=meeting.book_id,
+        title=meeting.book.title,
+        meeting_date=meeting.meeting_date,
+        attendance_count=sum(entry.attended for entry in meeting.participants),
+        roster_count=len(meeting.participants),
+    ) for meeting in meetings[-12:]]
+    pages_read_together = sum(
+        sum(entry.attended for entry in meeting.participants) * (meeting.book.page_count or 0)
+        for meeting in meetings
+    )
+    return ClubStatsResponse(
+        books_completed=len(completed_books),
+        meetings_held=len(meetings),
+        pages_read_together=pages_read_together,
+        average_rating=round(sum(row.rating for row in ratings) / len(ratings), 2) if ratings else None,
+        rating_count=len(ratings),
+        active_members=int(db.scalar(select(func.count(models.BookClubMember.id)).where(
+            models.BookClubMember.club_id == club.id,
+            models.BookClubMember.active.is_(True),
+        )) or 0),
+        shelf_total=len(books),
+        shelf_current=len(library.current),
+        shelf_up_next=len(library.up_next),
+        shelf_completed=len(library.previously_read),
+        page_length_mix=[StatBreakdownItem(label=label, value=value) for label, value in page_mix.items()],
+        favourite_genres=_genre_counts(completed_books or books),
+        rating_distribution=_rating_distribution(ratings),
+        top_rated_books=top_rated,
+        attendance_trend=attendance_trend,
     )
