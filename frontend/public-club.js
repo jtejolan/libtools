@@ -55,7 +55,7 @@ const renderMeeting = (meeting) => {
     meeting.meeting_time ? `<div><span>Time</span><strong>${escapeHtml(meeting.meeting_time)}</strong></div>` : "",
     meeting.location ? `<div><span>Location</span><strong>${escapeHtml(meeting.location)}</strong></div>` : "",
   ].join("");
-  $("#meeting-details").innerHTML = `<div class="meeting-facts">${facts}</div><div class="calendar-actions"><a class="public-primary" href="${escapeHtml(meeting.ics_calendar_url)}">Add to calendar <span aria-hidden="true">↓</span></a><a class="public-secondary" href="${escapeHtml(meeting.google_calendar_url)}" target="_blank" rel="noopener">Google Calendar ↗</a></div>`;
+  $("#meeting-details").innerHTML = `<div class="meeting-facts">${facts}</div><div class="calendar-actions"><a class="public-primary" href="${escapeHtml(meeting.ics_calendar_url)}">Add to calendar <span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3" /><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /></svg></span></a><a class="public-secondary" href="${escapeHtml(meeting.google_calendar_url)}" target="_blank" rel="noopener">Google Calendar <span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg></span></a></div>`;
 };
 
 const enrollmentCopy = {
@@ -67,7 +67,7 @@ const enrollmentCopy = {
 const setLinkAction = (element, label, handler) => {
   element.hidden = false;
   element.href = "#";
-  element.innerHTML = `${escapeHtml(label)} <span aria-hidden="true">→</span>`;
+  element.innerHTML = `${escapeHtml(label)} <span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6" /></svg></span>`;
   element.onclick = async (event) => {
     event.preventDefault();
     $("#membership-error").textContent = "";
@@ -91,7 +91,7 @@ const configureMembership = async (club) => {
   primary.hidden = club.enrollment_policy === "closed";
   primary.onclick = null;
   primary.href = participantPath("join");
-  primary.innerHTML = `${club.enrollment_policy === "invite_only" ? "Activate your invitation" : "Join this club"} <span aria-hidden="true">→</span>`;
+  primary.innerHTML = `${club.enrollment_policy === "invite_only" ? "Activate your invitation" : "Join this club"} <span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6" /></svg></span>`;
   secondary.href = participantPath("login");
   secondary.textContent = "Participant sign in";
   panel.hidden = false;
