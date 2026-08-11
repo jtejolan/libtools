@@ -26,7 +26,11 @@
 .book-status.up-next{background:rgba(224,175,101,.3)}
 .book-status.previous{background:rgba(110,157,154,.18)}
 .book-detail-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
-.book-detail-toolbar p{margin:0;color:var(--muted);font-size:12px}
+.book-detail-journey-nav{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.book-detail-journey-nav:empty{display:none}
+.book-page-hero .book-about-hero{margin:14px 0 0;padding:12px 14px;border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:var(--paper)}
+.book-page-hero .book-about-hero summary{color:var(--paper)}
+.book-page-hero .book-about-hero p{margin:10px 0 0;color:rgba(255,250,241,.76);font-size:13px;line-height:1.55}
 .book-session-panel{margin-top:10px}
 .session-archive-stats,.portal-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 .portal-stat-card{min-height:112px;padding:18px;display:grid;align-content:center;border:1px solid var(--line);border-radius:13px;background:rgba(255,250,241,.9)}
@@ -55,5 +59,5 @@
 .session-summary-card header{display:flex;justify-content:space-between;gap:14px}
 .session-summary-card h4,.session-summary-card p{margin:0}
 .session-summary-card>p{margin-top:10px;white-space:pre-wrap}
-@media(max-width:800px){.site-header{position:relative}.participant-portal-nav{justify-content:flex-start;overflow-x:auto}.participant-portal-nav button{flex:0 0 auto}.portal-page-heading{align-items:flex-start;flex-direction:column}.library-controls{width:100%}.library-controls>*{flex:1 1 150px}.session-archive-stats,.portal-stat-grid{grid-template-columns:1fr 1fr}.stats-layout{grid-template-columns:1fr}.stats-panel.wide{grid-column:auto}.stats-timeline article{grid-template-columns:1fr auto}.stats-timeline article>small{grid-column:1/-1}}
+@media(max-width:800px){.site-header{position:relative}.participant-portal-nav{justify-content:flex-start;overflow-x:auto}.participant-portal-nav button{flex:0 0 auto}.portal-page-heading{align-items:flex-start;flex-direction:column}.library-controls{width:100%}.library-controls>*{flex:1 1 150px}.book-detail-toolbar{align-items:flex-start;flex-direction:column}.session-archive-stats,.portal-stat-grid{grid-template-columns:1fr 1fr}.stats-layout{grid-template-columns:1fr}.stats-panel.wide{grid-column:auto}.stats-timeline article{grid-template-columns:1fr auto}.stats-timeline article>small{grid-column:1/-1}}
 @media(max-width:480px){.session-archive-stats,.portal-stat-grid{grid-template-columns:1fr}.participant-book-grid{grid-template-columns:1fr}}
