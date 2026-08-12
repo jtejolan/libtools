@@ -285,6 +285,11 @@ class BookClubCommunityTests(unittest.TestCase):
         self.reader.put(f"/participant/books/{book_id}/reading-progress", json={
             "status": "finished", "current_page": 412,
         })
+        discussion = self.reader.post(f"/participant/books/{book_id}/discussion", json={
+            "body": "The ecology discussion changed how I read the ending.",
+            "spoiler": False,
+        })
+        self.assertEqual(discussion.status_code, 201, discussion.text)
 
         journey = self.reader.get(f"/participant/books/{book_id}/detail")
         self.assertEqual(journey.status_code, 200, journey.text)
@@ -307,6 +312,10 @@ class BookClubCommunityTests(unittest.TestCase):
         self.assertEqual(club.json()["pages_read_together"], 412)
         self.assertEqual(club.json()["attendance_trend"][0]["attendance_count"], 1)
         self.assertEqual(club.json()["top_rated_books"][0]["title"], "Dune")
+        self.assertEqual(club.json()["conversation_total"], 1)
+        self.assertEqual(club.json()["conversation_participants"], 1)
+        self.assertEqual(club.json()["most_discussed_book"]["title"], "Dune")
+        self.assertIn("ecology discussion", club.json()["conversation_highlight"]["body"])
         self.assertNotIn("reader@example.com", club.text)
 
     def test_participant_can_self_report_completed_meeting_attendance(self) -> None:

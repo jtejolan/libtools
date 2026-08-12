@@ -139,6 +139,34 @@ class CatalogueSearchTests(unittest.TestCase):
         with self.assertRaises(CatalogueImportError):
             search_catalogue_books("Eversion")
 
+    @patch("bookclub.catalogue.httpx.get")
+    def test_falls_back_to_open_library_when_google_is_rate_limited(self, get) -> None:
+        google_response = Mock(status_code=429)
+        google_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "rate limited", request=Mock(), response=google_response
+        )
+        open_library_response = Mock(
+            status_code=200,
+            json=lambda: {"docs": [{
+                "key": "/works/OL123W",
+                "title": "Neuromancer",
+                "author_name": ["William Gibson"],
+                "first_publish_year": 1984,
+                "cover_i": 123,
+                "isbn": ["9780441569595"],
+                "number_of_pages_median": 271,
+            }]},
+        )
+        open_library_response.raise_for_status = lambda: None
+        get.side_effect = [google_response, open_library_response]
+
+        results = search_catalogue_books("Neuromancer")
+
+        self.assertEqual(results[0]["title"], "Neuromancer")
+        self.assertEqual(results[0]["external_id"], "works/OL123W")
+        self.assertEqual(results[0]["isbn"], "9780441569595")
+        self.assertEqual(get.call_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

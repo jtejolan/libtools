@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -259,6 +260,26 @@ class VotingRoutesTests(unittest.TestCase):
             "Too Similar to Last Month",
             [book["title"] for book in self.facilitator.get("/bookclub/community/books").json()],
         )
+
+    @patch("bookclub.participant_community_routes.catalogue.search_catalogue_books")
+    def test_participant_can_search_google_books_for_a_suggestion(self, search) -> None:
+        search.return_value = [{
+            "external_id": "google-neuromancer",
+            "title": "Neuromancer",
+            "author": "William Gibson",
+            "publication_date": "1984-01-01",
+            "isbn": "9780441569595",
+            "page_count": 271,
+        }]
+
+        response = self.reader_a.post(
+            "/participant/book-suggestions/search",
+            json={"query": "Neuromancer"},
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["results"][0]["title"], "Neuromancer")
+        search.assert_called_once_with("Neuromancer")
 
     def test_accepting_an_existing_title_links_without_duplicating_it(self) -> None:
         suggestion = self.reader_a.post("/participant/book-suggestions", json={

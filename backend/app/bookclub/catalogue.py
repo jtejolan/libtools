@@ -17,6 +17,7 @@ RECORD_PATH = re.compile(r"^/v2/record/(S130C\d+)/?$")
 MAX_RESPONSE_BYTES = 2_000_000
 
 GOOGLE_BOOKS_SEARCH_URL = "https://www.googleapis.com/books/v1/volumes"
+OPEN_LIBRARY_SEARCH_URL = "https://openlibrary.org/search.json"
 MAX_RESULTS = 10
 PUBLICATION_YEAR_PATTERN = re.compile(r"\b(1[5-9]\d{2}|20\d{2}|21\d{2})\b")
 
@@ -162,6 +163,52 @@ def _parse_volume(item: dict) -> dict:
     }
 
 
+def _search_open_library(query: str) -> list[dict]:
+    try:
+        response = httpx.get(
+            OPEN_LIBRARY_SEARCH_URL,
+            params={"q": query, "limit": MAX_RESULTS},
+            timeout=10,
+        )
+        response.raise_for_status()
+        documents = response.json().get("docs") or []
+    except (httpx.HTTPError, ValueError) as exc:
+        raise CatalogueImportError(
+            "Book search is currently unavailable. Try again shortly."
+        ) from exc
+
+    results = []
+    for document in documents:
+        title = clean_catalogue_text(document.get("title"))
+        if not title:
+            continue
+        work_key = str(document.get("key") or "").removeprefix("/") or None
+        cover_id = document.get("cover_i")
+        isbns = [re.sub(r"[^0-9Xx]", "", value).upper() for value in document.get("isbn") or []]
+        isbn = next((value for value in isbns if len(value) == 13), None) or next(
+            (value for value in isbns if len(value) == 10), None
+        )
+        year = document.get("first_publish_year")
+        results.append({
+            "external_id": work_key,
+            "title": title,
+            "author": "; ".join(document.get("author_name") or []) or None,
+            "cover_image_url": (
+                f"https://covers.openlibrary.org/b/id/{cover_id}-M.jpg"
+                if cover_id else None
+            ),
+            "description": None,
+            "publication_date": f"{year}-01-01" if isinstance(year, int) else None,
+            "isbn": isbn,
+            "publisher": (document.get("publisher") or [None])[0],
+            "page_count": document.get("number_of_pages_median"),
+            "genres": ", ".join(dict.fromkeys(document.get("subject") or []))[:500].rstrip(", ") or None,
+            "series": None,
+            "catalogue_url": f"https://openlibrary.org/{work_key}" if work_key else None,
+        })
+    return results
+
+
 def search_catalogue_books(query: str) -> list[dict]:
     query = query.strip()
     if not query:
@@ -176,6 +223,12 @@ def search_catalogue_books(query: str) -> list[dict]:
     try:
         response = httpx.get(GOOGLE_BOOKS_SEARCH_URL, params=params, timeout=10)
         response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 429:
+            return _search_open_library(query)
+        raise CatalogueImportError(
+            "Book search is currently unavailable. Try again shortly."
+        ) from exc
     except httpx.HTTPError as exc:
         raise CatalogueImportError(
             "Book search is currently unavailable. Try again shortly."

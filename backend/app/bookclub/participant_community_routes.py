@@ -5,12 +5,14 @@ from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from bookclub import crud, models, participant_auth
+from bookclub import catalogue, crud, models, participant_auth, schemas
 from bookclub.participant_schemas import (
     AnnouncementResponse,
     BookSuggestionCreate,
     BookSuggestionResponse,
     ClubActivityItem,
+    ClubConversationBookResponse,
+    ClubConversationHighlightResponse,
     DiscussionPostCreate,
     DiscussionPostResponse,
     NotificationPreferencesResponse,
@@ -79,6 +81,21 @@ def _book_suggestion_response(suggestion, proposer_name: str | None) -> BookSugg
         proposed_by_name=proposer_name,
         created_at=suggestion.created_at,
     )
+
+
+@router.post("/book-suggestions/search", response_model=schemas.BookSearchResponse)
+def search_book_suggestions(
+    value: schemas.BookSearchRequest,
+    club: participant_auth.CurrentParticipantClub,
+):
+    try:
+        results = catalogue.search_catalogue_books(value.query)
+    except catalogue.CatalogueImportError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        ) from exc
+    return schemas.BookSearchResponse(results=results)
 
 
 @router.post(
@@ -887,6 +904,7 @@ def personal_activity(
     participant: participant_auth.CurrentParticipant,
     member: participant_auth.CurrentParticipantMember,
     db: DatabaseSession,
+    limit: int | None = 8,
 ):
     ratings = list(db.execute(
         select(models.BookClubRating, models.BookClubBook.title)
@@ -955,7 +973,7 @@ def personal_activity(
         date_votes_count=len(date_votes),
         proposals_count=len(proposals) + len(suggestions),
         attended_meetings_count=int(attended_count),
-        recent=recent[:8],
+        recent=recent[:limit] if limit is not None else recent,
     )
 
 
@@ -1004,7 +1022,7 @@ def participant_personal_stats(
         models.BookClubReadingProgress.club_id == club.id,
         models.BookClubReadingProgress.member_id == member.id,
     )))
-    activity = personal_activity(club, participant, member, db)
+    activity = personal_activity(club, participant, member, db, limit=None)
     attended_books = list({book.id: book for _, _, book in attended_rows}.values())
     return PersonalStatsResponse(
         meetings_attended=len(attended_rows),
@@ -1045,12 +1063,35 @@ def participant_club_stats(
     ratings = list(db.scalars(select(models.BookClubRating).where(
         models.BookClubRating.club_id == club.id
     )))
+    discussion_posts = list(db.scalars(
+        select(models.BookClubDiscussionPost)
+        .options(selectinload(models.BookClubDiscussionPost.member))
+        .where(models.BookClubDiscussionPost.club_id == club.id)
+        .order_by(models.BookClubDiscussionPost.created_at.desc(), models.BookClubDiscussionPost.id.desc())
+    ))
     library = participant_library(club, db)
     completed_books = list({meeting.book.id: meeting.book for meeting in meetings}.values())
     rating_groups = {}
     for rating in ratings:
         rating_groups.setdefault(rating.book_id, []).append(rating.rating)
     books_by_id = {book.id: book for book in books}
+    discussion_counts = Counter(post.book_id for post in discussion_posts)
+    most_discussed_id = min(
+        discussion_counts,
+        key=lambda book_id: (-discussion_counts[book_id], books_by_id.get(book_id).title.casefold() if book_id in books_by_id else ""),
+    ) if discussion_counts else None
+    most_discussed_book = books_by_id.get(most_discussed_id) if most_discussed_id is not None else None
+    rating_spreads = {
+        book_id: max(values) - min(values)
+        for book_id, values in rating_groups.items()
+        if len(values) >= 2 and book_id in books_by_id
+    }
+    most_divisive_id = min(
+        rating_spreads,
+        key=lambda book_id: (-rating_spreads[book_id], -len(rating_groups[book_id]), books_by_id[book_id].title.casefold()),
+    ) if rating_spreads else None
+    most_divisive_book = books_by_id.get(most_divisive_id) if most_divisive_id is not None else None
+    highlight = next((post for post in discussion_posts if not post.spoiler and post.book_id in books_by_id), None)
     top_rated = sorted(
         (
             ClubBookStatResponse(
@@ -1107,4 +1148,35 @@ def participant_club_stats(
         rating_distribution=_rating_distribution(ratings),
         top_rated_books=top_rated,
         attendance_trend=attendance_trend,
+        conversation_total=len(discussion_posts),
+        conversation_participants=len({post.member_id for post in discussion_posts}),
+        most_discussed_book=(
+            ClubConversationBookResponse(
+                book_id=most_discussed_book.id,
+                title=most_discussed_book.title,
+                author=most_discussed_book.author,
+                cover_image_url=most_discussed_book.cover_image_url,
+                value=discussion_counts[most_discussed_book.id],
+                detail=f"{discussion_counts[most_discussed_book.id]} comment{'s' if discussion_counts[most_discussed_book.id] != 1 else ''}",
+            ) if most_discussed_book else None
+        ),
+        most_divisive_book=(
+            ClubConversationBookResponse(
+                book_id=most_divisive_book.id,
+                title=most_divisive_book.title,
+                author=most_divisive_book.author,
+                cover_image_url=most_divisive_book.cover_image_url,
+                value=round(rating_spreads[most_divisive_book.id], 1),
+                detail=f"{rating_spreads[most_divisive_book.id]:g}-star rating spread",
+            ) if most_divisive_book else None
+        ),
+        conversation_highlight=(
+            ClubConversationHighlightResponse(
+                book_id=highlight.book_id,
+                book_title=books_by_id[highlight.book_id].title,
+                author_name=highlight.member.name,
+                body=highlight.body,
+                created_at=highlight.created_at,
+            ) if highlight else None
+        ),
     )

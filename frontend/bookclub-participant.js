@@ -174,9 +174,9 @@ const initializePortalShell = () => {
   controls.prepend(search);
   libraryHeading.append(controls);
   const suggestion = document.createElement("section");
-  suggestion.className = "book-suggestion-section";
-  suggestion.innerHTML = '<div class="suggestion-intro"><div><p class="eyebrow">Help shape what comes next</p><h2>Suggest a book</h2><p>Search Google Books, add a note, and send the title directly to your facilitator.</p></div><span>Reader suggestions</span></div><form class="google-book-search" id="google-book-search-form"><label for="google-book-query">Title, author, or ISBN</label><div><input id="google-book-query" type="search" autocomplete="off" placeholder="Try Octavia Butler or The Dispossessed" required /><button class="primary-button" type="submit">Search Google Books</button></div></form><p class="google-book-status muted" id="google-book-status">Search results will appear here.</p><div class="google-book-results" id="google-book-results"></div><div class="suggestion-preview" id="suggestion-preview" hidden></div>';
-  books.append(suggestion);
+  suggestion.className = "book-suggestion-section is-collapsed";
+  suggestion.innerHTML = '<button class="suggestion-launch" id="suggestion-launch" type="button" aria-expanded="false" aria-controls="suggestion-workspace"><span class="suggestion-launch-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg></span><span><strong>Suggest a book</strong><small>Search for a title and send it to your facilitator.</small></span><b data-suggestion-launch-label>Open</b><svg class="icon suggestion-launch-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg></button><div class="suggestion-workspace" id="suggestion-workspace" hidden><form class="google-book-search" id="google-book-search-form"><label for="google-book-query">Title, author, or ISBN</label><div class="suggestion-search-control"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg><input id="google-book-query" type="search" autocomplete="off" placeholder="Start typing a title, author, or ISBN" role="combobox" aria-autocomplete="list" aria-controls="google-book-results" aria-expanded="false" /><div class="google-book-results" id="google-book-results" role="listbox" hidden></div></div><p class="google-book-status muted" id="google-book-status" aria-live="polite">Start typing to search.</p></form><div class="suggestion-preview" id="suggestion-preview" hidden></div></div>';
+  journeyOverview.append(suggestion);
 
   const personal = document.createElement("section");
   personal.className = "portal-view";
@@ -649,7 +649,7 @@ const renderBookRatingCard = (book, ratingsData, status) => {
   const mine = ratingsData.ratings.find((entry) => entry.participant_id === ratingsState.participantId);
   const statusCopy = { current: "Current", up_next: "Coming up", previously_read: "Previously read" }[status];
   const statusClass = { current: "current", up_next: "up-next", previously_read: "previous" }[status];
-  return `<article class="participant-book-card" data-open-book="${book.id}" data-book-id="${book.id}" tabindex="0" role="button" aria-label="Open ${escapeHtml(book.title)}"><img src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" loading="lazy" /><div class="participant-book-card-copy"><span class="book-status ${statusClass}">${statusCopy}</span><h3>${escapeHtml(book.title)}</h3><p>${escapeHtml(book.author)}</p><div class="participant-book-card-meta">${book.page_count ? `<span>${book.page_count} pages</span>` : ""}${ratingsData.count ? `<span>${ratingsData.average}★ club</span>` : "<span>Not rated</span>"}${mine ? `<span>You: ${mine.rating}★</span>` : ""}</div></div><span class="book-open-cue">Open <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg></span></article>`;
+  return `<article class="participant-book-card" data-open-book="${book.id}" data-book-id="${book.id}" tabindex="0" role="button" aria-label="Open ${escapeHtml(book.title)}"><div class="participant-book-cover-wrap"><img src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" loading="lazy" /></div><div class="participant-book-card-copy"><span class="book-status ${statusClass}">${statusCopy}</span><h3>${escapeHtml(book.title)}</h3><p>${escapeHtml(book.author)}</p>${status === "current" && book.description ? `<p class="participant-book-card-description">${escapeHtml(book.description)}</p>` : ""}<div class="participant-book-card-meta">${book.page_count ? `<span>${book.page_count} pages</span>` : ""}${ratingsData.count ? `<span class="club-rating">${ratingsData.average}★ club</span>` : "<span>Not rated</span>"}${mine ? `<span class="reader-rating">Your rating ${mine.rating}★</span>` : ""}</div></div><span class="book-open-cue">Open book <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg></span></article>`;
 };
 
 const journeyFeatureBookMarkup = (book, label, className) => {
@@ -663,7 +663,10 @@ const renderBooksJourneyOverview = () => {
   const next = participantState.library.up_next[0];
   const completed = participantState.library.previously_read.length;
   const total = completed + participantState.library.current.length + participantState.library.up_next.length;
-  $("#books-journey-overview").innerHTML = `<div class="journey-overview-heading"><div><p class="eyebrow">Where the club is now</p><h2>${completed ? `${completed} finished ${completed === 1 ? "book" : "books"}, with more ahead` : "The first chapter starts here"}</h2></div><div class="journey-counts"><span><strong>${total}</strong> on the shared shelf</span><span><strong>${completed}</strong> completed together</span></div></div><div class="journey-feature-grid">${journeyFeatureBookMarkup(current, "Reading now", "is-current")}${journeyFeatureBookMarkup(next, "Coming up", "is-next")}</div>`;
+  const overview = $("#books-journey-overview");
+  const suggestion = $(".book-suggestion-section");
+  overview.innerHTML = `<div class="journey-overview-heading"><div><p class="eyebrow">Where the club is now</p><h2>${completed ? `${completed} finished ${completed === 1 ? "book" : "books"}, with more ahead` : "The first chapter starts here"}</h2></div><div class="journey-counts"><span><strong>${total}</strong> on the shared shelf</span><span><strong>${completed}</strong> completed together</span></div></div><div class="journey-feature-grid">${journeyFeatureBookMarkup(current, "Reading now", "is-current")}${journeyFeatureBookMarkup(next, "Coming up", "is-next")}</div>`;
+  if (suggestion) overview.querySelector(".journey-feature-grid").before(suggestion);
 };
 
 const renderJourneyShelf = (visible) => {
@@ -672,10 +675,10 @@ const renderJourneyShelf = (visible) => {
     ["up_next", "Coming up", "The next chapters waiting on the shared shelf"],
     ["previously_read", "Previously read", "Finished books that became part of the club’s story"],
   ];
-  return `<div class="journey-shelf-groups">${chapters.map(([status, title, description]) => {
+  return `<div class="journey-shelf-groups">${chapters.map(([status, title, description], chapterIndex) => {
     const items = visible.filter((item) => item.status === status);
     if (!items.length) return "";
-    return `<section class="journey-shelf-group ${status}"><header><div><span>${escapeHtml(title)}</span><p>${escapeHtml(description)}</p></div><b>${items.length} ${items.length === 1 ? "book" : "books"}</b></header><div class="participant-book-grid">${items.map(({ book }) => renderBookRatingCard(book, ratingsState.dataByBook[book.id], status)).join("")}</div></section>`;
+    return `<section class="journey-shelf-group ${status}"><header><div><i>Chapter 0${chapterIndex + 1}</i><span>${escapeHtml(title)}</span><p>${escapeHtml(description)}</p></div><b>${items.length} ${items.length === 1 ? "book" : "books"}</b></header><div class="participant-book-grid">${items.map(({ book }) => renderBookRatingCard(book, ratingsState.dataByBook[book.id], status)).join("")}</div></section>`;
   }).join("")}</div>`;
 };
 
@@ -713,21 +716,35 @@ $("#library-search").addEventListener("input", () => loadRatings().catch((error)
 $("#library-status-filter").addEventListener("change", () => loadRatings().catch((error) => toast(error.message)));
 $("#library-sort").addEventListener("change", () => loadRatings().catch((error) => toast(error.message)));
 
-const bookSuggestionState = { results: [], selected: null, controller: null, submitted: null };
-const googleBookPreviewResults = [
-  { id: "preview-dispossessed", volumeInfo: { title: "The Dispossessed", authors: ["Ursula K. Le Guin"], publishedDate: "1974", description: "An ambitious science-fiction novel about two societies, freedom, and the compromises communities make." } },
-  { id: "preview-parable", volumeInfo: { title: "Parable of the Sower", authors: ["Octavia E. Butler"], publishedDate: "1993", description: "A young woman builds a new vision of community while travelling through a destabilized future America." } },
-  { id: "preview-memory", volumeInfo: { title: "A Memory Called Empire", authors: ["Arkady Martine"], publishedDate: "2019", description: "A diplomatic mystery about empire, language, identity, and the stories cultures tell about themselves." } },
-];
+const bookSuggestionState = { results: [], selected: null, controller: null, submitted: null, searchTimer: null };
+
+const setBookSuggestionOpen = (open, { focus = false } = {}) => {
+  const section = $(".book-suggestion-section");
+  section.classList.toggle("is-collapsed", !open);
+  section.classList.toggle("is-open", open);
+  $("#suggestion-workspace").hidden = !open;
+  $("#suggestion-launch").setAttribute("aria-expanded", String(open));
+  $("[data-suggestion-launch-label]").textContent = open ? "Close" : "Open";
+  if (focus) $("#google-book-query").focus();
+};
+
+$("#suggestion-launch").addEventListener("click", () => {
+  const open = $("#suggestion-launch").getAttribute("aria-expanded") !== "true";
+  setBookSuggestionOpen(open, { focus: open });
+});
 
 const googleBookCover = (book) => String(book.volumeInfo?.imageLinks?.thumbnail || "/static/assets/library-tools-logo-classic.svg?v=1").replace(/^http:/, "https:");
 
 const renderGoogleBookResults = () => {
-  $("#google-book-results").innerHTML = bookSuggestionState.results.map((book, index) => {
+  const results = $("#google-book-results");
+  results.innerHTML = bookSuggestionState.results.map((book, index) => {
     const info = book.volumeInfo || {};
     const selected = bookSuggestionState.selected?.id === book.id;
-    return `<button class="google-book-result${selected ? " is-selected" : ""}" type="button" data-google-book-index="${index}"><img src="${escapeHtml(googleBookCover(book))}" alt="" loading="lazy" /><span><strong>${escapeHtml(info.title || "Untitled")}</strong><small>${escapeHtml((info.authors || ["Unknown author"]).join(", "))}</small><b>${escapeHtml(info.publishedDate?.slice(0, 4) || "Publication year unavailable")}</b></span><i aria-hidden="true">${selected ? '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>' : '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>'}</i></button>`;
+    return `<button class="google-book-result${selected ? " is-selected" : ""}" type="button" role="option" aria-selected="${selected}" data-google-book-index="${index}"><img src="${escapeHtml(googleBookCover(book))}" alt="" loading="lazy" /><span><strong>${escapeHtml(info.title || "Untitled")}</strong><small>${escapeHtml((info.authors || ["Unknown author"]).join(", "))}</small><b>${escapeHtml(info.publishedDate?.slice(0, 4) || "Publication year unavailable")}</b></span><i aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6" /></svg></i></button>`;
   }).join("");
+  const expanded = bookSuggestionState.results.length > 0 && !bookSuggestionState.selected;
+  results.hidden = !expanded;
+  $("#google-book-query").setAttribute("aria-expanded", String(expanded));
 };
 
 const renderSuggestionPreview = () => {
@@ -742,36 +759,69 @@ const renderSuggestionPreview = () => {
   if (!book) { preview.hidden = true; return; }
   const info = book.volumeInfo || {};
   preview.hidden = false;
-  preview.innerHTML = `<div class="suggestion-preview-book"><img src="${escapeHtml(googleBookCover(book))}" alt="" /><div><p class="eyebrow">Your selection</p><h3>${escapeHtml(info.title || "Untitled")}</h3><p>${escapeHtml((info.authors || ["Unknown author"]).join(", "))}</p>${info.description ? `<small>${escapeHtml(info.description)}</small>` : ""}</div></div><form class="suggestion-destination" id="book-suggestion-submit-form"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6" /></svg></span><div><strong>Send to your facilitator</strong><p>The book will enter a private review queue; it is not automatically added to the club library.</p></div><label for="book-suggestion-comments">Comments <small>Optional</small></label><textarea id="book-suggestion-comments" name="comments" rows="4" maxlength="2000" placeholder="Why would this make a great club read? Add themes, content notes, or anything else worth considering."></textarea><div class="suggestion-submit-row"><small><span data-comment-count>0</span>/2,000</small><button type="submit">Send suggestion</button></div></form>`;
+  preview.innerHTML = `<div class="suggestion-preview-book"><img src="${escapeHtml(googleBookCover(book))}" alt="" /><div><p class="eyebrow">Selected book</p><h3>${escapeHtml(info.title || "Untitled")}</h3><p>${escapeHtml((info.authors || ["Unknown author"]).join(", "))}${info.publishedDate ? ` · ${escapeHtml(info.publishedDate.slice(0, 4))}` : ""}</p></div><button class="quiet-button" type="button" data-change-suggestion-book>Change book</button></div><form class="suggestion-destination" id="book-suggestion-submit-form"><div class="suggestion-comment-heading"><strong>Why are you suggesting this book?</strong><span>Optional</span><p>Share what could make it an interesting club read. Your note will only be seen by the facilitator.</p></div><label class="sr-only" for="book-suggestion-comments">Comments about this suggestion</label><textarea id="book-suggestion-comments" name="comments" rows="4" maxlength="2000" placeholder="For example: themes worth discussing, why members might enjoy it, or any content notes…"></textarea><div class="suggestion-submit-row"><small><span data-comment-count>0</span>/2,000 characters</small><button type="submit">Send to facilitator</button></div></form>`;
 };
 
-$("#google-book-search-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const query = $("#google-book-query").value.trim();
-  if (!query) return;
+const searchBookSuggestions = async (query) => {
   bookSuggestionState.controller?.abort();
   bookSuggestionState.controller = new AbortController();
   $("#google-book-status").textContent = "Searching Google Books…";
-  $("#google-book-results").innerHTML = "";
   try {
-    const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&printType=books&maxResults=6`, { signal: bookSuggestionState.controller.signal });
-    if (!response.ok) throw new Error("Google Books search is unavailable right now.");
-    const result = await response.json();
-    bookSuggestionState.results = result.items || [];
+    const result = await request("/participant/book-suggestions/search", {
+      method: "POST",
+      signal: bookSuggestionState.controller.signal,
+      body: JSON.stringify({ query }),
+    });
+    bookSuggestionState.results = (result.results || []).map((book) => ({
+      id: book.external_id,
+      volumeInfo: {
+        title: book.title,
+        authors: book.author ? book.author.split(";").map((author) => author.trim()).filter(Boolean) : [],
+        publishedDate: book.publication_date,
+        description: book.description,
+        imageLinks: book.cover_image_url ? { thumbnail: book.cover_image_url } : undefined,
+        industryIdentifiers: book.isbn ? [{ type: book.isbn.length === 13 ? "ISBN_13" : "ISBN_10", identifier: book.isbn }] : [],
+        pageCount: book.page_count,
+      },
+    }));
     bookSuggestionState.selected = null;
     bookSuggestionState.submitted = null;
     renderSuggestionPreview();
     renderGoogleBookResults();
-    $("#google-book-status").textContent = bookSuggestionState.results.length ? `Choose from ${bookSuggestionState.results.length} Google Books results.` : "No matching books found. Try a title, author, or ISBN.";
+    $("#google-book-status").textContent = bookSuggestionState.results.length ? `Choose from ${bookSuggestionState.results.length} matching books.` : "No matching books found. Try a title, author, or ISBN.";
   } catch (error) {
     if (error.name === "AbortError") return;
-    bookSuggestionState.results = googleBookPreviewResults;
+    bookSuggestionState.results = [];
     bookSuggestionState.selected = null;
     bookSuggestionState.submitted = null;
     renderSuggestionPreview();
     renderGoogleBookResults();
-    $("#google-book-status").textContent = "Live Google Books is unavailable in this test environment. Showing sample results to preview the flow.";
+    $("#google-book-status").textContent = error.message;
   }
+};
+
+$("#google-book-search-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  clearTimeout(bookSuggestionState.searchTimer);
+  const query = $("#google-book-query").value.trim();
+  if (query.length >= 2) searchBookSuggestions(query);
+});
+
+$("#google-book-query").addEventListener("input", (event) => {
+  clearTimeout(bookSuggestionState.searchTimer);
+  bookSuggestionState.controller?.abort();
+  const query = event.target.value.trim();
+  bookSuggestionState.selected = null;
+  bookSuggestionState.submitted = null;
+  renderSuggestionPreview();
+  if (query.length < 2) {
+    bookSuggestionState.results = [];
+    renderGoogleBookResults();
+    $("#google-book-status").textContent = query ? "Keep typing to search." : "Start typing to search.";
+    return;
+  }
+  $("#google-book-status").textContent = "Waiting for you to finish typing…";
+  bookSuggestionState.searchTimer = setTimeout(() => searchBookSuggestions(query), 350);
 });
 
 $("#google-book-results").addEventListener("click", (event) => {
@@ -779,8 +829,29 @@ $("#google-book-results").addEventListener("click", (event) => {
   if (!result) return;
   bookSuggestionState.selected = bookSuggestionState.results[Number(result.dataset.googleBookIndex)] || null;
   bookSuggestionState.submitted = null;
+  const info = bookSuggestionState.selected?.volumeInfo || {};
+  $("#google-book-query").value = [info.title, (info.authors || [])[0]].filter(Boolean).join(" — ");
   renderGoogleBookResults();
   renderSuggestionPreview();
+  $("#google-book-status").textContent = `${info.title || "Book"} selected. Add an optional comment below.`;
+});
+
+$("#google-book-query").addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  $("#google-book-results").hidden = true;
+  event.currentTarget.setAttribute("aria-expanded", "false");
+});
+
+$("#google-book-query").addEventListener("focus", () => {
+  if (!bookSuggestionState.results.length || bookSuggestionState.selected) return;
+  $("#google-book-results").hidden = false;
+  $("#google-book-query").setAttribute("aria-expanded", "true");
+});
+
+document.addEventListener("click", (event) => {
+  if (event.target.closest(".suggestion-search-control")) return;
+  $("#google-book-results").hidden = true;
+  $("#google-book-query").setAttribute("aria-expanded", "false");
 });
 
 $("#suggestion-preview").addEventListener("input", (event) => {
@@ -790,12 +861,15 @@ $("#suggestion-preview").addEventListener("input", (event) => {
 });
 
 $("#suggestion-preview").addEventListener("click", (event) => {
-  if (!event.target.closest("[data-suggest-another]")) return;
+  if (!event.target.closest("[data-suggest-another], [data-change-suggestion-book]")) return;
+  event.stopPropagation();
   bookSuggestionState.submitted = null;
   bookSuggestionState.selected = null;
   renderGoogleBookResults();
   renderSuggestionPreview();
+  $("#google-book-status").textContent = "Choose another match below, or type a new search.";
   $("#google-book-query").focus();
+  $("#google-book-query").select();
 });
 
 $("#suggestion-preview").addEventListener("submit", async (event) => {
@@ -923,13 +997,15 @@ const renderActivity = (activity) => {
 
 const loadActivity = async () => renderActivity(await request("/participant/activity"));
 
-const statCardsMarkup = (items, className = "") => `<div class="portal-stat-grid${className ? ` ${escapeHtml(className)}` : ""}">${items.map(([value, label, icon]) => `<article class="portal-stat-card">${icon ? `<i aria-hidden="true">${icon}</i>` : ""}<strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></article>`).join("")}</div>`;
+const statCardsMarkup = (items, className = "") => `<div class="portal-stat-grid${className ? ` ${escapeHtml(className)}` : ""}">${items.map(([value, label, icon]) => `<article class="portal-stat-card">${icon ? `<i aria-hidden="true">${icon}</i>` : ""}<div class="portal-stat-copy"><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></div></article>`).join("")}</div>`;
 
 const statBarsMarkup = (items, emptyCopy) => {
   if (!items.length) return `<p class="muted">${escapeHtml(emptyCopy)}</p>`;
   const maximum = Math.max(...items.map((item) => item.value), 1);
   return `<div class="stat-bar-list">${items.map((item) => `<div class="stat-bar-row"><strong>${escapeHtml(item.label)}</strong><div class="stat-bar-track"><span style="width:${Math.round((item.value / maximum) * 100)}%"></span></div><b>${item.value}</b></div>`).join("")}</div>`;
 };
+
+const personalActivityMarkup = (items) => items.map((item) => `<article><small>${escapeHtml(formatTimestamp(item.occurred_at))}</small><p><strong>${escapeHtml(item.label)}</strong>${item.detail ? `<br><small>${escapeHtml(item.detail)}</small>` : ""}</p></article>`).join("");
 
 const renderPersonalStats = (stats) => {
   participantState.personalStats = stats;
@@ -938,8 +1014,18 @@ const renderPersonalStats = (stats) => {
     [stats.books_read, "Books read", '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v16" /><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" /></svg>'],
     [stats.pages_read.toLocaleString(), "Pages read", '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" /><path d="M14 2v5a1 1 0 0 0 1 1h5" /><path d="M10 9H8" /><path d="M16 13H8" /><path d="M16 17H8" /></svg>'],
     [stats.books_rated, "Books rated", '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" /></svg>'],
-  ], "personal-stat-overview")}<div class="stats-layout personal-stats-layout"><section class="stats-panel personal-taste-panel"><p class="eyebrow">Your taste</p><h2>Favourite genres</h2>${statBarsMarkup(stats.favourite_genres, "Attend a completed meeting to begin your genre portrait.")}</section><section class="stats-panel personal-ratings-panel"><p class="eyebrow">Your ratings</p><h2>${stats.average_rating == null ? "No ratings yet" : `${stats.average_rating}★ average`}</h2>${statBarsMarkup(stats.rating_distribution, "Your rating pattern will appear after you rate a book.")}</section><section class="stats-panel personal-shelf-panel"><p class="eyebrow">Reading now</p><h2>Your shelf</h2>${statCardsMarkup([[stats.finished_books, "Marked finished"], [stats.in_progress_books, "In progress"], [stats.votes_cast, "Votes cast"], [stats.proposals_made, "Books proposed"]])}</section><section class="stats-panel personal-activity-panel"><p class="eyebrow">Recently</p><h2>Your activity</h2><div class="stats-timeline">${stats.recent.length ? stats.recent.map((item) => `<article><small>${escapeHtml(formatTimestamp(item.occurred_at))}</small><p><strong>${escapeHtml(item.label)}</strong>${item.detail ? `<br><small>${escapeHtml(item.detail)}</small>` : ""}</p></article>`).join("") : '<p class="muted">Ratings, votes, proposals, and progress updates will appear here.</p>'}</div></section></div>`;
+  ], "personal-stat-overview")}<div class="stats-layout personal-stats-layout"><section class="stats-panel personal-taste-panel"><p class="eyebrow">Your taste</p><h2>Favourite genres</h2>${statBarsMarkup(stats.favourite_genres, "Attend a completed meeting to begin your genre portrait.")}</section><section class="stats-panel personal-ratings-panel"><p class="eyebrow">Your ratings</p><h2>${stats.average_rating == null ? "No ratings yet" : `${stats.average_rating}★ average`}</h2>${statBarsMarkup(stats.rating_distribution, "Your rating pattern will appear after you rate a book.")}</section><section class="stats-panel personal-shelf-panel"><p class="eyebrow">Reading now</p><h2>Your shelf</h2>${statCardsMarkup([[stats.finished_books, "Marked finished"], [stats.in_progress_books, "In progress"], [stats.votes_cast, "Votes cast"], [stats.proposals_made, "Books proposed"]])}</section><section class="stats-panel personal-activity-panel"><p class="eyebrow">Recently</p><h2>Your activity</h2><div class="stats-timeline">${stats.recent.length ? personalActivityMarkup(stats.recent.slice(0, 4)) : '<p class="muted">Ratings, votes, proposals, and progress updates will appear here.</p>'}</div>${stats.recent.length > 4 ? `<button class="activity-view-all" id="view-all-personal-activity" type="button">View all activity <span>${stats.recent.length}</span></button>` : ""}</section></div>`;
 };
+
+$("#personal-stats-content").addEventListener("click", (event) => {
+  if (!event.target.closest("#view-all-personal-activity")) return;
+  const activity = participantState.personalStats?.recent || [];
+  $("#personal-activity-dialog-list").innerHTML = personalActivityMarkup(activity);
+  $("#personal-activity-dialog-count").textContent = `${activity.length} ${activity.length === 1 ? "update" : "updates"}`;
+  $("#personal-activity-dialog").showModal();
+});
+
+$("#close-personal-activity-dialog").addEventListener("click", () => $("#personal-activity-dialog").close());
 
 const clubPersonalityCopy = (stats) => {
   const leadingGenre = stats.favourite_genres[0]?.label;
@@ -952,13 +1038,14 @@ const clubPersonalityCopy = (stats) => {
   return `${parts.map((part) => capitalizeFirst(part)).join(". ")}.`;
 };
 
-const clubReadingStoryMarkup = (meetings) => {
-  if (!meetings.length) return '<p class="muted">Completed books will build the club’s story here.</p>';
-  return `<div class="club-story-books">${meetings.map((meeting, index) => {
-    const book = participantState.books.find((item) => item.id === meeting.book_id);
-    const cover = book?.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1";
-    return `<article class="club-story-book" data-open-book="${meeting.book_id}" role="button" tabindex="0"><img src="${escapeHtml(cover)}" alt="" /><div><time>${escapeHtml(formatDate(meeting.meeting_date))}</time><strong>${escapeHtml(meeting.title)}</strong><small>Chapter ${index + 1} of the club story</small></div><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6" /></svg></span></article>`;
-  }).join("")}</div>`;
+const clubConversationBookMarkup = (book, label) => {
+  if (!book) return `<article class="conversation-insight is-empty"><span>${escapeHtml(label)}</span><p>More reader activity will reveal this insight.</p></article>`;
+  return `<article class="conversation-insight" data-open-book="${book.book_id}" role="button" tabindex="0"><img src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div><span>${escapeHtml(label)}</span><strong>${escapeHtml(book.title)}</strong><small>${escapeHtml(book.author)}</small><b>${escapeHtml(book.detail)}</b></div><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg></article>`;
+};
+
+const clubConversationPulseMarkup = (stats) => {
+  const highlight = stats.conversation_highlight;
+  return `<section class="stats-panel club-conversation-pulse"><div class="club-conversation-heading"><div><p class="eyebrow">Beyond the ratings</p><h2>Club conversation pulse</h2><p>Where readers are gathering, reacting, and seeing books differently.</p></div><div class="conversation-totals"><span><strong>${stats.conversation_total}</strong> comments</span><span><strong>${stats.conversation_participants}</strong> readers joining in</span></div></div><div class="conversation-pulse-grid"><div class="conversation-insights">${clubConversationBookMarkup(stats.most_discussed_book, "Most discussed")}${clubConversationBookMarkup(stats.most_divisive_book, "Most debated")}</div>${highlight ? `<article class="conversation-highlight" data-open-book="${highlight.book_id}" role="button" tabindex="0"><div class="conversation-quote-mark" aria-hidden="true">“</div><p>${escapeHtml(highlight.body)}</p><footer><span><strong>${escapeHtml(highlight.author_name)}</strong> on ${escapeHtml(highlight.book_title)}</span><small>${escapeHtml(formatTimestamp(highlight.created_at))}</small></footer></article>` : '<article class="conversation-highlight is-empty"><div class="conversation-quote-mark" aria-hidden="true">“</div><p>The next thoughtful comment will become the club’s conversation highlight.</p><footer><span>Start a conversation from any book page.</span></footer></article>'}</div></section>`;
 };
 
 const renderClubStats = (stats) => {
@@ -969,7 +1056,7 @@ const renderClubStats = (stats) => {
     [stats.books_completed, "Books completed", '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v16" /><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" /></svg>'],
     [stats.pages_read_together.toLocaleString(), "Pages read together", '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" /><path d="M14 2v5a1 1 0 0 0 1 1h5" /><path d="M10 9H8" /><path d="M16 13H8" /><path d="M16 17H8" /></svg>'],
     [stats.average_rating == null ? "—" : `${stats.average_rating}★`, `${stats.rating_count} shared ratings`, '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" /></svg>'],
-  ], "club-story-overview")}</section><div class="club-profile-grid"><section class="stats-panel club-genre-panel"><p class="eyebrow">What we reach for</p><h2>Favourite territory</h2>${statBarsMarkup(stats.favourite_genres, "Genres have not been added to the club books yet.")}</section><section class="stats-panel club-length-panel"><p class="eyebrow">Our reading rhythm</p><h2>Book-length mix</h2>${statBarsMarkup(stats.page_length_mix, "Page counts have not been added yet.")}</section></div><section class="stats-panel club-favourites-panel"><div class="club-panel-heading"><div><p class="eyebrow">Reader favourites</p><h2>Books we loved together</h2></div><p>Shared ratings reveal the titles that stayed with the club.</p></div><div class="top-books-grid">${stats.top_rated_books.length ? stats.top_rated_books.map((book) => `<article class="top-book" data-open-book="${book.book_id}" role="button" tabindex="0"><img src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div><strong>${escapeHtml(book.title)}</strong><p>${escapeHtml(book.author)}</p><b>${book.average_rating}★ · ${book.rating_count} rating${book.rating_count === 1 ? "" : "s"}</b></div></article>`).join("") : '<p class="muted">Reader favourites will appear once members share their ratings.</p>'}</div></section><div class="club-pulse-grid"><section class="stats-panel club-shelf-panel"><p class="eyebrow">The shared shelf</p><h2>${stats.shelf_total} books and counting</h2>${statBarsMarkup([{ label: "Completed", value: stats.shelf_completed }, { label: "Reading now", value: stats.shelf_current }, { label: "Coming up", value: stats.shelf_up_next }], "Books will appear as the facilitator builds the shelf.")}</section><section class="stats-panel club-reactions-panel"><p class="eyebrow">Shared reactions</p><h2>How ratings landed</h2>${statBarsMarkup(stats.rating_distribution, "The club has not rated a book yet.")}</section></div><section class="stats-panel club-reading-story"><div class="club-panel-heading"><div><p class="eyebrow">Along the way</p><h2>The club’s reading story</h2></div><p>Every finished book becomes another chapter in the community’s history.</p></div>${clubReadingStoryMarkup(stats.attendance_trend)}</section>`;
+  ], "club-story-overview")}</section><div class="club-profile-grid"><section class="stats-panel club-genre-panel"><p class="eyebrow">What we reach for</p><h2>Favourite territory</h2>${statBarsMarkup(stats.favourite_genres, "Genres have not been added to the club books yet.")}</section><section class="stats-panel club-length-panel"><p class="eyebrow">Our reading rhythm</p><h2>Book-length mix</h2>${statBarsMarkup(stats.page_length_mix, "Page counts have not been added yet.")}</section></div><section class="stats-panel club-favourites-panel"><div class="club-panel-heading"><div><p class="eyebrow">Reader favourites</p><h2>Books we loved together</h2></div><p>Shared ratings reveal the titles that stayed with the club.</p></div><div class="top-books-grid">${stats.top_rated_books.length ? stats.top_rated_books.map((book) => `<article class="top-book" data-open-book="${book.book_id}" role="button" tabindex="0"><img src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div><strong>${escapeHtml(book.title)}</strong><p>${escapeHtml(book.author)}</p><b>${book.average_rating}★ · ${book.rating_count} rating${book.rating_count === 1 ? "" : "s"}</b></div></article>`).join("") : '<p class="muted">Reader favourites will appear once members share their ratings.</p>'}</div></section>${clubConversationPulseMarkup(stats)}<div class="club-pulse-grid"><section class="stats-panel club-shelf-panel"><p class="eyebrow">The shared shelf</p><h2>${stats.shelf_total} books and counting</h2>${statBarsMarkup([{ label: "Completed", value: stats.shelf_completed }, { label: "Reading now", value: stats.shelf_current }, { label: "Coming up", value: stats.shelf_up_next }], "Books will appear as the facilitator builds the shelf.")}</section><section class="stats-panel club-reactions-panel"><p class="eyebrow">Shared reactions</p><h2>How ratings landed</h2>${statBarsMarkup(stats.rating_distribution, "The club has not rated a book yet.")}</section></div>`;
 };
 
 const loadStats = async () => {
@@ -1369,6 +1456,17 @@ $("#book-page-content").addEventListener("submit", async (event) => {
   } catch (error) { toast(error.message); }
 });
 
+const profileInitials = (name = "Reader") => name.trim().split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase() || "R";
+const refreshProfilePreview = () => {
+  const form = $("#profile-form");
+  const preview = $("#profile-avatar-preview");
+  const avatarUrl = form.elements.avatar_url.value.trim();
+  preview.textContent = profileInitials(form.elements.name.value);
+  preview.style.backgroundImage = avatarUrl ? `url("${avatarUrl.replace(/["\\]/g, "")}")` : "";
+  preview.classList.toggle("has-image", Boolean(avatarUrl));
+  $("#profile-bio-count").textContent = form.elements.bio.value.length.toLocaleString();
+};
+
 const openProfileDialog = async () => {
   try {
     participantState.profile = participantState.profile || await request("/participant/profile");
@@ -1377,6 +1475,7 @@ const openProfileDialog = async () => {
     form.elements.avatar_url.value = participantState.profile.avatar_url || "";
     form.elements.bio.value = participantState.profile.bio || "";
     form.elements.directory_visible.checked = participantState.profile.directory_visible;
+    refreshProfilePreview();
     $("#profile-error").textContent = "";
     $("#profile-dialog").showModal();
   } catch (error) { toast(error.message); }
@@ -1385,9 +1484,15 @@ const openProfileDialog = async () => {
 $("#profile-settings").addEventListener("click", openProfileDialog);
 $("#edit-directory-profile").addEventListener("click", openProfileDialog);
 $("#close-profile-dialog").addEventListener("click", () => $("#profile-dialog").close());
+$("#profile-form").addEventListener("input", (event) => {
+  if (["name", "avatar_url", "bio"].includes(event.target.name)) refreshProfilePreview();
+});
 $("#profile-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
+  const button = form.querySelector("button[type=submit]");
+  button.disabled = true;
+  button.textContent = "Saving…";
   try {
     participantState.profile = await request("/participant/profile", {
       method: "PUT",
@@ -1403,6 +1508,7 @@ $("#profile-form").addEventListener("submit", async (event) => {
     await loadDirectory();
     toast("Profile saved.");
   } catch (error) { $("#profile-error").textContent = error.message; }
+  finally { button.disabled = false; button.textContent = "Save profile"; }
 });
 
 const renderDiscussion = (book, posts) => {
@@ -1505,6 +1611,9 @@ $("#close-notification-dialog").addEventListener("click", () => $("#notification
 $("#notification-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
+  const button = form.querySelector("button[type=submit]");
+  button.disabled = true;
+  button.textContent = "Saving…";
   const data = Object.fromEntries(["announcements", "polls", "meeting_reminders", "discussion_replies"].map((name) => [name, form.elements[name].checked]));
   data.delivery_frequency = form.elements.delivery_frequency.value;
   try {
@@ -1512,6 +1621,7 @@ $("#notification-form").addEventListener("submit", async (event) => {
     $("#notification-dialog").close();
     toast("Notification preferences saved.");
   } catch (error) { $("#notification-error").textContent = error.message; }
+  finally { button.disabled = false; button.textContent = "Save preferences"; }
 });
 
 (async () => {

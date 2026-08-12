@@ -532,6 +532,23 @@ class ClubMeetingStatResponse(BaseModel):
     roster_count: int
 
 
+class ClubConversationBookResponse(BaseModel):
+    book_id: int
+    title: str
+    author: str
+    cover_image_url: str | None = None
+    value: float
+    detail: str
+
+
+class ClubConversationHighlightResponse(BaseModel):
+    book_id: int
+    book_title: str
+    author_name: str
+    body: str
+    created_at: datetime
+
+
 class ClubStatsResponse(BaseModel):
     books_completed: int
     meetings_held: int
@@ -548,6 +565,11 @@ class ClubStatsResponse(BaseModel):
     rating_distribution: list[StatBreakdownItem] = Field(default_factory=list)
     top_rated_books: list[ClubBookStatResponse] = Field(default_factory=list)
     attendance_trend: list[ClubMeetingStatResponse] = Field(default_factory=list)
+    conversation_total: int = 0
+    conversation_participants: int = 0
+    most_discussed_book: ClubConversationBookResponse | None = None
+    most_divisive_book: ClubConversationBookResponse | None = None
+    conversation_highlight: ClubConversationHighlightResponse | None = None
 
 
 class ParticipantProfileUpdate(BaseModel):
