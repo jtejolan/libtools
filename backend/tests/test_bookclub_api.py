@@ -139,7 +139,7 @@ class BookClubApiTests(unittest.TestCase):
         self.assertEqual(entrypoint.status_code, 200)
         self.assertIn("Book Club Manager", entrypoint.text)
         self.assertIn('/static/bookclub.js?v=46', entrypoint.text)
-        self.assertIn('/static/bookclub.css?v=46', entrypoint.text)
+        self.assertIn('/static/bookclub.css?v=47', entrypoint.text)
         self.assertNotIn('data-view="messages"', entrypoint.text)
         self.assertIn('id="open-reminder-dialog"', entrypoint.text)
         self.assertIn('id="send-book-dialog"', entrypoint.text)
