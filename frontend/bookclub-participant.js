@@ -98,8 +98,6 @@ const participantState = {
   books: [],
   library: { current: [], up_next: [], previously_read: [] },
   upcomingMeeting: null,
-  latestCompletedMeeting: null,
-  readingProgress: null,
   announcements: [],
   announcementCollapsed: false,
   latestAnnouncementId: null,
@@ -157,7 +155,7 @@ const initializePortalShell = () => {
   const home = document.createElement("section");
   home.className = "portal-view";
   home.dataset.portalView = "home";
-  [".participant-heading", "#email-panel", ".participant-grid", "#decision-prompt", "#book-page-section", ".legacy-participant-sections"].forEach((selector) => home.append($(selector)));
+  [".participant-heading", "#email-panel", ".participant-grid", "#decision-prompt", "#book-page-section"].forEach((selector) => home.append($(selector)));
   const homeBookSlot = document.createElement("div");
   homeBookSlot.id = "home-book-slot";
   home.insertBefore(homeBookSlot, home.querySelector("#book-page-section"));
@@ -209,7 +207,7 @@ const initializePortalShell = () => {
   book.dataset.portalView = "book";
   book.innerHTML = '<div class="book-detail-toolbar"><button class="quiet-button" id="book-detail-back" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg> Back to books</button><div class="book-detail-journey-nav" id="book-detail-journey-nav"></div></div><div id="book-detail-slot"></div>';
   main.replaceChildren(home, books, personal, club, members, book);
-  document.body.insertAdjacentHTML("beforeend", '<dialog class="manage-dialog rating-review-dialog" id="rating-review-dialog"><form id="rating-review-form"><header class="rating-review-dialog-heading"><img id="rating-review-cover" alt="" /><div><p class="eyebrow">Your reading response</p><h2 id="rating-review-heading">Rate this book</h2><p id="rating-review-book"></p></div><button class="rating-review-close" type="button" data-close-rating-review aria-label="Close review window"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button></header><div class="rating-review-body"><section class="review-rating-panel"><div><span class="hero-rating-label">Your rating</span><p>Choose a half or whole star.</p></div><div class="detail-rating-picker" id="rating-review-stars"></div></section><label class="review-writing-field"><span><strong>Your review</strong><small>Optional</small></span><p>Share what stayed with you, what challenged you, or what you would tell another reader.</p><textarea id="rating-review-text" rows="6" maxlength="4000" placeholder="Start writing your response…"></textarea><small class="review-sharing-note">Your review will appear alongside your rating in Ratings and Reviews.</small></label><p class="form-error" id="rating-review-error"></p></div><footer class="rating-review-footer"><p><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><path d="M16 3.128a4 4 0 0 1 0 7.744" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><circle cx="9" cy="7" r="4" /></svg></span> Shared with members of this book club</p><div><button class="quiet-button" type="button" data-close-rating-review>Cancel</button><button class="primary-button" type="submit">Save rating &amp; review</button></div></footer></form></dialog><dialog class="member-profile-dialog" id="member-profile-dialog"><button class="member-profile-close" id="close-member-profile" type="button" aria-label="Close member profile"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button><div id="member-profile-content"></div></dialog>');
+  document.body.insertAdjacentHTML("beforeend", '<dialog class="manage-dialog rating-review-dialog" id="rating-review-dialog"><form id="rating-review-form"><header class="rating-review-dialog-heading"><img id="rating-review-cover" alt="" /><div><p class="eyebrow">Your reading response</p><h2 id="rating-review-heading">Rate this book</h2><p id="rating-review-book"></p></div><button class="rating-review-close" type="button" data-close-rating-review aria-label="Close review window"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button></header><div class="rating-review-body"><section class="review-rating-panel"><div><span class="hero-rating-label">Your rating</span><p>Choose a half or whole star.</p></div><div class="detail-rating-picker" id="rating-review-stars"></div></section><label class="review-writing-field"><span><strong>Your review</strong><small>Optional</small></span><p>Share what stayed with you, what challenged you, or what you would tell another reader.</p><textarea id="rating-review-text" rows="6" maxlength="4000" placeholder="Start writing your response…"></textarea><small class="review-sharing-note">Your review will appear alongside your rating in Ratings and Reviews.</small></label><p class="form-error" id="rating-review-error"></p></div><footer class="rating-review-footer"><p><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><path d="M16 3.128a4 4 0 0 1 0 7.744" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><circle cx="9" cy="7" r="4" /></svg></span> Shared with members of this book club</p><div><button class="quiet-button danger-text" type="button" id="remove-rating-review" hidden>Remove rating</button><button class="quiet-button" type="button" data-close-rating-review>Cancel</button><button class="primary-button" type="submit">Save rating &amp; review</button></div></footer></form></dialog><dialog class="member-profile-dialog" id="member-profile-dialog"><button class="member-profile-close" id="close-member-profile" type="button" aria-label="Close member profile"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button><div id="member-profile-content"></div></dialog>');
 };
 
 initializePortalShell();
@@ -250,7 +248,7 @@ window.addEventListener("popstate", () => {
   const view = params.get("view") || "home";
   const bookId = params.get("book");
   if (view === "book" && bookId) openBookPage(bookId, { portalView: "book", updateHistory: false }).catch(() => setPortalView("books", { updateHistory: false }));
-  else if (view === "home" && participantState.homeBookId) ensurePortalViewData("home").then(() => openBookPage(participantState.homeBookId, { portalView: "home", updateHistory: false })).catch(() => {});
+  else if (view === "home" && participantState.homeBookId) ensurePortalViewData("home").then(() => openBookPage(participantState.homeBookId, { portalView: "home", updateHistory: false })).catch((error) => { toast(error.message); setPortalView("home", { updateHistory: false }); });
   else setPortalView(view, { updateHistory: false });
 });
 
@@ -293,7 +291,6 @@ const renderAnnouncements = (announcements) => {
       </article>`).join("")
     : '<p class="muted">No announcements yet.</p>';
   refreshNotificationInbox();
-  renderActionCenter();
 };
 
 const loadAnnouncements = async () => renderAnnouncements(await request("/participant/announcements"));
@@ -307,28 +304,6 @@ const startAnnouncementRefresh = () => {
     if (document.visibilityState === "visible") loadAnnouncements().catch(() => {});
   });
 };
-
-const actionButton = (label, target) => `<button class="secondary-button" type="button" data-scroll-target="${target}">${label}</button>`;
-
-const renderActionCenter = () => {
-  const actions = [];
-  const participant = participantState.participant;
-  if (participant && !participant.email_verified) actions.push(["Verify your email", "Secure password recovery and account updates.", "email-panel", "Verify email"]);
-  if (participantState.upcomingMeeting && !participantState.upcomingMeeting.rsvp_status) actions.push(["RSVP for the next meeting", `Let the facilitator know about ${participantState.upcomingMeeting.meeting.book.title}.`, "rsvp-section", "Respond now"]);
-  if (participantState.votingRound?.status === "open" && !participantState.votingRound.my_vote_candidate_id) actions.push(["Choose the next book", "A book vote is waiting for your response.", "voting-section", "Vote now"]);
-  if (participantState.datePoll?.status === "open" && !participantState.datePoll.my_vote_option_ids?.length) actions.push(["Choose a meeting date", "A date poll is waiting for your response.", "date-poll-section", "Vote now"]);
-  const completedBook = participantState.latestCompletedMeeting?.meeting?.book;
-  if (completedBook && !ratingsState.mineByBook[completedBook.id]) actions.push([`Reflect on ${completedBook.title}`, "Rate the book or leave a short review after your meeting.", "library-section", "Share your take"]);
-  $("#action-heading").textContent = actions.length ? `${actions.length} thing${actions.length === 1 ? "" : "s"} to do` : "You’re all caught up";
-  $("#action-count").textContent = actions.length ? "Your choices are saved as you make them." : "Nothing needs a response right now.";
-  $("#action-list").innerHTML = actions.map(([title, copy, target, label]) => `<div class="action-item"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(copy)}</span>${actionButton(label, target)}</div>`).join("");
-};
-
-document.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-scroll-target]");
-  if (!button) return;
-  document.getElementById(button.dataset.scrollTarget)?.scrollIntoView({ behavior: "smooth", block: "start" });
-});
 
 $("#view-announcements").addEventListener("click", () => $("#announcements-dialog").showModal());
 $("#announcement-toggle").addEventListener("click", async () => {
@@ -365,7 +340,6 @@ const renderRsvp = (data) => {
   const panel = document.querySelector("[data-book-meeting]");
   if (panel) panel.outerHTML = meetingHeroMarkup(data);
   refreshNotificationInbox();
-  renderActionCenter();
 };
 
 const meetingHeroMarkup = (data) => {
@@ -394,49 +368,11 @@ const meetingHeroMarkup = (data) => {
 
 const progressLabels = { not_started: "Not started", reading: "Reading", finished: "Finished" };
 
-const renderCurrentReading = (data, progress) => {
-  const section = $("#current-reading-section");
-  if (!data) { section.hidden = true; return; }
-  const book = data.meeting.book;
-  section.hidden = false;
-  $("#current-reading-title").textContent = book.title;
-  $("#current-reading-meta").textContent = `${book.author} · Discussing ${formatDate(data.meeting.meeting_date)}`;
-  $("#current-book-detail").innerHTML = `${book.description ? `<p>${escapeHtml(book.description)}</p>` : '<p class="muted">No description has been added yet.</p>'}${book.page_count ? `<p class="user-meta">${book.page_count} pages${book.genres ? ` · ${escapeHtml(book.genres)}` : ""}</p>` : ""}${book.catalogue_url ? `<a class="calendar-link" href="${escapeHtml(book.catalogue_url)}" target="_blank" rel="noopener">Find it in the catalogue <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg></a>` : ""}`;
-  const cover = $("#current-reading-cover");
-  cover.src = book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1";
-  cover.alt = book.cover_image_url ? `Cover of ${book.title}` : "";
-  $("#reading-progress-options").innerHTML = ["not_started", "reading", "finished"]
-    .map((status) => `<button type="button" class="${progress?.status === status ? "primary-button" : "secondary-button"} progress-button" data-reading-status="${status}" data-book-id="${book.id}">${progressLabels[status]}</button>`)
-    .join("") + `<button type="button" class="quiet-button" data-open-book="${book.id}">Book details &amp; club ratings</button>` + (progress?.status ? `<button type="button" class="quiet-button" data-reading-status="" data-book-id="${book.id}">Clear</button>` : "");
-};
-
-const loadCurrentReading = async (data = participantState.upcomingMeeting) => {
-  if (!data) { renderCurrentReading(null, null); return; }
-  participantState.readingProgress = await request(`/participant/books/${data.meeting.book.id}/reading-progress`);
-  renderCurrentReading(data, participantState.readingProgress);
-};
-
 const loadRsvp = async () => {
   const data = await request("/participant/meetings/upcoming");
   participantState.upcomingMeeting = data;
   renderRsvp(data);
-  await loadCurrentReading(data);
 };
-
-$("#reading-progress-options").addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-reading-status]");
-  if (!button) return;
-  try {
-    participantState.readingProgress = await request(`/participant/books/${button.dataset.bookId}/reading-progress`, {
-      method: "PUT",
-      body: JSON.stringify({ status: button.dataset.readingStatus || null }),
-    });
-    renderCurrentReading(participantState.upcomingMeeting, participantState.readingProgress);
-    await loadActivity();
-    renderActionCenter();
-    toast(button.dataset.readingStatus ? "Reading progress saved." : "Reading progress cleared.");
-  } catch (error) { toast(error.message); }
-});
 
 $("#book-page-content").addEventListener("click", async (event) => {
   const button = event.target.closest("[data-rsvp]");
@@ -447,7 +383,6 @@ $("#book-page-content").addEventListener("click", async (event) => {
       body: JSON.stringify({ status: button.dataset.rsvp }),
     }));
     toast("RSVP saved.");
-    renderActionCenter();
   } catch (error) {
     toast(error.message);
   }
@@ -555,9 +490,8 @@ const renderVoting = (round) => {
   const content = $("#voting-content");
   if (!round) {
     $("#voting-heading").textContent = "Voting";
-    content.innerHTML = '<p class="muted">No vote is open right now. Check back soon.</p>';
+    content.innerHTML = '<div class="panel-empty-state"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v16" /><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" /></svg></span><p><strong>No vote is open right now</strong><small>Check back soon for the next book choice.</small></p></div>';
     renderDecisionPrompt();
-    renderActionCenter();
     return;
   }
   const approved = round.candidates.filter((c) => c.status === "approved");
@@ -604,7 +538,6 @@ const renderVoting = (round) => {
     )
     .join("")}</div>${proposeForm}${newBookForm}${pendingCopy}`;
   renderDecisionPrompt();
-  renderActionCenter();
 };
 
 const loadVoting = async () => {
@@ -628,7 +561,6 @@ document.addEventListener("submit", async (event) => {
     });
     toast("Proposed — waiting on facilitator approval.");
     await loadVoting();
-    await loadActivity();
   } catch (error) {
     toast(error.message);
   }
@@ -647,7 +579,6 @@ document.addEventListener("submit", async (event) => {
     });
     toast("Proposed — waiting on facilitator approval.");
     await loadVoting();
-    await loadActivity();
   } catch (error) {
     toast(error.message);
   }
@@ -663,7 +594,6 @@ $("#voting-content").addEventListener("click", async (event) => {
     });
     renderVoting(round);
     toast("Vote saved.");
-    await loadActivity();
   } catch (error) {
     toast(error.message);
   }
@@ -693,9 +623,8 @@ const renderDatePoll = (poll) => {
   const content = $("#date-poll-content");
   if (!poll) {
     $("#date-poll-heading").textContent = "Meeting date";
-    content.innerHTML = '<p class="muted">No date poll is open right now.</p>';
+    content.innerHTML = '<div class="panel-empty-state"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v3" /><path d="M16 2v3" /><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18" /><path d="M8 13h.01" /><path d="M12 13h.01" /><path d="M16 13h.01" /><path d="M8 17h.01" /><path d="M12 17h.01" /><path d="M16 17h.01" /></svg></span><p><strong>No date poll is open right now</strong><small>Your facilitator hasn’t proposed dates yet.</small></p></div>';
     renderDecisionPrompt();
-    renderActionCenter();
     return;
   }
   const showResults = poll.status === "closed";
@@ -714,7 +643,6 @@ const renderDatePoll = (poll) => {
     ? `<div class="date-result-list">${optionsMarkup}</div>`
     : `<form class="date-choice-form" id="date-choice-form"><p class="date-choice-helper">Select every date you could attend, then save your availability.</p><div class="date-choice-list">${optionsMarkup}</div><footer><span id="date-choice-count">${myVoteIds.length ? `${myVoteIds.length} selected` : "No dates selected"}</span><button class="primary-button" type="submit">Save availability</button></footer></form>`;
   renderDecisionPrompt();
-  renderActionCenter();
 };
 
 const loadDatePoll = async () => {
@@ -748,7 +676,6 @@ $("#date-poll-content").addEventListener("submit", async (event) => {
     });
     renderDatePoll(poll);
     toast(optionIds.length ? "Availability saved." : "Availability cleared.");
-    await loadActivity();
   } catch (error) {
     toast(error.message);
     button.disabled = false;
@@ -806,7 +733,7 @@ const loadRatings = async () => {
   const sort = $("#library-sort").value;
   const books = [...new Map(groups.flatMap(([, items]) => items).map((book) => [book.id, book])).values()];
   if (!books.length) {
-    list.innerHTML = '<p class="muted">No books have been scheduled or completed yet.</p>';
+    list.innerHTML = '<div class="panel-empty-state"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v16" /><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" /></svg></span><p><strong>No books have been scheduled or completed yet</strong><small>They’ll appear here once your facilitator adds one.</small></p></div>';
     renderBooksJourneyOverview();
     return;
   }
@@ -818,10 +745,8 @@ const loadRatings = async () => {
   visible = visible.filter(({ book, status }) => (statusFilter === "all" || status === statusFilter) && (!query || `${book.title} ${book.author}`.toLocaleLowerCase().includes(query)));
   if (sort === "title") visible.sort((left, right) => left.book.title.localeCompare(right.book.title));
   if (sort === "rating") visible.sort((left, right) => (ratingsState.dataByBook[right.book.id].average || 0) - (ratingsState.dataByBook[left.book.id].average || 0));
-  list.innerHTML = visible.length ? (sort === "journey" ? renderJourneyShelf(visible) : `<div class="participant-book-grid flat-book-grid">${visible.map(({ book, status }) => renderBookRatingCard(book, ratingsState.dataByBook[book.id], status)).join("")}</div>`) : '<p class="muted">No books match your search.</p>';
+  list.innerHTML = visible.length ? (sort === "journey" ? renderJourneyShelf(visible) : `<div class="participant-book-grid flat-book-grid">${visible.map(({ book, status }) => renderBookRatingCard(book, ratingsState.dataByBook[book.id], status)).join("")}</div>`) : '<div class="panel-empty-state"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg></span><p><strong>No books match your search</strong><small>Try a different title, author, or filter.</small></p></div>';
   renderBooksJourneyOverview();
-  renderPostMeeting();
-  renderActionCenter();
 };
 
 $("#library-search").addEventListener("input", () => loadRatings().catch((error) => toast(error.message)));
@@ -1020,7 +945,7 @@ $("#suggestion-preview").addEventListener("submit", async (event) => {
     bookSuggestionState.selected = null;
     renderGoogleBookResults();
     renderSuggestionPreview();
-    await Promise.all([loadStats(), loadActivity()]);
+    await loadStats();
     toast("Suggestion sent to your facilitator.");
   } catch (error) {
     button.disabled = false;
@@ -1061,23 +986,10 @@ $("#ratings-list").addEventListener("click", async (event) => {
     delete ratingsState.dataByBook[bookId];
     toast("Rating saved.");
     await loadRatings();
-    await loadActivity();
   } catch (error) {
     toast(error.message);
   }
 });
-
-const renderPostMeeting = () => {
-  const section = $("#post-meeting-section");
-  const completed = participantState.latestCompletedMeeting;
-  if (!completed) { section.hidden = true; return; }
-  const book = completed.meeting.book;
-  const mine = ratingsState.mineByBook[book.id];
-  section.hidden = false;
-  $("#post-meeting-heading").textContent = mine ? `Thanks for sharing your take on ${book.title}` : `What did you think of ${book.title}?`;
-  $("#post-meeting-copy").textContent = mine ? `You rated it ${mine.rating} star${mine.rating === 1 ? "" : "s"}. You can update your rating or join the conversation anytime.` : `Capture a quick rating or reflection while the conversation is still fresh.`;
-  $("#post-meeting-actions").innerHTML = `<button class="primary-button" type="button" data-open-book="${book.id}">${mine ? "Update my review" : "Rate this book"}</button><button class="secondary-button" type="button" data-open-book="${book.id}">Open discussion</button>`;
-};
 
 const closeAccountMenu = ({ restoreFocus = false } = {}) => {
   const trigger = $("#account-menu-trigger");
@@ -1119,18 +1031,6 @@ $("#resend-verification").addEventListener("click", async () => {
     toast(error.message);
   }
 });
-
-const renderActivity = (activity) => {
-  const stats = [
-    [activity.attended_meetings_count, "meetings attended"],
-    [activity.ratings_count, "books rated"],
-    [activity.book_votes_count + activity.date_votes_count, "votes cast"],
-    [activity.proposals_count, "books proposed"],
-  ];
-  $("#activity-stats").innerHTML = stats.map(([count, label]) => `<div class="activity-stat"><strong>${count}</strong><span>${label}</span></div>`).join("");
-};
-
-const loadActivity = async () => renderActivity(await request("/participant/activity"));
 
 const statCardsMarkup = (items, className = "") => `<div class="portal-stat-grid${className ? ` ${escapeHtml(className)}` : ""}">${items.map(([value, label, icon]) => `<article class="portal-stat-card">${icon ? `<i aria-hidden="true">${icon}</i>` : ""}<div class="portal-stat-copy"><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></div></article>`).join("")}</div>`;
 
@@ -1246,8 +1146,6 @@ const loadClubActivity = async () => {
   const activity = await request("/participant/club-activity");
   participantState.clubActivity = activity;
   refreshNotificationInbox();
-  const list = $("#activity-list");
-  if (list) list.innerHTML = activity.length ? activity.map((item) => `<article class="feed-item">${avatarMarkup(item.actor)}<div><p><strong>${escapeHtml(item.actor.name)}</strong> ${item.kind === "rating" ? "rated" : item.kind === "progress" ? "updated their progress on" : "posted about"} <strong>${escapeHtml(item.book.title)}</strong>${item.detail ? ` · ${escapeHtml(item.detail)}` : ""}</p><small class="user-meta">${escapeHtml(formatTimestamp(item.created_at))}</small></div></article>`).join("") : '<p class="muted">Shared progress, ratings, and discussions will appear here.</p>';
 };
 
 const avatarMarkup = (profile) => profile.avatar_url
@@ -1412,17 +1310,24 @@ const saveHeroRating = async (rating) => {
   participantState.heroRatingSaving = true;
   $("#hero-rating-control")?.setAttribute("aria-busy", "true");
   try {
-    await request(`/participant/books/${participantState.activeBookId}/rating`, {
-      method: "PUT",
-      body: JSON.stringify({ rating, review_text: participantState.activeRating?.review_text || null }),
-    });
-    delete ratingsState.dataByBook[participantState.activeBookId];
-    await Promise.all([loadRatings(), loadActivity(), loadClubActivity()]);
-    await openBookPage(participantState.activeBookId);
+    try {
+      await request(`/participant/books/${participantState.activeBookId}/rating`, {
+        method: "PUT",
+        body: JSON.stringify({ rating, review_text: participantState.activeRating?.review_text || null }),
+      });
+    } catch (error) {
+      paintHeroRating(participantState.activeRating?.rating || 0);
+      toast(error.message);
+      return;
+    }
     toast(`Your ${rating}-star rating was saved.`);
-  } catch (error) {
-    paintHeroRating(participantState.activeRating?.rating || 0);
-    toast(error.message);
+    delete ratingsState.dataByBook[participantState.activeBookId];
+    try {
+      await Promise.all([loadRatings(), loadClubActivity()]);
+      await openBookPage(participantState.activeBookId);
+    } catch {
+      // the rating already saved; a stale view here isn't worth an error toast
+    }
   } finally {
     participantState.heroRatingSaving = false;
     $("#hero-rating-control")?.removeAttribute("aria-busy");
@@ -1441,8 +1346,33 @@ const openRatingReviewDialog = () => {
   $("#rating-review-stars").innerHTML = `${ratingStarsMarkup(rating, { id: "review-dialog-rating-control", label: "Your rating and review", outputId: "review-dialog-rating-value" })}<output class="rating-value" id="review-dialog-rating-value">${rating} out of 5</output>`;
   $("#rating-review-text").value = participantState.activeRating?.review_text || "";
   $("#rating-review-error").textContent = "";
+  $("#remove-rating-review").hidden = !participantState.activeRating;
   $("#rating-review-dialog").showModal();
 };
+
+const removeMyRating = async () => {
+  const button = $("#remove-rating-review");
+  button.disabled = true;
+  try {
+    await request(`/participant/books/${participantState.activeBookId}/rating`, { method: "DELETE" });
+  } catch (error) {
+    $("#rating-review-error").textContent = error.message;
+    button.disabled = false;
+    return;
+  }
+  button.disabled = false;
+  $("#rating-review-dialog").close();
+  toast("Rating removed.");
+  delete ratingsState.dataByBook[participantState.activeBookId];
+  try {
+    await Promise.all([loadRatings(), loadClubActivity()]);
+    await openBookPage(participantState.activeBookId);
+  } catch {
+    // the rating already came off; a stale view here isn't worth an error toast
+  }
+};
+
+$("#remove-rating-review").addEventListener("click", () => removeMyRating().catch((error) => toast(error.message)));
 
 document.addEventListener("click", (event) => {
   if (event.target.closest("[data-open-rating-review]")) openRatingReviewDialog();
@@ -1484,15 +1414,20 @@ $("#rating-review-form").addEventListener("submit", async (event) => {
       method: "PUT",
       body: JSON.stringify({ rating: participantState.pendingReviewRating, review_text: $("#rating-review-text").value.trim() || null }),
     });
-    $("#rating-review-dialog").close();
-    delete ratingsState.dataByBook[participantState.activeBookId];
-    await Promise.all([loadRatings(), loadActivity(), loadClubActivity()]);
-    await openBookPage(participantState.activeBookId);
-    toast("Your rating and review were saved.");
   } catch (error) {
     $("#rating-review-error").textContent = error.message;
-  } finally {
     submit.disabled = false;
+    return;
+  }
+  submit.disabled = false;
+  $("#rating-review-dialog").close();
+  toast("Your rating and review were saved.");
+  delete ratingsState.dataByBook[participantState.activeBookId];
+  try {
+    await Promise.all([loadRatings(), loadClubActivity()]);
+    await openBookPage(participantState.activeBookId);
+  } catch {
+    // the rating/review already saved; a stale view here isn't worth an error toast
   }
 });
 
@@ -1503,7 +1438,7 @@ const discussionMarkup = (posts) => {
     const childReplies = reply ? [] : replies.filter((item) => item.parent_id === post.id);
     return `<article class="${reply ? "discussion-reply" : "discussion-thread"}"><header class="discussion-author">${avatarMarkup(post.author)}<div><strong>${escapeHtml(post.author.name)}</strong><small class="user-meta">${escapeHtml(formatTimestamp(post.created_at))}</small></div>${post.spoiler ? '<span class="spoiler-badge">Spoiler</span>' : ""}</header><p class="discussion-body${post.spoiler ? " spoiler-text" : ""}"${post.spoiler ? ` data-reveal-spoiler="true" data-body="${escapeHtml(post.body)}"` : ""}>${post.spoiler ? "Tap to reveal this comment" : escapeHtml(post.body)}</p><div class="post-meeting-actions discussion-actions"><button class="quiet-button reaction-button${post.reacted_by_me ? " is-active" : ""}" type="button" data-react-post="${post.id}" aria-label="${post.reacted_by_me ? "Remove reaction" : "React to this post"}"><svg class="icon" viewBox="0 0 24 24" fill="${post.reacted_by_me ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" /></svg> <span>${post.reaction_count}</span></button>${reply ? "" : `<button class="quiet-button" type="button" data-detail-reply="${post.id}">Reply</button>`}${post.author.is_self ? `<button class="quiet-button" type="button" data-detail-delete-post="${post.id}">Delete</button>` : ""}</div>${reply ? "" : `<form class="reply-form thread-reply-form" data-detail-reply-form="${post.id}" hidden><textarea rows="2" maxlength="4000" placeholder="Add to this thread…"></textarea><div><label><input type="checkbox" name="spoiler" /> Contains spoilers</label><button class="secondary-button" type="submit">Post reply</button></div></form>${childReplies.length ? `<div class="discussion-replies"><p class="reply-count">${childReplies.length} ${childReplies.length === 1 ? "reply" : "replies"}</p>${childReplies.map((item) => postMarkup(item, true)).join("")}</div>` : ""}`}</article>`;
   };
-  return roots.length ? roots.map((post) => postMarkup(post)).join("") : '<p class="muted">No posts yet. Start the conversation.</p>';
+  return roots.length ? roots.map((post) => postMarkup(post)).join("") : '<div class="panel-empty-state"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" /></svg></span><p><strong>No posts yet</strong><small>Start the conversation above.</small></p></div>';
 };
 
 const staticRatingMarkup = (rating) => `<span class="static-rating-stars" style="--rating-width:${Math.max(0, Math.min(100, (Number(rating) / 5) * 100))}%" role="img" aria-label="${rating} out of 5 stars"><span aria-hidden="true">★★★★★</span><span aria-hidden="true">★★★★★</span></span>`;
@@ -1605,12 +1540,18 @@ $("#book-page-content").addEventListener("click", async (event) => {
         method: "PUT",
         body: JSON.stringify({ attended }),
       });
-      await Promise.all([loadStats(), loadActivity()]);
-      await openBookPage(participantState.activeBookId);
-      toast(attended ? "Attendance added to My stats." : "Attendance updated.");
     } catch (error) {
       group?.querySelectorAll("button").forEach((button) => { button.disabled = false; });
       toast(error.message);
+      return;
+    }
+    toast(attended ? "Attendance added to My stats." : "Attendance updated.");
+    try {
+      await loadStats();
+      await openBookPage(participantState.activeBookId);
+    } catch {
+      // the attendance record already saved; a stale view here isn't worth an error toast
+      group?.querySelectorAll("button").forEach((button) => { button.disabled = false; });
     }
     return;
   }
@@ -1641,15 +1582,22 @@ $("#book-page-content").addEventListener("click", async (event) => {
   if (reply) { $(`[data-detail-reply-form='${reply.dataset.detailReply}']`).hidden = false; return; }
   const react = event.target.closest("[data-react-post]");
   const remove = event.target.closest("[data-detail-delete-post]");
+  if (!react && !remove) return;
   try {
     if (react) await request(`/participant/discussion/${react.dataset.reactPost}/reaction`, { method: "PUT" });
-    else if (remove) await request(`/participant/discussion/${remove.dataset.detailDeletePost}`, { method: "DELETE" });
-    else return;
-    delete ratingsState.dataByBook[participantState.activeBookId];
-    await Promise.all([loadRatings(), loadActivity(), loadClubActivity()]);
+    else await request(`/participant/discussion/${remove.dataset.detailDeletePost}`, { method: "DELETE" });
+  } catch (error) {
+    toast(error.message);
+    return;
+  }
+  toast("Saved.");
+  delete ratingsState.dataByBook[participantState.activeBookId];
+  try {
+    await Promise.all([loadRatings(), loadClubActivity()]);
     await openBookPage(participantState.activeBookId);
-    toast("Saved.");
-  } catch (error) { toast(error.message); }
+  } catch {
+    // the reaction/delete already saved; a stale view here isn't worth an error toast
+  }
 });
 $("#book-page-content").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1665,10 +1613,17 @@ $("#book-page-content").addEventListener("submit", async (event) => {
       if (!textarea.value.trim()) return;
       await request(`/participant/books/${id}/discussion`, { method: "POST", body: JSON.stringify({ body: textarea.value.trim(), parent_id: parentId, spoiler: form.elements.spoiler.checked }) });
     }
-    await Promise.all([loadCurrentReading(), loadActivity(), loadClubActivity()]);
+  } catch (error) {
+    toast(error.message);
+    return;
+  }
+  toast("Saved.");
+  try {
+    await loadClubActivity();
     await openBookPage(id);
-    toast("Saved.");
-  } catch (error) { toast(error.message); }
+  } catch {
+    // the write already saved; a stale view here isn't worth an error toast
+  }
 });
 
 const profileInitials = (name = "Reader") => name.trim().split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase() || "R";
@@ -1738,73 +1693,6 @@ $("#profile-form").addEventListener("submit", async (event) => {
     toast("Profile saved.");
   } catch (error) { $("#profile-error").textContent = error.message; }
   finally { button.disabled = false; button.textContent = "Save profile"; }
-});
-
-const renderDiscussion = (book, posts) => {
-  const section = $("#discussion-section");
-  section.hidden = false;
-  section.dataset.bookId = book.id;
-  $("#discussion-heading").textContent = `Discuss ${book.title}`;
-  const roots = posts.filter((post) => post.parent_id == null);
-  const replies = posts.filter((post) => post.parent_id != null);
-  $("#discussion-list").innerHTML = roots.length ? roots.map((post) => {
-    const postReplies = replies.filter((reply) => reply.parent_id === post.id);
-    return `<article class="discussion-thread"><div class="discussion-author">${avatarMarkup(post.author)}<div><strong>${escapeHtml(post.author.name)}</strong><small class="user-meta">${escapeHtml(formatTimestamp(post.created_at))}</small></div></div><p class="discussion-body">${escapeHtml(post.body)}</p><div class="post-meeting-actions"><button class="quiet-button" type="button" data-reply-to="${post.id}">Reply</button>${post.author.is_self ? `<button class="quiet-button" type="button" data-delete-post="${post.id}">Delete</button>` : ""}</div><form class="reply-form" data-reply-form="${post.id}" hidden><textarea rows="2" maxlength="4000" placeholder="Write a reply"></textarea><button class="secondary-button" type="submit">Post reply</button></form><div class="discussion-replies">${postReplies.map((reply) => `<div class="discussion-reply"><div class="discussion-author">${avatarMarkup(reply.author)}<div><strong>${escapeHtml(reply.author.name)}</strong><small class="user-meta">${escapeHtml(formatTimestamp(reply.created_at))}</small></div></div><p class="discussion-body">${escapeHtml(reply.body)}</p>${reply.author.is_self ? `<button class="quiet-button" type="button" data-delete-post="${reply.id}">Delete</button>` : ""}</div>`).join("")}</div></article>`;
-  }).join("") : '<p class="muted">No posts yet. Start the conversation.</p>';
-};
-
-const loadDiscussion = async (bookId) => {
-  const book = participantState.books.find((item) => item.id === Number(bookId));
-  if (!book) return;
-  renderDiscussion(book, await request(`/participant/books/${book.id}/discussion`));
-};
-
-$("#discussion-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const bookId = Number($("#discussion-section").dataset.bookId);
-  const body = $("#discussion-body").value.trim();
-  if (!body) { toast("Write something before posting."); return; }
-  try {
-    await request(`/participant/books/${bookId}/discussion`, { method: "POST", body: JSON.stringify({ body }) });
-    $("#discussion-body").value = "";
-    await loadDiscussion(bookId);
-    toast("Posted to the discussion.");
-  } catch (error) { toast(error.message); }
-});
-
-$("#discussion-list").addEventListener("click", async (event) => {
-  const reply = event.target.closest("[data-reply-to]");
-  if (reply) { $("[data-reply-form='" + reply.dataset.replyTo + "']").hidden = false; return; }
-  const remove = event.target.closest("[data-delete-post]");
-  if (!remove) return;
-  try {
-    await request(`/participant/discussion/${remove.dataset.deletePost}`, { method: "DELETE" });
-    await loadDiscussion(Number($("#discussion-section").dataset.bookId));
-    toast("Post deleted.");
-  } catch (error) { toast(error.message); }
-});
-
-$("#discussion-list").addEventListener("submit", async (event) => {
-  const form = event.target.closest("[data-reply-form]");
-  if (!form) return;
-  event.preventDefault();
-  const body = form.querySelector("textarea").value.trim();
-  if (!body) return;
-  const bookId = Number($("#discussion-section").dataset.bookId);
-  try {
-    await request(`/participant/books/${bookId}/discussion`, { method: "POST", body: JSON.stringify({ body, parent_id: Number(form.dataset.replyForm) }) });
-    await loadDiscussion(bookId);
-    toast("Reply posted.");
-  } catch (error) { toast(error.message); }
-});
-
-document.addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-open-discussion-book]");
-  if (!button) return;
-  try {
-    await loadDiscussion(Number(button.dataset.openDiscussionBook));
-    $("#discussion-section").scrollIntoView({ behavior: "smooth", block: "start" });
-  } catch (error) { toast(error.message); }
 });
 
 const loadClubSwitcher = async (activeSlug) => {
@@ -1966,7 +1854,6 @@ $("#notification-form").addEventListener("submit", async (event) => {
       $("#book-page-content").innerHTML = '<div class="book-page-empty"><h2>Your club’s next read will live here</h2><p>Once a book is scheduled, members can track progress, rate it, and discuss it together.</p></div>';
       setPortalView(requestedView, { updateHistory: false });
     }
-    renderActionCenter();
     startAnnouncementRefresh();
   } catch {
     location.href = "/";
