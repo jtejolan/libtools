@@ -369,7 +369,7 @@ const meetingHeroMarkup = (data) => {
     <div class="meeting-response-row"><span>Your RSVP</span><div class="meeting-actions">
       ${options.map(([status, label]) => `<button class="${data.rsvp_status === status ? "primary-button" : "secondary-button"}" data-rsvp="${status}" data-meeting-id="${meeting.id}">${label}</button>`).join("")}
     </div></div>
-    <p class="book-meeting-note">${data.rsvp_status ? "Your RSVP is saved. You can change it anytime before the meeting." : "RSVP so your facilitator can plan."}</p>
+    ${data.rsvp_status ? `<p class="book-meeting-note">Your RSVP is saved. You can change it anytime before the meeting.</p>` : ""}
     <div class="calendar-actions"><a class="calendar-link" href="${escapeHtml(data.google_calendar_url)}" target="_blank" rel="noopener">Add to Google Calendar <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg></a><a class="calendar-link" href="${escapeHtml(data.ics_calendar_url)}" download><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3" /><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /></svg> Download calendar invite</a></div>
   </section>`;
 };

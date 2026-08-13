@@ -125,6 +125,7 @@ h2 { margin: 0; font-size: 28px; font-weight: 500; line-height: 1.1; }
 .stats-grid article:nth-child(3)::after { background: var(--orange); }
 .stats-grid article:nth-child(4)::after { background: var(--blue); }
 .stat-icon { width: 43px; height: 43px; display: grid; place-items: center; border-radius: 50% 50% 50% 12px; font-size: 18px; }
+.stat-icon svg.icon { width: 20px; height: 20px; vertical-align: middle; }
 .stat-icon.green { background: rgba(131,157,107,.23); }
 .stat-icon.gold { background: rgba(227,170,66,.23); }
 .stat-icon.orange { background: rgba(232,94,22,.16); }
