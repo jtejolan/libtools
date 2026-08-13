@@ -142,6 +142,14 @@ const portalHeading = (view) => {
 const initializePortalShell = () => {
   const main = $("main.dashboard");
   const header = $(".site-header");
+  const clubSwitcher = $("#club-switcher");
+  const clubSwitcherField = document.createElement("label");
+  clubSwitcherField.className = "account-club-switcher";
+  clubSwitcherField.id = "club-switcher-field";
+  clubSwitcherField.hidden = true;
+  clubSwitcherField.innerHTML = '<span><strong>Switch book club</strong><small>Change your active club</small></span>';
+  clubSwitcherField.append(clubSwitcher);
+  $(".account-menu-identity").insertAdjacentElement("afterend", clubSwitcherField);
   const portalNavIcons = {
     home: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>',
     books: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v16" /><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" /></svg>',
@@ -1699,7 +1707,7 @@ $("#profile-form").addEventListener("submit", async (event) => {
 const loadClubSwitcher = async (activeSlug) => {
   const clubs = await request("/participant/auth/clubs");
   $("#club-switcher").innerHTML = clubs.map((club) => `<option value="${escapeHtml(club.slug)}"${club.slug === activeSlug ? " selected" : ""}>${escapeHtml(club.name)}</option>`).join("");
-  $("#club-switcher").hidden = clubs.length < 2;
+  $("#club-switcher-field").hidden = clubs.length < 2;
 };
 
 $("#club-switcher").addEventListener("change", async (event) => {
