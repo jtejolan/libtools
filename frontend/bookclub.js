@@ -675,6 +675,15 @@ const renderMeetingView = () => {
   $("#attendance-stat").textContent = state.roster.filter(
     (entry) => entry.attended,
   ).length;
+  const rsvpCounts = state.roster.reduce((counts, entry) => {
+    if (Object.hasOwn(counts, entry.rsvp_status)) counts[entry.rsvp_status] += 1;
+    else counts.no_response += 1;
+    return counts;
+  }, { attending: 0, maybe: 0, not_attending: 0, no_response: 0 });
+  $("#rsvp-attending-stat").textContent = rsvpCounts.attending;
+  $("#rsvp-maybe-stat").textContent = rsvpCounts.maybe;
+  $("#rsvp-not-attending-stat").textContent = rsvpCounts.not_attending;
+  $("#rsvp-no-response-stat").textContent = rsvpCounts.no_response;
   renderSessionControls();
   renderDiscussionNotes();
   $("#roster-add-search").value = "";
@@ -936,6 +945,13 @@ const isFirstAttendedSession = (entry) => {
   return summary?.attended_count === 1 && summary.last_attended_date === meeting.meeting_date;
 };
 
+const rosterRsvpFlagMarkup = (status) => {
+  const labels = { attending: "Attending", maybe: "Maybe", not_attending: "Can’t attend" };
+  return labels[status]
+    ? `<span class="status-pill roster-rsvp-flag is-${status.replace("_", "-")}">${labels[status]}</span>`
+    : "";
+};
+
 const renderRoster = () => {
   const body = $("#roster-table");
   if (!state.meetingId) {
@@ -972,6 +988,7 @@ const renderRoster = () => {
       const noteIndicatorHtml = entry.notes
         ? `<span class="roster-note-indicator" title="${escapeHtml(entry.notes)}">✎ Note</span>`
         : "";
+      const rsvpFlagHtml = rosterRsvpFlagMarkup(entry.rsvp_status);
       const participantAttendanceHtml = entry.attendance_source === "participant"
         ? `<button class="status-pill self-reported-attendance" type="button" data-confirm-attendance="${member.id}" title="Confirm this participant’s self-reported attendance">Self-reported · Confirm</button>`
         : entry.attendance_source === "facilitator" && entry.participant_attended !== null && entry.participant_attended !== entry.attended
@@ -981,7 +998,7 @@ const renderRoster = () => {
         <div class="roster-card-main">
           <span class="avatar">${escapeHtml(initials(member.name))}</span>
           <div class="roster-card-identity">
-            <strong>${escapeHtml(member.name)}</strong>
+            <div class="roster-card-name-row"><strong>${escapeHtml(member.name)}</strong>${rsvpFlagHtml}</div>
             <span class="roster-card-status">${attended ? "Attended" : "Tap to check in"}</span>
           </div>
         </div>
@@ -1230,9 +1247,7 @@ const renderMembers = () => {
           const communityAccess = communityAccessFor(member);
           const accessStatus = communityAccess.status;
           const accessLabel = COMMUNITY_ACCESS_LABELS[accessStatus] || accessStatus;
-          const communityAction = accessStatus === "invitation_not_accepted" && state.club.public && state.club.enrollment_policy !== "closed"
-            ? `<button class="quiet-button" type="button" data-copy-community-invite="${member.id}">Copy invitation</button>`
-            : accessStatus === "verification_pending"
+          const communityAction = accessStatus === "verification_pending"
               ? `<button class="quiet-button" type="button" data-resend-community-verification="${member.id}">Resend verification</button>`
               : accessStatus === "inactive_member"
                 ? `<button class="quiet-button" type="button" data-reactivate-member="${member.id}">Reactivate member</button>`
@@ -1242,9 +1257,9 @@ const renderMembers = () => {
               (badge) => `<button class="status-pill ${badge.className} jump-badge" type="button" data-jump-to-pending="${member.id}" data-stage="${badge.stage}">${escapeHtml(badge.label)}</button>`,
             )
             .join("");
-          return `<article class="member-profile-card ${lapsed ? "needs-attention" : ""}">
+          return `<article class="member-profile-card community-${accessStatus} ${lapsed ? "needs-attention" : ""}">
             <header class="member-profile-heading">
-              <div class="member-cell"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><span class="member-email-row"><small class="member-email">${escapeHtml(member.email)}</small><button class="copy-email-button" type="button" data-copy-email="${escapeHtml(member.email)}" aria-label="Copy ${escapeHtml(member.name)}'s email address" title="Copy email address"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg></button></span></div></div>
+              <div class="member-cell"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><span class="member-email-row"><a class="member-email" href="mailto:${escapeHtml(member.email)}">${escapeHtml(member.email)}</a><button class="copy-email-button" type="button" data-copy-email="${escapeHtml(member.email)}" aria-label="Copy ${escapeHtml(member.name)}'s email address" title="Copy email address"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg></button></span></div></div>
               <span class="status-pill ${member.active ? "" : "inactive"}">${member.active ? "Active" : "Inactive"}</span>
             </header>
             <div class="community-access-row"><div><span>Community access</span><strong class="community-access-status ${accessStatus}"><i></i>${escapeHtml(accessLabel)}</strong></div>${communityAccess.announcements_enabled ? "" : '<span class="status-pill announcements-off-badge">Announcements off</span>'}</div>
@@ -1258,7 +1273,7 @@ const renderMembers = () => {
               <div><dt>Last attended</dt><dd>${participation?.last_attended_date ? escapeHtml(formatDate(participation.last_attended_date)) : "Not yet"}</dd></div>
               <div><dt>Last contacted</dt><dd>${participation?.last_contacted_at ? escapeHtml(formatDate(participation.last_contacted_at.slice(0, 10))) : "Not yet"}</dd></div>
             </dl>
-            ${member.notes ? `<p class="member-card-notes">${escapeHtml(member.notes)}</p>` : ""}
+            ${member.notes ? `<p class="member-card-notes" title="${escapeHtml(member.notes)}">${escapeHtml(member.notes)}</p>` : ""}
             <footer class="member-profile-actions ${communityAction ? "has-community-action" : ""}">${communityAction}<button class="quiet-button" type="button" data-member-history="${member.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l4 2" /></svg> View history</button><button class="secondary-button" type="button" data-edit-member="${member.id}"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg> Edit member</button></footer>
           </article>`;
         })
@@ -2080,16 +2095,6 @@ document.addEventListener("click", async (event) => {
   }
   const historyButton = event.target.closest("[data-member-history]");
   if (historyButton) return showMemberHistory(Number(historyButton.dataset.memberHistory));
-  const copyCommunityInvite = event.target.closest("[data-copy-community-invite]");
-  if (copyCommunityInvite) {
-    const invitationUrl = `${BOOKCLUB_PARTICIPANT_ORIGIN}/clubs/${encodeURIComponent(state.club.slug)}`;
-    try {
-      await navigator.clipboard.writeText(invitationUrl);
-      return showToast("Community invitation copied.");
-    } catch {
-      return showToast("Could not copy the invitation.");
-    }
-  }
   const resendVerification = event.target.closest("[data-resend-community-verification]");
   if (resendVerification) {
     try {

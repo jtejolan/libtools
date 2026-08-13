@@ -10,9 +10,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/static/bookclub.css?v=37" />
-    <link rel="stylesheet" href="/static/bookclub-manage.css?v=4" />
+    <link rel="stylesheet" href="/static/bookclub-manage.css?v=5" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub-manage.js?v=12" defer></script>
+    <script src="/static/bookclub-manage.js?v=14" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -47,9 +47,7 @@
           <nav class="manage-tabs" aria-label="Community sections"><button class="manage-tab active" type="button" data-view="overview">Overview</button><button class="manage-tab" type="button" data-view="voting">Next book</button><button class="manage-tab" type="button" data-view="date-poll">Meeting date</button><button class="manage-tab" type="button" data-view="announcements">Announcements</button><button class="manage-tab" type="button" data-view="discussions">Discussions</button></nav>
 
           <section id="overview-view">
-            <div class="community-stats"><article><strong id="member-count">—</strong><span>people on the roster</span></article><article><strong id="linked-count">—</strong><span>community accounts</span></article><article><strong id="verified-count">—</strong><span>community active</span></article><article><strong id="attention-count">—</strong><span>items needing attention</span></article></div>
-            <div class="community-grid"><section class="community-panel"><p class="eyebrow"><span></span>Next gathering</p><h2 id="next-meeting-heading">Upcoming meeting</h2><div id="next-meeting-content" class="muted">Loading…</div></section><section class="community-panel"><p class="eyebrow"><span></span>Needs attention</p><h2>Community queue</h2><div id="attention-list"></div></section></div>
-            <section class="community-panel activation-panel"><div class="manage-toolbar"><div><p class="eyebrow"><span></span>Participant access</p><h2>Account activation</h2><p class="muted">Read-only status from your main roster. Add or edit people in Members.</p></div><a class="secondary-button" href="/bookclub?action=view-members">Open members</a></div><div id="activation-list"></div></section>
+            <div id="community-overview-dashboard"><p class="community-overview-loading">Gathering the latest club activity…</p></div>
           </section>
 
           <section id="voting-view" hidden><section class="reader-suggestion-queue"><div class="manage-toolbar"><div class="section-intro"><p class="eyebrow"><span></span>From your readers</p><h2>Book suggestions</h2><p class="muted">Review titles and the comments readers included with them.</p></div><span class="suggestion-queue-count" id="suggestion-queue-count">—</span></div><div class="user-list" id="book-suggestion-list"></div></section><div class="manage-toolbar voting-round-toolbar"><div class="section-intro"><p class="eyebrow"><span></span>Collective choice</p><h2>Choose the next book</h2><p class="muted" id="voting-toolbar-copy">No poll running right now.</p></div><button class="primary-button" id="start-voting-round">Start a poll</button><button class="secondary-button" id="close-voting-round" hidden>Close voting</button></div><div class="user-list" id="voting-list"></div><div class="manage-toolbar add-option-row" id="add-candidate-row" hidden><label class="field"><span>Add another candidate</span><select id="candidate-book-select"></select></label><button class="secondary-button" id="add-candidate-button">Add</button></div></section>
