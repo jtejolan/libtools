@@ -79,6 +79,7 @@ const formatDate = (value) =>
 
 const render = (participant) => {
   document.title = `${participant.club_name} — Book Club`;
+  $(".site-header .brand span").textContent = participant.club_name;
   $("#club-eyebrow").textContent = participant.club_name;
   $("#welcome-heading").textContent = timeBasedGreeting(participant.name);
   syncAccountIdentity(participant.name);
