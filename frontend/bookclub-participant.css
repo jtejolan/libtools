@@ -764,12 +764,11 @@ body .pace-guidance{margin:0;padding:12px 14px;border:0;border-left:0;border-rad
   body{padding-bottom:76px}
   .shell{width:min(100% - 20px,1120px)}
   .site-header{min-height:60px;margin-top:8px;padding:8px 10px;display:flex;align-items:center;border:1px solid rgba(24,59,51,.14);border-radius:14px}
-  .site-header .brand{gap:7px;font-size:16px;white-space:nowrap}
-  .site-header .brand{min-width:0;max-width:calc(100% - 196px)}
-  .site-header .brand>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .site-header .brand{min-width:0;flex:1 1 auto;gap:7px;font-size:16px;line-height:1.08;white-space:normal}
+  .site-header .brand>span:last-child{min-width:0;overflow:visible;white-space:normal;text-overflow:clip}
   .site-header .brand img{width:25px;height:27px}
   .site-header .brand>span:last-child{top:0}
-  .site-header .participant-nav{min-width:0;margin-left:auto;display:flex;align-items:center;flex-direction:row}
+  .site-header .participant-nav{min-width:0;flex:0 0 auto;margin-left:auto;display:flex;align-items:center;flex-direction:row}
   .site-header .header-actions{gap:5px;padding:0;flex-wrap:nowrap}
   .notification-trigger{width:36px;height:36px;border-radius:10px}
   .account-menu-trigger{min-height:36px;max-width:150px;padding:3px 7px 3px 4px;gap:6px;border-radius:10px}
