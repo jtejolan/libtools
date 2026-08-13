@@ -681,6 +681,7 @@ def send_onboarding_email(
         recipient=member.email,
         subject=rendered.subject or "",
         body=rendered.body,
+        club_name=db.get(models.BookClub, _club_id(db)).name,
     )
     member.onboarding_email_sent_at = datetime.now(timezone.utc)
     _commit(db, member)
@@ -725,6 +726,7 @@ def send_arrival_email(
         recipient=member.email,
         subject=rendered.subject or "",
         body=rendered.body,
+        club_name=db.get(models.BookClub, _club_id(db)).name,
     )
     member.arrival_email_sent_at = datetime.now(timezone.utc)
     _commit(db, member)
@@ -785,6 +787,7 @@ def send_reminder_batch(
         recipients=[member.email for member in members],
         subject=rendered.subject or "",
         body=rendered.body,
+        club_name=db.get(models.BookClub, _club_id(db)).name,
     )
     now = datetime.now(timezone.utc)
     meeting.reminder_sent_at = now
@@ -1463,34 +1466,51 @@ def date_poll_vote_counts(db: Session, poll_id: int) -> dict[int, int]:
     return dict(rows)
 
 
-def get_own_date_vote(db: Session, poll_id: int, participant_id: int) -> models.BookClubDatePollVote | None:
-    return db.scalar(
+def list_own_date_votes(
+    db: Session, poll_id: int, participant_id: int
+) -> list[models.BookClubDatePollVote]:
+    return list(db.scalars(
         select(models.BookClubDatePollVote).where(
             models.BookClubDatePollVote.poll_id == poll_id,
             models.BookClubDatePollVote.participant_id == participant_id,
-        )
-    )
+        ).order_by(models.BookClubDatePollVote.option_id)
+    ))
+
+
+def get_own_date_vote(db: Session, poll_id: int, participant_id: int) -> models.BookClubDatePollVote | None:
+    return next(iter(list_own_date_votes(db, poll_id, participant_id)), None)
 
 
 def cast_date_vote(
     db: Session, poll_id: int, option_id: int, participant_id: int
 ) -> models.BookClubDatePollVote:
-    vote = get_own_date_vote(db, poll_id, participant_id)
-    if vote is None:
-        vote = models.BookClubDatePollVote(
+    # Compatibility helper for any internal caller still casting one date.
+    return replace_date_votes(db, poll_id, [option_id], participant_id)[0]
+
+
+def replace_date_votes(
+    db: Session, poll_id: int, option_ids: list[int], participant_id: int
+) -> list[models.BookClubDatePollVote]:
+    selected = set(option_ids)
+    existing = list_own_date_votes(db, poll_id, participant_id)
+    existing_ids = {vote.option_id for vote in existing}
+    for vote in existing:
+        if vote.option_id not in selected:
+            db.delete(vote)
+    for option_id in selected - existing_ids:
+        db.add(models.BookClubDatePollVote(
             poll_id=poll_id, participant_id=participant_id, option_id=option_id
-        )
-        db.add(vote)
-    else:
-        vote.option_id = option_id
-    return _commit(db, vote)
+        ))
+    db.commit()
+    return list_own_date_votes(db, poll_id, participant_id)
 
 
 def remove_date_vote(db: Session, poll_id: int, participant_id: int) -> bool:
-    vote = get_own_date_vote(db, poll_id, participant_id)
-    if vote is None:
+    votes = list_own_date_votes(db, poll_id, participant_id)
+    if not votes:
         return False
-    db.delete(vote)
+    for vote in votes:
+        db.delete(vote)
     db.commit()
     return True
 

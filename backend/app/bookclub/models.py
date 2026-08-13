@@ -653,7 +653,9 @@ class BookClubDatePollOption(Base):
 class BookClubDatePollVote(Base):
     __tablename__ = "bookclub_date_poll_votes"
     __table_args__ = (
-        UniqueConstraint("poll_id", "participant_id", name="uq_bookclub_date_poll_vote"),
+        UniqueConstraint(
+            "poll_id", "participant_id", "option_id", name="uq_bookclub_date_poll_vote"
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

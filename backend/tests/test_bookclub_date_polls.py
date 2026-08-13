@@ -101,6 +101,34 @@ class DatePollRoutesTests(unittest.TestCase):
         response = self.reader_a.put("/participant/date-poll/vote", json={"option_id": option_id})
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["my_vote_option_id"], option_id)
+        self.assertEqual(response.json()["my_vote_option_ids"], [option_id])
+
+    def test_participant_can_select_multiple_dates(self) -> None:
+        poll = self.open_poll()
+        option_ids = [option["id"] for option in poll["options"]]
+        response = self.reader_a.put(
+            "/participant/date-poll/vote", json={"option_ids": option_ids}
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["my_vote_option_ids"], option_ids)
+
+        facilitator_view = self.facilitator.get("/bookclub/community/date-poll").json()
+        self.assertTrue(all(option["vote_count"] == 1 for option in facilitator_view["options"]))
+
+    def test_participant_can_replace_or_clear_date_choices(self) -> None:
+        poll = self.open_poll()
+        first, second = poll["options"][0]["id"], poll["options"][1]["id"]
+        self.reader_a.put(
+            "/participant/date-poll/vote", json={"option_ids": [first, second]}
+        )
+        response = self.reader_a.put(
+            "/participant/date-poll/vote", json={"option_ids": [second]}
+        )
+        self.assertEqual(response.json()["my_vote_option_ids"], [second])
+
+        response = self.reader_a.put("/participant/date-poll/vote", json={"option_ids": []})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["my_vote_option_ids"], [])
 
     def test_vote_counts_hidden_from_participants_while_open(self) -> None:
         poll = self.open_poll()

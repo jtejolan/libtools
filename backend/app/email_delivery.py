@@ -14,6 +14,7 @@ bookclub/email_delivery.py's plain-text bookclub sends).
 import html
 import logging
 import os
+from email.utils import parseaddr
 
 import httpx
 
@@ -37,6 +38,15 @@ def _from_header() -> str | None:
     return f"Library Tools <{RESEND_FROM_ADDRESS}>"
 
 
+def _from_header_with_name(from_name: str | None) -> str | None:
+    if not RESEND_FROM_ADDRESS:
+        return None
+    if not from_name:
+        return _from_header()
+    _, address = parseaddr(RESEND_FROM_ADDRESS)
+    return f"{from_name} <{address or RESEND_FROM_ADDRESS}>"
+
+
 def _default_html(text_body: str) -> str:
     escaped = html.escape(text_body).replace("\n", "<br>")
     return f'<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;white-space:normal;">{escaped}</div>'
@@ -49,6 +59,8 @@ def send_email(
     text_body: str,
     html_body: str | None = None,
     bcc: list[str] | None = None,
+    from_name: str | None = None,
+    headers: dict[str, str] | None = None,
 ) -> bool:
     if not DELIVERY_CONFIGURED:
         logger.info(
@@ -56,7 +68,7 @@ def send_email(
         )
         return False
     payload = {
-        "from": _from_header(),
+        "from": _from_header_with_name(from_name),
         "to": to,
         "subject": subject,
         "html": html_body or _default_html(text_body),
@@ -66,6 +78,8 @@ def send_email(
         payload["bcc"] = bcc
     if RESEND_REPLY_TO:
         payload["reply_to"] = [RESEND_REPLY_TO]
+    if headers:
+        payload["headers"] = headers
     try:
         response = httpx.post(
             RESEND_API_URL,

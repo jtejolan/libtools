@@ -81,6 +81,7 @@ const render = (participant) => {
   document.title = `${participant.club_name} — Book Club`;
   $("#club-eyebrow").textContent = participant.club_name;
   $("#welcome-heading").textContent = timeBasedGreeting(participant.name);
+  syncAccountIdentity(participant.name);
 
   const panel = $("#email-panel");
   if (!participant.email_verified) {
@@ -106,6 +107,7 @@ const participantState = {
   votingRound: null,
   datePoll: null,
   profile: null,
+  directoryMembers: [],
   activeBookId: null,
   activeBookDetail: null,
   clubActivity: [],
@@ -117,7 +119,14 @@ const participantState = {
   activeRating: null,
   heroRatingSaving: false,
   pendingReviewRating: 3,
+  openDecisionPanel: null,
+  clubStatsLens: "taste",
+  loadedViews: new Set(),
+  viewLoadPromises: new Map(),
 };
+
+let ensurePortalViewData = async () => {};
+let refreshNotificationInbox = () => {};
 
 const portalViewCopy = {
   books: ["The books that brought us here", "Our reading journey", "Follow the club from finished favourites to the book currently bringing everyone together."],
@@ -148,7 +157,7 @@ const initializePortalShell = () => {
   const home = document.createElement("section");
   home.className = "portal-view";
   home.dataset.portalView = "home";
-  [".participant-heading", "#email-panel", ".participant-grid", "#book-page-section", ".decisions-disclosure", ".legacy-participant-sections"].forEach((selector) => home.append($(selector)));
+  [".participant-heading", "#email-panel", ".participant-grid", "#decision-prompt", "#book-page-section", ".legacy-participant-sections"].forEach((selector) => home.append($(selector)));
   const homeBookSlot = document.createElement("div");
   homeBookSlot.id = "home-book-slot";
   home.insertBefore(homeBookSlot, home.querySelector("#book-page-section"));
@@ -170,8 +179,8 @@ const initializePortalShell = () => {
   const search = libraryHeading.querySelector("#library-search");
   const controls = document.createElement("div");
   controls.className = "library-controls";
-  controls.innerHTML = '<select id="library-status-filter" aria-label="Filter books"><option value="all">All books</option><option value="current">Current</option><option value="up_next">Coming up</option><option value="previously_read">Previously read</option></select><select id="library-sort" aria-label="Sort books"><option value="journey">Club journey</option><option value="title">Title</option><option value="rating">Highest rated</option></select>';
-  controls.prepend(search);
+  controls.innerHTML = '<label class="shelf-control shelf-search-control"><span>Search the shelf</span><div><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg></div></label><label class="shelf-control"><span>Show</span><select id="library-status-filter" aria-label="Filter books"><option value="all">All chapters</option><option value="current">Reading now</option><option value="up_next">Coming up</option><option value="previously_read">Previously read</option></select></label><label class="shelf-control"><span>Arrange by</span><select id="library-sort" aria-label="Sort books"><option value="journey">Club journey</option><option value="title">Book title</option><option value="rating">Highest rated</option></select></label>';
+  controls.querySelector(".shelf-search-control div").append(search);
   libraryHeading.append(controls);
   const suggestion = document.createElement("section");
   suggestion.className = "book-suggestion-section is-collapsed";
@@ -200,7 +209,7 @@ const initializePortalShell = () => {
   book.dataset.portalView = "book";
   book.innerHTML = '<div class="book-detail-toolbar"><button class="quiet-button" id="book-detail-back" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg> Back to books</button><div class="book-detail-journey-nav" id="book-detail-journey-nav"></div></div><div id="book-detail-slot"></div>';
   main.replaceChildren(home, books, personal, club, members, book);
-  document.body.insertAdjacentHTML("beforeend", '<dialog class="manage-dialog rating-review-dialog" id="rating-review-dialog"><form id="rating-review-form"><header class="rating-review-dialog-heading"><img id="rating-review-cover" alt="" /><div><p class="eyebrow">Your reading response</p><h2 id="rating-review-heading">Rate this book</h2><p id="rating-review-book"></p></div><button class="rating-review-close" type="button" data-close-rating-review aria-label="Close review window">×</button></header><div class="rating-review-body"><section class="review-rating-panel"><div><span class="hero-rating-label">Your rating</span><p>Choose a half or whole star.</p></div><div class="detail-rating-picker" id="rating-review-stars"></div></section><label class="review-writing-field"><span><strong>Your review</strong><small>Optional</small></span><p>Share what stayed with you, what challenged you, or what you would tell another reader.</p><textarea id="rating-review-text" rows="6" maxlength="4000" placeholder="Start writing your response…"></textarea><small class="review-sharing-note">Your review will appear alongside your rating in Ratings and Reviews.</small></label><p class="form-error" id="rating-review-error"></p></div><footer class="rating-review-footer"><p><span aria-hidden="true">◇</span> Shared with members of this book club</p><div><button class="quiet-button" type="button" data-close-rating-review>Cancel</button><button class="primary-button" type="submit">Save rating &amp; review</button></div></footer></form></dialog>');
+  document.body.insertAdjacentHTML("beforeend", '<dialog class="manage-dialog rating-review-dialog" id="rating-review-dialog"><form id="rating-review-form"><header class="rating-review-dialog-heading"><img id="rating-review-cover" alt="" /><div><p class="eyebrow">Your reading response</p><h2 id="rating-review-heading">Rate this book</h2><p id="rating-review-book"></p></div><button class="rating-review-close" type="button" data-close-rating-review aria-label="Close review window">×</button></header><div class="rating-review-body"><section class="review-rating-panel"><div><span class="hero-rating-label">Your rating</span><p>Choose a half or whole star.</p></div><div class="detail-rating-picker" id="rating-review-stars"></div></section><label class="review-writing-field"><span><strong>Your review</strong><small>Optional</small></span><p>Share what stayed with you, what challenged you, or what you would tell another reader.</p><textarea id="rating-review-text" rows="6" maxlength="4000" placeholder="Start writing your response…"></textarea><small class="review-sharing-note">Your review will appear alongside your rating in Ratings and Reviews.</small></label><p class="form-error" id="rating-review-error"></p></div><footer class="rating-review-footer"><p><span aria-hidden="true">◇</span> Shared with members of this book club</p><div><button class="quiet-button" type="button" data-close-rating-review>Cancel</button><button class="primary-button" type="submit">Save rating &amp; review</button></div></footer></form></dialog><dialog class="member-profile-dialog" id="member-profile-dialog"><button class="member-profile-close" id="close-member-profile" type="button" aria-label="Close member profile">×</button><div id="member-profile-content"></div></dialog>');
 };
 
 initializePortalShell();
@@ -218,6 +227,7 @@ const setPortalView = (view, { updateHistory = true } = {}) => {
     if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
   });
   if (updateHistory && selected !== "book") history.pushState({ view: selected }, "", selected === "home" ? location.pathname : `${location.pathname}?view=${selected}`);
+  ensurePortalViewData(selected).catch((error) => toast(error.message));
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
@@ -227,7 +237,7 @@ document.querySelector(".participant-portal-nav").addEventListener("click", (eve
   const button = event.target.closest("[data-portal-nav]");
   if (!button) return;
   if (button.dataset.portalNav === "home" && participantState.homeBookId) {
-    openBookPage(participantState.homeBookId, { portalView: "home", updateHistory: true }).catch((error) => toast(error.message));
+    ensurePortalViewData("home").then(() => openBookPage(participantState.homeBookId, { portalView: "home", updateHistory: true })).catch((error) => toast(error.message));
     return;
   }
   setPortalView(button.dataset.portalNav);
@@ -240,7 +250,7 @@ window.addEventListener("popstate", () => {
   const view = params.get("view") || "home";
   const bookId = params.get("book");
   if (view === "book" && bookId) openBookPage(bookId, { portalView: "book", updateHistory: false }).catch(() => setPortalView("books", { updateHistory: false }));
-  else if (view === "home" && participantState.homeBookId) openBookPage(participantState.homeBookId, { portalView: "home", updateHistory: false }).catch(() => {});
+  else if (view === "home" && participantState.homeBookId) ensurePortalViewData("home").then(() => openBookPage(participantState.homeBookId, { portalView: "home", updateHistory: false })).catch(() => {});
   else setPortalView(view, { updateHistory: false });
 });
 
@@ -282,6 +292,7 @@ const renderAnnouncements = (announcements) => {
         ${item.read ? "" : `<button class="quiet-button" type="button" data-mark-announcement-read="${item.id}">Mark as read</button>`}
       </article>`).join("")
     : '<p class="muted">No announcements yet.</p>';
+  refreshNotificationInbox();
   renderActionCenter();
 };
 
@@ -305,7 +316,7 @@ const renderActionCenter = () => {
   if (participant && !participant.email_verified) actions.push(["Verify your email", "Secure password recovery and account updates.", "email-panel", "Verify email"]);
   if (participantState.upcomingMeeting && !participantState.upcomingMeeting.rsvp_status) actions.push(["RSVP for the next meeting", `Let the facilitator know about ${participantState.upcomingMeeting.meeting.book.title}.`, "rsvp-section", "Respond now"]);
   if (participantState.votingRound?.status === "open" && !participantState.votingRound.my_vote_candidate_id) actions.push(["Choose the next book", "A book vote is waiting for your response.", "voting-section", "Vote now"]);
-  if (participantState.datePoll?.status === "open" && !participantState.datePoll.my_vote_option_id) actions.push(["Choose a meeting date", "A date poll is waiting for your response.", "date-poll-section", "Vote now"]);
+  if (participantState.datePoll?.status === "open" && !participantState.datePoll.my_vote_option_ids?.length) actions.push(["Choose a meeting date", "A date poll is waiting for your response.", "date-poll-section", "Vote now"]);
   const completedBook = participantState.latestCompletedMeeting?.meeting?.book;
   if (completedBook && !ratingsState.mineByBook[completedBook.id]) actions.push([`Reflect on ${completedBook.title}`, "Rate the book or leave a short review after your meeting.", "library-section", "Share your take"]);
   $("#action-heading").textContent = actions.length ? `${actions.length} thing${actions.length === 1 ? "" : "s"} to do` : "You’re all caught up";
@@ -353,6 +364,7 @@ const renderRsvp = (data) => {
   participantState.upcomingMeeting = data;
   const panel = document.querySelector("[data-book-meeting]");
   if (panel) panel.outerHTML = meetingHeroMarkup(data);
+  refreshNotificationInbox();
   renderActionCenter();
 };
 
@@ -459,12 +471,92 @@ const renderVotingCandidate = (candidate, { showResults, myVoteId, isWinner }) =
   </article>`;
 };
 
+const renderDecisionPrompt = () => {
+  const prompt = $("#decision-prompt");
+  const workspace = $("#decision-workspace");
+  const votingRound = participantState.votingRound?.status === "open" ? participantState.votingRound : null;
+  const datePoll = participantState.datePoll?.status === "open" ? participantState.datePoll : null;
+  const decisions = [];
+
+  if (votingRound) {
+    const responded = Boolean(votingRound.my_vote_candidate_id);
+    const choiceCount = votingRound.candidates.filter((candidate) => candidate.status === "approved").length;
+    decisions.push({
+      target: "voting",
+      label: "Next book",
+      copy: responded
+        ? "Your book choice is saved. You can review or change it."
+        : `${choiceCount} book${choiceCount === 1 ? "" : "s"} waiting for your vote.`,
+      action: responded ? "Review choice" : "Choose a book",
+      responded,
+    });
+  }
+  if (datePoll) {
+    const responded = Boolean(datePoll.my_vote_option_ids?.length || datePoll.my_vote_option_id);
+    const choiceCount = datePoll.options.length;
+    decisions.push({
+      target: "date",
+      label: "Meeting date",
+      copy: responded
+        ? "Your available dates are saved. You can review or change them."
+        : `${choiceCount} date${choiceCount === 1 ? "" : "s"} waiting for your vote.`,
+      action: responded ? "Review choice" : "Choose a date",
+      responded,
+    });
+  }
+
+  prompt.hidden = decisions.length === 0;
+  if (!decisions.length) {
+    participantState.openDecisionPanel = null;
+    workspace.hidden = true;
+    $("#voting-section").hidden = true;
+    $("#date-poll-section").hidden = true;
+    return;
+  }
+
+  if (!decisions.some((decision) => decision.target === participantState.openDecisionPanel)) {
+    participantState.openDecisionPanel = null;
+  }
+  $("#decision-prompt-items").innerHTML = decisions.map((decision) => `<article class="decision-prompt-item${decision.responded ? " is-complete" : ""}">
+    <span class="decision-status-mark" aria-hidden="true">${decision.responded ? "✓" : "•"}</span>
+    <div><strong>${decision.label}</strong><small>${decision.copy}</small></div>
+    <button type="button" data-open-decision="${decision.target}" aria-expanded="${participantState.openDecisionPanel === decision.target}">${decision.action}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg></button>
+  </article>`).join("");
+
+  const activePanel = participantState.openDecisionPanel;
+  workspace.hidden = !activePanel;
+  $("#voting-section").hidden = activePanel !== "voting";
+  $("#date-poll-section").hidden = activePanel !== "date";
+  if (activePanel) {
+    $("#decision-workspace-title").textContent = activePanel === "voting" ? "Choose the club’s next book" : "Choose the next meeting date";
+  }
+};
+
+$("#decision-prompt-items").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-open-decision]");
+  if (!button) return;
+  const target = button.dataset.openDecision;
+  participantState.openDecisionPanel = participantState.openDecisionPanel === target ? null : target;
+  renderDecisionPrompt();
+  if (participantState.openDecisionPanel) {
+    $("#decision-workspace").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+});
+
+$("#close-decision-workspace").addEventListener("click", () => {
+  participantState.openDecisionPanel = null;
+  renderDecisionPrompt();
+  $("#decision-prompt").scrollIntoView({ behavior: "smooth", block: "nearest" });
+});
+
 const renderVoting = (round) => {
   participantState.votingRound = round;
+  refreshNotificationInbox();
   const content = $("#voting-content");
   if (!round) {
     $("#voting-heading").textContent = "Voting";
     content.innerHTML = '<p class="muted">No vote is open right now. Check back soon.</p>';
+    renderDecisionPrompt();
     renderActionCenter();
     return;
   }
@@ -511,6 +603,7 @@ const renderVoting = (round) => {
       }),
     )
     .join("")}</div>${proposeForm}${newBookForm}${pendingCopy}`;
+  renderDecisionPrompt();
   renderActionCenter();
 };
 
@@ -576,44 +669,51 @@ $("#voting-content").addEventListener("click", async (event) => {
   }
 });
 
-const renderDatePollOption = (option, { showResults, myVoteId, isWinner }) => {
-  const isMine = option.id === myVoteId;
+const renderDatePollOption = (option, { showResults, myVoteIds, isWinner }) => {
+  const isMine = myVoteIds.includes(option.id);
   const countCopy = showResults && option.vote_count != null ? ` · ${option.vote_count} vote${option.vote_count === 1 ? "" : "s"}` : "";
-  return `<article class="user-card" data-option-id="${option.id}">
-    <div>
-      <h3>${escapeHtml(formatDate(option.option_date))}${isWinner ? " 🏆" : ""}</h3>
-      <p class="user-meta">${countCopy || " "}</p>
-    </div>
-    <div class="user-actions">
-      ${
-        showResults
-          ? ""
-          : `<button class="${isMine ? "primary-button" : "secondary-button"}" data-vote-option="${option.id}">${isMine ? "Your vote" : "Vote"}</button>`
-      }
-    </div>
+  const date = new Date(`${option.option_date}T12:00:00`);
+  const month = new Intl.DateTimeFormat(undefined, { month: "short" }).format(date);
+  const day = new Intl.DateTimeFormat(undefined, { day: "numeric" }).format(date);
+  if (showResults) return `<article class="date-result-row${isWinner ? " is-winner" : ""}">
+    <span class="date-choice-calendar"><small>${month}</small><strong>${day}</strong></span>
+    <div><h3>${escapeHtml(formatDate(option.option_date))}${isWinner ? " · Selected date" : ""}</h3><p>${countCopy.replace(" · ", "") || "No votes"}</p></div>
   </article>`;
+  return `<label class="date-choice-row${isMine ? " is-selected" : ""}">
+    <input type="checkbox" name="date-option" value="${option.id}"${isMine ? " checked" : ""} />
+    <span class="date-choice-calendar" aria-hidden="true"><small>${month}</small><strong>${day}</strong></span>
+    <span class="date-choice-copy"><strong>${escapeHtml(formatDate(option.option_date))}</strong><small>${isMine ? "Works for you" : "Mark as available"}</small></span>
+    <span class="date-choice-check" aria-hidden="true">✓</span>
+  </label>`;
 };
 
 const renderDatePoll = (poll) => {
   participantState.datePoll = poll;
+  refreshNotificationInbox();
   const content = $("#date-poll-content");
   if (!poll) {
     $("#date-poll-heading").textContent = "Meeting date";
     content.innerHTML = '<p class="muted">No date poll is open right now.</p>';
+    renderDecisionPrompt();
     renderActionCenter();
     return;
   }
   const showResults = poll.status === "closed";
-  $("#date-poll-heading").textContent = showResults ? "Results" : "Cast your vote";
-  content.innerHTML = `<div class="user-list">${poll.options
+  const myVoteIds = poll.my_vote_option_ids || (poll.my_vote_option_id ? [poll.my_vote_option_id] : []);
+  $("#date-poll-heading").textContent = showResults ? "Results" : "Which dates work for you?";
+  const optionsMarkup = poll.options
     .map((option) =>
       renderDatePollOption(option, {
         showResults,
-        myVoteId: poll.my_vote_option_id,
+        myVoteIds,
         isWinner: showResults && poll.winning_date === option.option_date,
       }),
     )
-    .join("")}</div>`;
+    .join("");
+  content.innerHTML = showResults
+    ? `<div class="date-result-list">${optionsMarkup}</div>`
+    : `<form class="date-choice-form" id="date-choice-form"><p class="date-choice-helper">Select every date you could attend, then save your availability.</p><div class="date-choice-list">${optionsMarkup}</div><footer><span id="date-choice-count">${myVoteIds.length ? `${myVoteIds.length} selected` : "No dates selected"}</span><button class="primary-button" type="submit">Save availability</button></footer></form>`;
+  renderDecisionPrompt();
   renderActionCenter();
 };
 
@@ -627,19 +727,32 @@ const loadDatePoll = async () => {
   }
 };
 
-$("#date-poll-content").addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-vote-option]");
-  if (!button) return;
+$("#date-poll-content").addEventListener("change", (event) => {
+  if (!event.target.matches('input[name="date-option"]')) return;
+  event.target.closest(".date-choice-row")?.classList.toggle("is-selected", event.target.checked);
+  const selectedCount = $("#date-choice-form").querySelectorAll('input[name="date-option"]:checked').length;
+  $("#date-choice-count").textContent = selectedCount ? `${selectedCount} selected` : "No dates selected";
+});
+
+$("#date-poll-content").addEventListener("submit", async (event) => {
+  if (event.target.id !== "date-choice-form") return;
+  event.preventDefault();
+  const button = event.target.querySelector('button[type="submit"]');
+  const optionIds = [...event.target.querySelectorAll('input[name="date-option"]:checked')].map((input) => Number(input.value));
+  button.disabled = true;
+  button.textContent = "Saving…";
   try {
     const poll = await request("/participant/date-poll/vote", {
       method: "PUT",
-      body: JSON.stringify({ option_id: Number(button.dataset.voteOption) }),
+      body: JSON.stringify({ option_ids: optionIds }),
     });
     renderDatePoll(poll);
-    toast("Vote saved.");
+    toast(optionIds.length ? "Availability saved." : "Availability cleared.");
     await loadActivity();
   } catch (error) {
     toast(error.message);
+    button.disabled = false;
+    button.textContent = "Save availability";
   }
 });
 
@@ -662,11 +775,10 @@ const renderBooksJourneyOverview = () => {
   const current = participantState.library.current[0];
   const next = participantState.library.up_next[0];
   const completed = participantState.library.previously_read.length;
-  const total = completed + participantState.library.current.length + participantState.library.up_next.length;
   const overview = $("#books-journey-overview");
   const suggestion = $(".book-suggestion-section");
-  overview.innerHTML = `<div class="journey-overview-heading"><div><p class="eyebrow">Where the club is now</p><h2>${completed ? `${completed} finished ${completed === 1 ? "book" : "books"}, with more ahead` : "The first chapter starts here"}</h2></div><div class="journey-counts"><span><strong>${total}</strong> on the shared shelf</span><span><strong>${completed}</strong> completed together</span></div></div><div class="journey-feature-grid">${journeyFeatureBookMarkup(current, "Reading now", "is-current")}${journeyFeatureBookMarkup(next, "Coming up", "is-next")}</div>`;
-  if (suggestion) overview.querySelector(".journey-feature-grid").before(suggestion);
+  overview.innerHTML = `<div class="journey-overview-heading"><div class="journey-overview-copy"><p class="eyebrow">Where the club is now</p><h2>${completed ? `${completed} finished ${completed === 1 ? "book" : "books"}, with more ahead` : "The first chapter starts here"}</h2></div><div class="journey-suggestion-slot"></div></div><div class="journey-feature-grid">${journeyFeatureBookMarkup(current, "Reading now", "is-current")}${journeyFeatureBookMarkup(next, "Coming up", "is-next")}</div>`;
+  if (suggestion) overview.querySelector(".journey-suggestion-slot").append(suggestion);
 };
 
 const renderJourneyShelf = (visible) => {
@@ -967,6 +1079,29 @@ const renderPostMeeting = () => {
   $("#post-meeting-actions").innerHTML = `<button class="primary-button" type="button" data-open-book="${book.id}">${mine ? "Update my review" : "Rate this book"}</button><button class="secondary-button" type="button" data-open-book="${book.id}">Open discussion</button>`;
 };
 
+const closeAccountMenu = ({ restoreFocus = false } = {}) => {
+  const trigger = $("#account-menu-trigger");
+  const menu = $("#account-menu");
+  if (menu.hidden) return;
+  menu.hidden = true;
+  trigger.setAttribute("aria-expanded", "false");
+  if (restoreFocus) trigger.focus();
+};
+
+$("#account-menu-trigger").addEventListener("click", () => {
+  const menu = $("#account-menu");
+  const willOpen = menu.hidden;
+  menu.hidden = !willOpen;
+  $("#account-menu-trigger").setAttribute("aria-expanded", String(willOpen));
+  if (willOpen) menu.querySelector('[role="menuitem"]')?.focus();
+});
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".account-control")) closeAccountMenu();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !$("#account-menu").hidden) closeAccountMenu({ restoreFocus: true });
+});
+
 $("#logout").addEventListener("click", async () => {
   await request("/participant/auth/logout", { method: "POST" });
   location.href = "/";
@@ -1059,18 +1194,58 @@ const renderClubStats = (stats) => {
   ], "club-story-overview")}</section><div class="club-profile-grid"><section class="stats-panel club-genre-panel"><p class="eyebrow">What we reach for</p><h2>Favourite territory</h2>${statBarsMarkup(stats.favourite_genres, "Genres have not been added to the club books yet.")}</section><section class="stats-panel club-length-panel"><p class="eyebrow">Our reading rhythm</p><h2>Book-length mix</h2>${statBarsMarkup(stats.page_length_mix, "Page counts have not been added yet.")}</section></div><section class="stats-panel club-favourites-panel"><div class="club-panel-heading"><div><p class="eyebrow">Reader favourites</p><h2>Books we loved together</h2></div><p>Shared ratings reveal the titles that stayed with the club.</p></div><div class="top-books-grid">${stats.top_rated_books.length ? stats.top_rated_books.map((book) => `<article class="top-book" data-open-book="${book.book_id}" role="button" tabindex="0"><img src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div><strong>${escapeHtml(book.title)}</strong><p>${escapeHtml(book.author)}</p><b>${book.average_rating}★ · ${book.rating_count} rating${book.rating_count === 1 ? "" : "s"}</b></div></article>`).join("") : '<p class="muted">Reader favourites will appear once members share their ratings.</p>'}</div></section>${clubConversationPulseMarkup(stats)}<div class="club-pulse-grid"><section class="stats-panel club-shelf-panel"><p class="eyebrow">The shared shelf</p><h2>${stats.shelf_total} books and counting</h2>${statBarsMarkup([{ label: "Completed", value: stats.shelf_completed }, { label: "Reading now", value: stats.shelf_current }, { label: "Coming up", value: stats.shelf_up_next }], "Books will appear as the facilitator builds the shelf.")}</section><section class="stats-panel club-reactions-panel"><p class="eyebrow">Shared reactions</p><h2>How ratings landed</h2>${statBarsMarkup(stats.rating_distribution, "The club has not rated a book yet.")}</section></div>`;
 };
 
-const loadStats = async () => {
-  const [personal, club] = await Promise.all([
-    request("/participant/stats/personal"),
-    request("/participant/stats/club"),
-  ]);
-  renderPersonalStats(personal);
-  renderClubStats(club);
+const clubExplorerButtonMarkup = (lens, label, copy, icon, active) => `<button class="club-explorer-tab${active ? " is-active" : ""}" type="button" role="tab" data-club-stats-lens="${lens}" aria-selected="${active}"><span aria-hidden="true">${icon}</span><span><strong>${label}</strong><small>${copy}</small></span></button>`;
+
+const setClubStatsLens = (lens, { focus = false } = {}) => {
+  const selected = ["taste", "conversation", "shelf"].includes(lens) ? lens : "taste";
+  participantState.clubStatsLens = selected;
+  document.querySelectorAll("[data-club-stats-lens]").forEach((button) => {
+    const active = button.dataset.clubStatsLens === selected;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", String(active));
+    button.tabIndex = active ? 0 : -1;
+    if (active && focus) button.focus();
+  });
+  document.querySelectorAll("[data-club-stats-panel]").forEach((panel) => { panel.hidden = panel.dataset.clubStatsPanel !== selected; });
 };
+
+const renderClubStatsExplorer = (stats) => {
+  participantState.clubStats = stats;
+  const highestRated = stats.top_rated_books[0];
+  const topBooks = stats.top_rated_books.length
+    ? stats.top_rated_books.map((book) => `<article class="top-book" data-open-book="${book.book_id}" role="button" tabindex="0"><img src="${escapeHtml(book.cover_image_url || "/static/assets/library-tools-logo-classic.svg?v=1")}" alt="" /><div><strong>${escapeHtml(book.title)}</strong><p>${escapeHtml(book.author)}</p><b>${book.average_rating}★ · ${book.rating_count} rating${book.rating_count === 1 ? "" : "s"}</b></div></article>`).join("")
+    : '<p class="muted">Reader favourites will appear once members share their ratings.</p>';
+  $("#club-stats-content").innerHTML = `<section class="club-personality-hero"><div class="club-personality-copy"><p class="eyebrow">Our reading personality</p><h2>${stats.books_completed ? `${stats.books_completed} books into the story` : "A story just beginning"}</h2><p>${escapeHtml(clubPersonalityCopy(stats))}</p>${highestRated ? `<p class="club-favourite-note"><span aria-hidden="true">★</span><strong>Reader favourite:</strong> ${escapeHtml(highestRated.title)}</p>` : ""}</div>${statCardsMarkup([
+    [stats.active_members, "Active readers", "◎"],
+    [stats.books_completed, "Books completed", "▤"],
+    [stats.pages_read_together.toLocaleString(), "Pages read together", "≋"],
+    [stats.average_rating == null ? "—" : `${stats.average_rating}★`, `${stats.rating_count} shared ratings`, "★"],
+  ], "club-story-overview")}</section><section class="club-stats-explorer"><header class="club-explorer-heading"><div><p class="eyebrow">Explore the club</p><h2>Choose a lens on our story</h2><p>Move between what we love, how we talk, and what is waiting on the shelf.</p></div><small>Each view uses the club’s shared activity</small></header><div class="club-explorer-tabs" role="tablist" aria-label="Explore club statistics">${clubExplorerButtonMarkup("taste", "Our taste", "Genres, lengths, and favourites", "◇", participantState.clubStatsLens === "taste")}${clubExplorerButtonMarkup("conversation", "Conversation", "Comments, debate, and reactions", "“", participantState.clubStatsLens === "conversation")}${clubExplorerButtonMarkup("shelf", "The shelf", "What we finished and what comes next", "▤", participantState.clubStatsLens === "shelf")}</div><div class="club-explorer-panels"><div class="club-explorer-panel" data-club-stats-panel="taste"><div class="club-profile-grid"><section class="stats-panel club-genre-panel"><p class="eyebrow">What we reach for</p><h2>Favourite territory</h2>${statBarsMarkup(stats.favourite_genres, "Genres have not been added to the club books yet.")}</section><section class="stats-panel club-length-panel"><p class="eyebrow">Our reading rhythm</p><h2>Book-length mix</h2>${statBarsMarkup(stats.page_length_mix, "Page counts have not been added yet.")}</section></div><section class="stats-panel club-favourites-panel"><div class="club-panel-heading"><div><p class="eyebrow">Reader favourites</p><h2>Books we loved together</h2></div><p>Select a book to revisit its ratings and conversation.</p></div><div class="top-books-grid">${topBooks}</div></section></div><div class="club-explorer-panel" data-club-stats-panel="conversation" hidden>${clubConversationPulseMarkup(stats)}<section class="stats-panel club-reactions-panel"><p class="eyebrow">Shared reactions</p><h2>How ratings landed</h2>${statBarsMarkup(stats.rating_distribution, "The club has not rated a book yet.")}</section></div><div class="club-explorer-panel" data-club-stats-panel="shelf" hidden><div class="club-shelf-exploration"><section class="stats-panel club-shelf-panel"><p class="eyebrow">The shared shelf</p><h2>${stats.shelf_total} books and counting</h2><p class="club-panel-intro">A live snapshot of the club’s path from finished reads to future possibilities.</p>${statBarsMarkup([{ label: "Completed", value: stats.shelf_completed }, { label: "Reading now", value: stats.shelf_current }, { label: "Coming up", value: stats.shelf_up_next }], "Books will appear as the facilitator builds the shelf.")}</section>${statCardsMarkup([[stats.meetings_held, "Club meetings"], [stats.shelf_current, "Reading now"], [stats.shelf_up_next, "Coming up"], [stats.shelf_completed, "Finished together"]], "club-shelf-numbers")}</div></div></div></section>`;
+  setClubStatsLens(participantState.clubStatsLens);
+};
+
+$("#club-stats-content").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-club-stats-lens]");
+  if (button) setClubStatsLens(button.dataset.clubStatsLens);
+});
+$("#club-stats-content").addEventListener("keydown", (event) => {
+  const button = event.target.closest("[data-club-stats-lens]");
+  if (!button || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const lenses = ["taste", "conversation", "shelf"];
+  const current = lenses.indexOf(button.dataset.clubStatsLens);
+  const next = event.key === "Home" ? 0 : event.key === "End" ? lenses.length - 1 : (current + (event.key === "ArrowRight" ? 1 : -1) + lenses.length) % lenses.length;
+  setClubStatsLens(lenses[next], { focus: true });
+});
+
+const loadPersonalStats = async () => renderPersonalStats(await request("/participant/stats/personal"));
+const loadClubStats = async () => renderClubStatsExplorer(await request("/participant/stats/club"));
+const loadStats = async () => Promise.all([loadPersonalStats(), loadClubStats()]);
 
 const loadClubActivity = async () => {
   const activity = await request("/participant/club-activity");
   participantState.clubActivity = activity;
+  refreshNotificationInbox();
   const list = $("#activity-list");
   if (list) list.innerHTML = activity.length ? activity.map((item) => `<article class="feed-item">${avatarMarkup(item.actor)}<div><p><strong>${escapeHtml(item.actor.name)}</strong> ${item.kind === "rating" ? "rated" : item.kind === "progress" ? "updated their progress on" : "posted about"} <strong>${escapeHtml(item.book.title)}</strong>${item.detail ? ` · ${escapeHtml(item.detail)}` : ""}</p><small class="user-meta">${escapeHtml(formatTimestamp(item.created_at))}</small></div></article>`).join("") : '<p class="muted">Shared progress, ratings, and discussions will appear here.</p>';
 };
@@ -1080,12 +1255,50 @@ const avatarMarkup = (profile) => profile.avatar_url
   : `<span class="member-avatar">${escapeHtml(Array.from(profile.name || "?")[0]?.toLocaleUpperCase() || "?")}</span>`;
 
 const renderDirectory = (members) => {
+  participantState.directoryMembers = members;
   $("#member-directory").innerHTML = members.length
-    ? members.map((member) => `<article class="directory-card${member.is_self ? " is-self" : ""}"><div class="directory-card-top">${avatarMarkup(member)}<span>${member.is_self ? "Your profile" : "Club reader"}</span></div><div class="directory-card-copy"><h2>${escapeHtml(member.name)}</h2><p>${member.bio ? escapeHtml(member.bio) : "No introduction yet."}</p></div>${member.is_self ? '<small class="directory-self-note">Visible to your fellow club members</small>' : ""}</article>`).join("")
+    ? members.map((member) => `<button class="directory-card${member.is_self ? " is-self" : ""}" type="button" data-member-profile="${member.member_id}" aria-label="View ${escapeHtml(member.name)}’s profile"><div class="directory-card-top">${avatarMarkup(member)}<span>${member.is_self ? "Your profile" : "Club reader"}</span></div><div class="directory-card-copy"><h2>${escapeHtml(member.name)}</h2><p>${member.bio ? escapeHtml(member.bio) : "No introduction yet."}</p></div><small class="directory-profile-cue">${member.is_self ? "View your member profile" : "View profile"}<span aria-hidden="true">→</span></small></button>`).join("")
     : '<div class="directory-empty-state"><span aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><path d="M16 3.128a4 4 0 0 1 0 7.744" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><circle cx="9" cy="7" r="4" /></svg></span><h2>The directory is ready for introductions</h2><p>Members appear here only after choosing to share a profile.</p></div>';
 };
 
 const loadDirectory = async () => renderDirectory(await request("/participant/members"));
+
+const openMemberProfile = (member) => {
+  const avatar = member.avatar_url
+    ? `<span class="member-profile-avatar has-image"><img src="${escapeHtml(member.avatar_url)}" alt="" /></span>`
+    : `<span class="member-profile-avatar">${escapeHtml(profileInitials(member.name))}</span>`;
+  $("#member-profile-content").innerHTML = `<header class="member-profile-hero">${avatar}<div><p class="eyebrow">${member.is_self ? "Your club identity" : "Club reader"}</p><h2>${escapeHtml(member.name)}</h2><span>${member.is_self ? "This is how other members see you" : "A member of your reading community"}</span></div></header><section class="member-profile-body"><p class="member-profile-label">About this reader</p><p class="member-profile-bio">${member.bio ? escapeHtml(member.bio) : "This reader has not added an introduction yet."}</p><div class="member-profile-privacy"><span aria-hidden="true">◇</span><p>Only information this member chose to share with the club appears here.</p></div>${member.is_self ? '<button class="primary-button" type="button" id="edit-open-member-profile">Edit my profile</button>' : ""}</section>`;
+  $("#member-profile-dialog").showModal();
+};
+
+$("#member-directory").addEventListener("click", (event) => {
+  const card = event.target.closest("[data-member-profile]");
+  if (!card) return;
+  const member = participantState.directoryMembers.find((item) => item.member_id === Number(card.dataset.memberProfile));
+  if (member) openMemberProfile(member);
+});
+$("#close-member-profile").addEventListener("click", () => $("#member-profile-dialog").close());
+$("#member-profile-content").addEventListener("click", (event) => {
+  if (!event.target.closest("#edit-open-member-profile")) return;
+  $("#member-profile-dialog").close();
+  openProfileDialog();
+});
+
+const loadViewOnce = async (view, loader) => {
+  if (participantState.loadedViews.has(view)) return;
+  if (participantState.viewLoadPromises.has(view)) return participantState.viewLoadPromises.get(view);
+  const pending = Promise.resolve(loader()).then(() => participantState.loadedViews.add(view)).finally(() => participantState.viewLoadPromises.delete(view));
+  participantState.viewLoadPromises.set(view, pending);
+  return pending;
+};
+
+ensurePortalViewData = async (view) => {
+  if (view === "home") return loadViewOnce("home", () => Promise.all([loadRsvp(), loadVoting(), loadDatePoll(), loadClubActivity()]));
+  if (view === "books") return loadViewOnce("books", loadRatings);
+  if (view === "personal") return loadViewOnce("personal", loadPersonalStats);
+  if (view === "club") return loadViewOnce("club", loadClubStats);
+  if (view === "members") return loadViewOnce("members", loadDirectory);
+};
 
 const readingPaceCopy = (detail, progress) => {
   const { total, current, remaining, days, perDay, perWeek, meetingPassed } = readingPaceData(detail, progress);
@@ -1459,6 +1672,18 @@ $("#book-page-content").addEventListener("submit", async (event) => {
 });
 
 const profileInitials = (name = "Reader") => name.trim().split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase() || "R";
+const syncAccountIdentity = (name = "Reader", avatarUrl = null) => {
+  const displayName = String(name || "Reader").trim() || "Reader";
+  const initials = profileInitials(displayName);
+  $("#account-trigger-name").textContent = displayName;
+  $("#account-menu-name").textContent = displayName;
+  [$("#account-trigger-avatar"), $("#account-menu-avatar")].forEach((avatar) => {
+    avatar.textContent = initials;
+    avatar.style.backgroundImage = avatarUrl ? `url("${String(avatarUrl).replace(/["\\]/g, "")}")` : "";
+    avatar.style.backgroundSize = "cover";
+    avatar.style.backgroundPosition = "center";
+  });
+};
 const refreshProfilePreview = () => {
   const form = $("#profile-form");
   const preview = $("#profile-avatar-preview");
@@ -1472,6 +1697,7 @@ const refreshProfilePreview = () => {
 const openProfileDialog = async () => {
   try {
     participantState.profile = participantState.profile || await request("/participant/profile");
+    syncAccountIdentity(participantState.profile.name, participantState.profile.avatar_url);
     const form = $("#profile-form");
     form.elements.name.value = participantState.profile.name;
     form.elements.avatar_url.value = participantState.profile.avatar_url || "";
@@ -1483,7 +1709,7 @@ const openProfileDialog = async () => {
   } catch (error) { toast(error.message); }
 };
 
-$("#profile-settings").addEventListener("click", openProfileDialog);
+$("#profile-settings").addEventListener("click", () => { closeAccountMenu(); openProfileDialog(); });
 $("#edit-directory-profile").addEventListener("click", openProfileDialog);
 $("#close-profile-dialog").addEventListener("click", () => $("#profile-dialog").close());
 $("#profile-form").addEventListener("input", (event) => {
@@ -1507,6 +1733,7 @@ $("#profile-form").addEventListener("submit", async (event) => {
     });
     $("#profile-dialog").close();
     $("#welcome-heading").textContent = timeBasedGreeting(participantState.profile.name);
+    syncAccountIdentity(participantState.profile.name, participantState.profile.avatar_url);
     await loadDirectory();
     toast("Profile saved.");
   } catch (error) { $("#profile-error").textContent = error.message; }
@@ -1599,17 +1826,90 @@ const loadNotificationPreferences = async () => {
   return notificationPreferences;
 };
 
-$("#notification-settings").addEventListener("click", async () => {
+const notificationIcon = (kind) => ({ announcement: "!", decision: "◇", meeting: "□", activity: "↗" }[kind] || "•");
+
+refreshNotificationInbox = () => {
+  const items = [];
+  const unreadAnnouncements = participantState.announcements.filter((item) => !item.read);
+  const bookVoteNeedsResponse = participantState.votingRound?.status === "open" && !participantState.votingRound.my_vote_candidate_id;
+  const dateVoteNeedsResponse = participantState.datePoll?.status === "open" && !participantState.datePoll.my_vote_option_ids?.length;
+  if (bookVoteNeedsResponse) items.push({ kind: "decision", title: "Choose the club’s next book", copy: "A book vote is waiting for you.", action: "Vote now", target: "voting", urgent: true });
+  if (dateVoteNeedsResponse) items.push({ kind: "decision", title: "Share the dates that work", copy: "Select every meeting date you could attend.", action: "Choose dates", target: "date", urgent: true });
+  if (participantState.upcomingMeeting) {
+    const meeting = participantState.upcomingMeeting.meeting;
+    items.push({ kind: "meeting", title: `Meeting on ${formatDate(meeting.meeting_date)}`, copy: `${meeting.book.title}${meeting.location ? ` · ${meeting.location}` : ""}`, action: participantState.upcomingMeeting.rsvp_status ? "View meeting" : "RSVP now", target: "meeting", urgent: !participantState.upcomingMeeting.rsvp_status });
+  }
+  participantState.announcements.slice(0, 4).forEach((announcement) => items.push({ kind: "announcement", title: announcement.title, copy: `${announcement.read ? "Announcement" : "Unread announcement"} · ${formatTimestamp(announcement.published_at)}`, action: "Read", target: "announcements", urgent: !announcement.read }));
+  const seenActivity = new Set();
+  participantState.clubActivity.filter((item) => {
+    const key = [item.kind, item.actor?.name, item.book?.id, item.detail].join("|");
+    if (seenActivity.has(key)) return false;
+    seenActivity.add(key);
+    return true;
+  }).slice(0, 4).forEach((item) => {
+    const detail = String(item.detail || "Club activity").replace(/\b1 stars\b/i, "1 star");
+    items.push({ kind: "activity", title: `${item.actor.name} ${item.kind === "rating" ? "rated" : item.kind === "progress" ? "updated" : "posted about"} ${item.book.title}`, copy: `${detail} · ${formatTimestamp(item.created_at)}`, action: "Open book", target: "book", bookId: item.book.id, urgent: false });
+  });
+
+  const attentionCount = unreadAnnouncements.length + Number(bookVoteNeedsResponse) + Number(dateVoteNeedsResponse) + Number(Boolean(participantState.upcomingMeeting && !participantState.upcomingMeeting.rsvp_status));
+  const badge = $("#notification-trigger-badge");
+  badge.hidden = attentionCount === 0;
+  badge.textContent = attentionCount > 9 ? "9+" : String(attentionCount);
+  const trigger = $("#notification-settings");
+  trigger.classList.toggle("has-notifications", attentionCount > 0);
+  trigger.setAttribute("aria-label", attentionCount ? `Notifications, ${attentionCount} need attention` : "Notifications");
+  $("#notification-inbox-summary").textContent = attentionCount ? `${attentionCount} need${attentionCount === 1 ? "s" : ""} attention` : "You’re caught up";
+  $("#notification-inbox-list").innerHTML = items.length ? items.map((item) => `<button class="notification-inbox-item${item.urgent ? " is-unread" : ""}" type="button" data-notification-target="${item.target}"${item.bookId ? ` data-notification-book="${item.bookId}"` : ""}><span class="notification-inbox-icon" aria-hidden="true">${notificationIcon(item.kind)}</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.copy)}</small></span><b>${escapeHtml(item.action)}</b></button>`).join("") : '<div class="notification-inbox-empty"><span aria-hidden="true">✓</span><strong>You’re all caught up</strong><p>New announcements and club activity will appear here.</p></div>';
+};
+
+const showNotificationPreferences = async (show) => {
+  $("#notification-inbox-view").hidden = show;
+  $("#notification-preferences-view").hidden = !show;
+  $("#notification-preferences-footer").hidden = !show;
+  $("#notification-preferences-toggle").setAttribute("aria-expanded", String(show));
+  $("#notification-preferences-toggle").textContent = show ? "Back to inbox" : "Preferences";
+  if (!show) return;
+  const preferences = notificationPreferences || await loadNotificationPreferences();
+  const form = $("#notification-form");
+  ["announcements", "polls", "meeting_reminders", "discussion_replies"].forEach((name) => { form.elements[name].checked = preferences[name]; });
+  form.elements.delivery_frequency.value = preferences.delivery_frequency;
+  $("#notification-error").textContent = "";
+};
+
+const loadNotificationInboxData = async () => {
+  await Promise.all([loadAnnouncements(), loadRsvp(), loadVoting(), loadDatePoll(), loadClubActivity()]);
+  refreshNotificationInbox();
+};
+
+const openNotificationDialog = async ({ showPreferences = false } = {}) => {
+  $("#notification-dialog").showModal();
+  if (!showPreferences) $("#notification-inbox-list").innerHTML = '<p class="muted">Loading your club updates…</p>';
   try {
-    const preferences = notificationPreferences || await loadNotificationPreferences();
-    const form = $("#notification-form");
-    ["announcements", "polls", "meeting_reminders", "discussion_replies"].forEach((name) => { form.elements[name].checked = preferences[name]; });
-    form.elements.delivery_frequency.value = preferences.delivery_frequency;
-    $("#notification-error").textContent = "";
-    $("#notification-dialog").showModal();
+    await showNotificationPreferences(showPreferences);
+    await loadNotificationInboxData();
   } catch (error) { toast(error.message); }
+};
+$("#notification-settings").addEventListener("click", () => openNotificationDialog());
+$("#account-notification-settings").addEventListener("click", () => {
+  closeAccountMenu();
+  openNotificationDialog({ showPreferences: true });
+});
+$("#notification-preferences-toggle").addEventListener("click", async () => {
+  try { await showNotificationPreferences($("#notification-preferences-view").hidden); } catch (error) { toast(error.message); }
 });
 $("#close-notification-dialog").addEventListener("click", () => $("#notification-dialog").close());
+$("#notification-inbox-list").addEventListener("click", (event) => {
+  const item = event.target.closest("[data-notification-target]");
+  if (!item) return;
+  $("#notification-dialog").close();
+  if (item.dataset.notificationTarget === "announcements") { $("#announcements-dialog").showModal(); return; }
+  if (item.dataset.notificationTarget === "book") { openBookPage(item.dataset.notificationBook, { portalView: "book", updateHistory: true, scroll: true }).catch((error) => toast(error.message)); return; }
+  setPortalView("home");
+  if (item.dataset.notificationTarget === "meeting") { $("#rsvp-section")?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+  participantState.openDecisionPanel = item.dataset.notificationTarget;
+  renderDecisionPrompt();
+  $("#decision-prompt")?.scrollIntoView({ behavior: "smooth", block: "center" });
+});
 $("#notification-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -1620,7 +1920,7 @@ $("#notification-form").addEventListener("submit", async (event) => {
   data.delivery_frequency = form.elements.delivery_frequency.value;
   try {
     notificationPreferences = await request("/participant/notification-preferences", { method: "PUT", body: JSON.stringify(data) });
-    $("#notification-dialog").close();
+    await showNotificationPreferences(false);
     toast("Notification preferences saved.");
   } catch (error) { $("#notification-error").textContent = error.message; }
   finally { button.disabled = false; button.textContent = "Save preferences"; }
@@ -1633,14 +1933,11 @@ $("#notification-form").addEventListener("submit", async (event) => {
     render(participant);
     ratingsState.participantId = participant.id;
     participantState.participantId = participant.id;
-    [participantState.books, participantState.library, participantState.latestCompletedMeeting, participantState.profile] = await Promise.all([
+    [participantState.books, participantState.library] = await Promise.all([
       request("/participant/books"),
       request("/participant/books/library"),
-      request("/participant/meetings/latest-completed"),
-      request("/participant/profile"),
       loadClubSwitcher(participant.club_slug),
     ]);
-    await Promise.all([loadAnnouncements(), loadRsvp(), loadVoting(), loadDatePoll(), loadRatings(), loadActivity(), loadClubActivity(), loadNotificationPreferences(), loadDirectory(), loadStats()]);
     const params = new URLSearchParams(location.search);
     const requestedView = params.get("view") || "home";
     const requestedBook = params.get("book");
@@ -1649,16 +1946,21 @@ $("#notification-form").addEventListener("submit", async (event) => {
         || participantState.books[0];
     participantState.homeBookId = featuredBook?.id || null;
     const detailBook = requestedBook ? participantState.books.find((book) => book.id === Number(requestedBook)) : null;
-    if (requestedView === "book" && detailBook) await openBookPage(detailBook.id, { portalView: "book", updateHistory: false });
-    else if (featuredBook) {
+    await loadAnnouncements();
+    if (requestedView === "book" && detailBook) {
+      await ensurePortalViewData("home");
+      await openBookPage(detailBook.id, { portalView: "book", updateHistory: false });
+    } else if (requestedView === "home" && featuredBook) {
+      await ensurePortalViewData("home");
       await openBookPage(featuredBook.id, { portalView: "home", updateHistory: false });
-      if (requestedView !== "home") setPortalView(requestedView, { updateHistory: false });
+    } else if (requestedView !== "home") {
+      setPortalView(requestedView, { updateHistory: false });
+      await ensurePortalViewData(requestedView);
     }
     else {
       $("#book-page-content").innerHTML = '<div class="book-page-empty"><h2>Your club’s next read will live here</h2><p>Once a book is scheduled, members can track progress, rate it, and discuss it together.</p></div>';
       setPortalView(requestedView, { updateHistory: false });
     }
-    renderPostMeeting();
     renderActionCenter();
     startAnnouncementRefresh();
   } catch {

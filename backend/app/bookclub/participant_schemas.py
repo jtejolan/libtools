@@ -207,7 +207,21 @@ class AddDateOptionRequest(BaseModel):
 
 
 class CastDateVoteRequest(BaseModel):
-    option_id: int = Field(ge=1)
+    # option_id remains accepted for older clients; the participant portal
+    # sends option_ids so readers can mark every date that works for them.
+    option_id: int | None = Field(default=None, ge=1)
+    option_ids: list[int] = Field(default_factory=list)
+
+    @field_validator("option_ids")
+    @classmethod
+    def unique_option_ids(cls, value: list[int]) -> list[int]:
+        if any(option_id < 1 for option_id in value):
+            raise ValueError("Date option IDs must be positive")
+        return list(dict.fromkeys(value))
+
+    @property
+    def selected_option_ids(self) -> list[int]:
+        return self.option_ids or ([self.option_id] if self.option_id is not None else [])
 
 
 class DatePollOptionResponse(BaseModel):
@@ -222,6 +236,8 @@ class DatePollResponse(BaseModel):
     status: str
     winning_date: date | None = None
     options: list[DatePollOptionResponse]
+    my_vote_option_ids: list[int] = Field(default_factory=list)
+    # Kept for compatibility with clients that predate multi-select polls.
     my_vote_option_id: int | None = None
 
 

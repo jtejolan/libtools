@@ -23,7 +23,8 @@ def build_poll_response(
 ) -> DatePollResponse:
     options = crud.list_date_options(db, poll.id)
     counts = crud.date_poll_vote_counts(db, poll.id) if show_counts else {}
-    my_vote = crud.get_own_date_vote(db, poll.id, participant_id) if participant_id else None
+    my_votes = crud.list_own_date_votes(db, poll.id, participant_id) if participant_id else []
+    my_vote_option_ids = [vote.option_id for vote in my_votes]
     return DatePollResponse(
         id=poll.id,
         status=poll.status,
@@ -36,7 +37,8 @@ def build_poll_response(
             )
             for option in options
         ],
-        my_vote_option_id=my_vote.option_id if my_vote else None,
+        my_vote_option_ids=my_vote_option_ids,
+        my_vote_option_id=my_vote_option_ids[0] if my_vote_option_ids else None,
     )
 
 
@@ -60,10 +62,11 @@ def cast_vote(
     poll = crud.get_open_date_poll(db)
     if poll is None:
         raise _not_found("There is no open date poll")
-    option = crud.get_date_option(db, value.option_id)
-    if option is None or option.poll_id != poll.id:
+    option_ids = value.selected_option_ids
+    options = [crud.get_date_option(db, option_id) for option_id in option_ids]
+    if any(option is None or option.poll_id != poll.id for option in options):
         raise _not_found("Date option not found")
-    crud.cast_date_vote(db, poll.id, value.option_id, participant.id)
+    crud.replace_date_votes(db, poll.id, option_ids, participant.id)
     return build_poll_response(db, poll, participant_id=participant.id, show_counts=False)
 
 

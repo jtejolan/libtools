@@ -671,6 +671,7 @@ def send_broadcast(
             subject=rendered.subject or template.name,
             body=rendered.body,
             unsubscribe_url=unsubscribe_url,
+            club_name=club.name,
         ):
             sent_count += 1
 
