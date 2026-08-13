@@ -786,3 +786,85 @@ body .pace-guidance{margin:0;padding:12px 14px;border:0;border-left:0;border-rad
   .notification-inbox-item>b{grid-column:2}
 }
 @media(max-width:360px){.account-menu-trigger{max-width:128px}}
+
+/* Books journey: keep the shelf readable and remove nested-toolbar conflicts. */
+.portal-view[data-portal-view="books"] #library-section{padding:28px}
+.portal-view[data-portal-view="books"] .library-heading{grid-template-columns:1fr;align-items:start;gap:0;padding:25px 27px}
+.portal-view[data-portal-view="books"] .library-note{max-width:650px;font-size:14px;line-height:1.55}
+.portal-view[data-portal-view="books"] .library-controls{grid-template-columns:minmax(240px,1.45fr) minmax(170px,.75fr) minmax(170px,.75fr);gap:12px;margin-top:19px;padding:18px 0 0;border:0;border-top:1px solid rgba(22,62,52,.12);border-radius:0;background:transparent;box-shadow:none}
+.shelf-control{gap:8px}
+.shelf-control>span{padding-left:1px;font-size:12px;letter-spacing:.075em}
+.portal-view[data-portal-view="books"] .library-controls input,.portal-view[data-portal-view="books"] .library-controls select{min-height:48px;padding-top:0;padding-bottom:0;border-radius:10px;font-size:15px}
+.portal-view[data-portal-view="books"] .library-controls input{padding-left:41px}
+.shelf-search-control svg.icon{left:14px;width:18px;height:18px}
+.journey-shelf-groups{gap:22px;margin-top:24px}
+.journey-shelf-group{padding:24px}
+.journey-shelf-group>header{margin-bottom:18px;padding-bottom:16px;align-items:center}
+.journey-shelf-group>header i{font-size:10px}
+.journey-shelf-group>header span{font-size:30px}
+.journey-shelf-group>header p{margin-top:5px;font-size:13px;line-height:1.45}
+.journey-shelf-group>header b{padding:7px 10px;font-size:10px}
+.portal-view[data-portal-view="books"] .participant-book-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.portal-view[data-portal-view="books"] .participant-book-card{min-height:190px;grid-template-columns:88px minmax(0,1fr);gap:16px;padding:17px}
+.portal-view[data-portal-view="books"] .participant-book-cover-wrap{width:88px;min-height:132px}
+.portal-view[data-portal-view="books"] .participant-book-card img{width:80px}
+.portal-view[data-portal-view="books"] .participant-book-card h3{margin-top:10px;font-size:26px;line-height:1.08}
+.portal-view[data-portal-view="books"] .participant-book-card p{font-size:14px;line-height:1.45}
+.portal-view[data-portal-view="books"] .participant-book-card-meta{gap:7px;margin-top:13px;padding-right:76px}
+.portal-view[data-portal-view="books"] .participant-book-card-meta span{padding:5px 8px;font-size:12px}
+.portal-view[data-portal-view="books"] .book-status{padding:5px 8px;font-size:10px}
+.portal-view[data-portal-view="books"] .participant-book-card .book-open-cue{right:16px;bottom:16px;font-size:12px}
+.portal-view[data-portal-view="books"] .journey-shelf-group.current .participant-book-grid{grid-template-columns:1fr}
+.portal-view[data-portal-view="books"] .journey-shelf-group.current .participant-book-card{min-height:196px;grid-template-columns:108px minmax(0,1fr);padding:17px}
+.portal-view[data-portal-view="books"] .journey-shelf-group.current .participant-book-cover-wrap{width:108px;min-height:162px}
+.portal-view[data-portal-view="books"] .journey-shelf-group.current .participant-book-card img{width:96px}
+.portal-view[data-portal-view="books"] .journey-shelf-group.current .participant-book-card h3{max-width:none;font-size:32px}
+.portal-view[data-portal-view="books"] .participant-book-card-description{max-width:760px!important;margin-top:9px!important;font-size:14px!important;line-height:1.55;-webkit-line-clamp:2}
+
+@media(max-width:900px){
+  .portal-view[data-portal-view="books"] .library-controls{grid-template-columns:minmax(0,1.25fr) minmax(145px,.75fr) minmax(145px,.75fr)}
+  .portal-view[data-portal-view="books"] .participant-book-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:600px){
+  .portal-view[data-portal-view="books"] #library-section{padding:12px}
+  .portal-view[data-portal-view="books"] .library-heading{padding:21px 18px}
+  .portal-view[data-portal-view="books"] .library-heading h2{font-size:36px}
+  .portal-view[data-portal-view="books"] .library-note{font-size:14px}
+  .portal-view[data-portal-view="books"] .library-controls{grid-template-columns:1fr 1fr;gap:12px 9px;margin-top:17px;padding-top:17px}
+  .portal-view[data-portal-view="books"] .shelf-search-control{grid-column:1/-1}
+  .portal-view[data-portal-view="books"] .library-controls input,.portal-view[data-portal-view="books"] .library-controls select{min-height:49px;font-size:14px}
+  .shelf-control>span{font-size:11px}
+  .journey-shelf-groups{gap:16px;margin-top:16px}
+  .journey-shelf-group{padding:15px 14px}
+  .journey-shelf-group>header{margin-bottom:14px;padding:0 1px 13px;align-items:flex-start;flex-direction:row;gap:10px}
+  .journey-shelf-group>header>div{min-width:0}
+  .journey-shelf-group>header i{font-size:9px}
+  .journey-shelf-group>header span{font-size:27px}
+  .journey-shelf-group>header p{font-size:12px}
+  .journey-shelf-group>header b{flex:0 0 auto;padding:6px 8px;font-size:9px}
+  .portal-view[data-portal-view="books"] .participant-book-grid{grid-template-columns:1fr}
+  .portal-view[data-portal-view="books"] .participant-book-card,.portal-view[data-portal-view="books"] .journey-shelf-group.current .participant-book-card{min-height:0;grid-template-columns:78px minmax(0,1fr);gap:13px;padding:14px}
+  .portal-view[data-portal-view="books"] .participant-book-cover-wrap,.portal-view[data-portal-view="books"] .journey-shelf-group.current .participant-book-cover-wrap{width:78px;min-height:117px}
+  .portal-view[data-portal-view="books"] .participant-book-card img,.portal-view[data-portal-view="books"] .journey-shelf-group.current .participant-book-card img{width:70px}
+  .portal-view[data-portal-view="books"] .participant-book-card h3,.portal-view[data-portal-view="books"] .journey-shelf-group.current .participant-book-card h3{margin-top:8px;font-size:24px;line-height:1.05}
+  .portal-view[data-portal-view="books"] .participant-book-card p{font-size:13px}
+  .portal-view[data-portal-view="books"] .participant-book-card-description{font-size:13px!important;-webkit-line-clamp:2}
+  .portal-view[data-portal-view="books"] .participant-book-card-meta{gap:5px;margin-top:10px;padding-right:0}
+  .portal-view[data-portal-view="books"] .participant-book-card-meta span{padding:4px 6px;font-size:11px}
+  .portal-view[data-portal-view="books"] .participant-book-card .book-open-cue{position:static;grid-column:2;justify-self:start;margin-top:-3px;font-size:12px}
+}
+.club-explorer-tab>span:first-child svg.icon{width:16px;height:16px}
+.notification-inbox-icon svg.icon{width:18px;height:18px}
+.notification-inbox-empty>span svg.icon{width:20px;height:20px}
+.decision-status-mark svg.icon{width:12px;height:12px}
+.date-choice-check svg.icon{width:13px;height:13px}
+.rating-review-close svg.icon{width:18px;height:18px}
+.rating-review-footer>p svg.icon{width:12px;height:12px;vertical-align:-2px}
+.member-profile-close svg.icon{width:18px;height:18px}
+.member-profile-privacy>span svg.icon{width:14px;height:14px}
+.settings-dialog-close svg.icon{width:16px;height:16px}
+.settings-dialog-mark svg.icon{width:26px;height:26px}
+.preference-icon svg.icon{width:18px;height:18px}
+.delivery-frequency>span:first-child svg.icon{width:20px;height:20px}
+.profile-privacy-note>span svg.icon{width:15px;height:15px}
+.account-menu button[role="menuitem"]>span:first-child svg.icon{width:14px;height:14px}
