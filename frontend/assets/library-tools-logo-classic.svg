@@ -7,36 +7,111 @@
 >
   <title id="library-tools-classic-title">Library Tools classic logo</title>
   <desc id="library-tools-classic-description">
-    Three gently leaning book spines in orange, gold, and green.
+    Three gently leaning book spines in orange, gold, and green, each with
+    ruled head and tail lines, raised bands, and a centre panel.
   </desc>
 
+  <defs>
+    <!-- Barrel shading: the spine catching light on the left and rolling into shadow on the right. -->
+    <linearGradient id="lt-spine-round" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.06" />
+      <stop offset="0.18" stop-color="#FFFFFF" stop-opacity="0.16" />
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0" />
+      <stop offset="0.78" stop-color="#000000" stop-opacity="0.07" />
+      <stop offset="1" stop-color="#000000" stop-opacity="0.22" />
+    </linearGradient>
+
+    <!-- Contact shade where the books meet the shelf. -->
+    <linearGradient id="lt-spine-foot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.86" stop-color="#000000" stop-opacity="0" />
+      <stop offset="1" stop-color="#000000" stop-opacity="0.13" />
+    </linearGradient>
+
+    <clipPath id="lt-clip-orange">
+      <rect x="18" y="48" width="58" height="190" rx="5" />
+    </clipPath>
+    <clipPath id="lt-clip-gold">
+      <rect x="82" y="18" width="58" height="220" rx="5" />
+    </clipPath>
+    <clipPath id="lt-clip-green">
+      <rect x="146" y="58" width="58" height="180" rx="5" />
+    </clipPath>
+  </defs>
+
   <g>
-    <rect
-      x="18"
-      y="48"
-      width="58"
-      height="190"
-      rx="5"
-      fill="#D96E3C"
-      transform="rotate(-5 47 238)"
-    />
-    <rect
-      x="82"
-      y="18"
-      width="58"
-      height="220"
-      rx="5"
-      fill="#E0AD56"
-      transform="rotate(2 111 238)"
-    />
-    <rect
-      x="146"
-      y="58"
-      width="58"
-      height="180"
-      rx="5"
-      fill="#849F68"
-      transform="rotate(7 175 238)"
-    />
+    <!-- Orange spine -->
+    <g transform="rotate(-5 47 238)">
+      <rect x="18" y="48" width="58" height="190" rx="5" fill="#D96E3C" />
+      <g clip-path="url(#lt-clip-orange)">
+        <!-- head rules -->
+        <rect x="25" y="62" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <rect x="25" y="66.5" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <rect x="25" y="71" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <!-- upper raised band -->
+        <rect x="18" y="85" width="58" height="1" fill="#000000" opacity="0.12" />
+        <rect x="18" y="86" width="58" height="7" fill="#FFFFFF" opacity="0.12" />
+        <rect x="18" y="93" width="58" height="2" fill="#000000" opacity="0.2" />
+        <!-- centre panel -->
+        <rect x="26" y="100" width="42" height="82" rx="4" fill="none" stroke="#000000" stroke-opacity="0.2" stroke-width="2" />
+        <rect x="29.5" y="103.5" width="35" height="75" rx="2.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="1" />
+        <!-- lower raised band -->
+        <rect x="18" y="188" width="58" height="1" fill="#000000" opacity="0.12" />
+        <rect x="18" y="189" width="58" height="7" fill="#FFFFFF" opacity="0.12" />
+        <rect x="18" y="196" width="58" height="2" fill="#000000" opacity="0.2" />
+        <!-- tail rules -->
+        <rect x="25" y="205" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <rect x="25" y="209.5" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <rect x="25" y="214" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <!-- shading, over everything so the spine reads as one form -->
+        <rect x="18" y="48" width="58" height="190" fill="url(#lt-spine-round)" />
+        <rect x="18" y="48" width="58" height="190" fill="url(#lt-spine-foot)" />
+      </g>
+    </g>
+
+    <!-- Gold spine -->
+    <g transform="rotate(2 111 238)">
+      <rect x="82" y="18" width="58" height="220" rx="5" fill="#E0AD56" />
+      <g clip-path="url(#lt-clip-gold)">
+        <rect x="89" y="32" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <rect x="89" y="36.5" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <rect x="89" y="41" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <rect x="82" y="55" width="58" height="1" fill="#000000" opacity="0.12" />
+        <rect x="82" y="56" width="58" height="7" fill="#FFFFFF" opacity="0.12" />
+        <rect x="82" y="63" width="58" height="2" fill="#000000" opacity="0.2" />
+        <rect x="90" y="70" width="42" height="112" rx="4" fill="none" stroke="#000000" stroke-opacity="0.2" stroke-width="2" />
+        <rect x="93.5" y="73.5" width="35" height="105" rx="2.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="1" />
+        <rect x="82" y="188" width="58" height="1" fill="#000000" opacity="0.12" />
+        <rect x="82" y="189" width="58" height="7" fill="#FFFFFF" opacity="0.12" />
+        <rect x="82" y="196" width="58" height="2" fill="#000000" opacity="0.2" />
+        <rect x="89" y="205" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <rect x="89" y="209.5" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <rect x="89" y="214" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <rect x="82" y="18" width="58" height="220" fill="url(#lt-spine-round)" />
+        <rect x="82" y="18" width="58" height="220" fill="url(#lt-spine-foot)" />
+      </g>
+    </g>
+
+    <!-- Green spine -->
+    <g transform="rotate(7 175 238)">
+      <rect x="146" y="58" width="58" height="180" rx="5" fill="#849F68" />
+      <g clip-path="url(#lt-clip-green)">
+        <rect x="153" y="72" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <rect x="153" y="76.5" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <rect x="153" y="81" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <rect x="146" y="95" width="58" height="1" fill="#000000" opacity="0.12" />
+        <rect x="146" y="96" width="58" height="7" fill="#FFFFFF" opacity="0.12" />
+        <rect x="146" y="103" width="58" height="2" fill="#000000" opacity="0.2" />
+        <rect x="154" y="110" width="42" height="72" rx="4" fill="none" stroke="#000000" stroke-opacity="0.2" stroke-width="2" />
+        <rect x="157.5" y="113.5" width="35" height="65" rx="2.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="1" />
+        <rect x="146" y="188" width="58" height="1" fill="#000000" opacity="0.12" />
+        <rect x="146" y="189" width="58" height="7" fill="#FFFFFF" opacity="0.12" />
+        <rect x="146" y="196" width="58" height="2" fill="#000000" opacity="0.2" />
+        <rect x="153" y="205" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <rect x="153" y="209.5" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <rect x="153" y="214" width="44" height="2" rx="1" fill="#000000" opacity="0.18" />
+        <rect x="146" y="58" width="58" height="180" fill="url(#lt-spine-round)" />
+        <rect x="146" y="58" width="58" height="180" fill="url(#lt-spine-foot)" />
+      </g>
+    </g>
   </g>
 </svg>

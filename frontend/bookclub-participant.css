@@ -528,6 +528,7 @@ body .pace-guidance{margin:0;padding:12px 14px;border:0;border-left:0;border-rad
 .club-stats-explorer{margin-top:18px;padding:24px;border:1px solid rgba(22,62,52,.1);border-radius:21px;background:rgba(255,250,241,.75);box-shadow:0 14px 38px rgba(22,62,52,.045)}
 .club-explorer-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:28px}.club-explorer-heading h2{margin:2px 0 5px;font-family:var(--serif);font-size:34px;font-weight:500}.club-explorer-heading p:last-child{margin:0;color:var(--muted);font-size:12px}.club-explorer-heading>small{max-width:180px;color:var(--muted);font-size:10px;text-align:right}
 .club-explorer-tabs{margin-top:20px;padding:6px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;border-radius:15px;background:rgba(22,62,52,.065)}
+.club-stats-explorer>.club-explorer-tabs{margin-top:0}
 .club-explorer-tab{min-width:0;padding:11px 13px;display:grid;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:10px;border:1px solid transparent;border-radius:11px;color:var(--muted);background:transparent;text-align:left;cursor:pointer;transition:background-color .16s ease,box-shadow .16s ease,color .16s ease}.club-explorer-tab>span:first-child{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;background:rgba(22,62,52,.08);font-family:var(--serif);font-size:17px}.club-explorer-tab strong,.club-explorer-tab small{display:block}.club-explorer-tab strong{font-size:12px}.club-explorer-tab small{margin-top:2px;font-size:9px;line-height:1.35}.club-explorer-tab:hover{color:var(--forest);background:rgba(255,255,255,.6)}.club-explorer-tab.is-active{color:var(--forest);border-color:rgba(22,62,52,.1);background:#fffdf8;box-shadow:0 7px 18px rgba(22,62,52,.08)}.club-explorer-tab.is-active>span:first-child{color:#f1c894;background:var(--forest)}
 .club-explorer-panels{margin-top:4px}.club-explorer-panel[hidden]{display:none}.club-explorer-panel>.club-conversation-pulse,.club-explorer-panel>.club-reactions-panel{margin-top:16px}.club-shelf-exploration{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,.9fr);gap:16px;margin-top:16px}.club-shelf-exploration>.stats-panel{margin:0;padding:27px;border-radius:18px}.club-panel-intro{margin:-4px 0 20px;color:var(--muted);font-size:11px;line-height:1.55}.club-shelf-numbers{grid-template-columns:1fr 1fr;gap:10px}.club-shelf-numbers .portal-stat-card{min-height:116px;background:linear-gradient(145deg,rgba(226,236,224,.8),rgba(255,250,241,.95))}
 .members-section.directory-experience{padding:0;border:0;background:transparent}
@@ -788,6 +789,10 @@ body .pace-guidance{margin:0;padding:12px 14px;border:0;border-left:0;border-rad
   .notification-inbox-item>b{grid-column:2}
 }
 @media(max-width:360px){.account-menu-trigger{max-width:128px}}
+.portal-view[data-portal-view="books"] .library-heading.shelf-controls-only{padding:0;border-radius:0;background:transparent}
+.portal-view[data-portal-view="books"] .shelf-controls-only .library-controls{margin-top:0;padding-top:0;border-top:0}
+.portal-view[data-portal-view="books"] .journey-shelf-group>header{align-items:center}
+.portal-view[data-portal-view="books"] .journey-shelf-group>header>div{display:grid;gap:3px}
 
 /* Books journey: keep the shelf readable and remove nested-toolbar conflicts. */
 .portal-view[data-portal-view="books"] #library-section{padding:28px}
