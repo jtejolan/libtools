@@ -88,7 +88,7 @@ def _strip(value: str) -> str:
 
 class MemberBase(BaseModel):
     name: str = Field(min_length=1, max_length=200)
-    email: str = Field(min_length=3, max_length=320)
+    email: str | None = Field(default=None, min_length=3, max_length=320)
     joined_on: date
     active: bool = True
     notes: str | None = None
@@ -100,7 +100,9 @@ class MemberBase(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def normalize_email(cls, value: str) -> str:
+    def normalize_email(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         value = value.strip().lower()
         if "@" not in value or value.startswith("@") or value.endswith("@"):
             raise ValueError("email must be a valid email address")
@@ -127,7 +129,7 @@ class MemberUpdate(BaseModel):
     delivery_method: DeliveryMethod | None = None
     destination_branch: str | None = Field(default=None, max_length=200)
 
-    @field_validator("name", "email", "joined_on", "active")
+    @field_validator("name", "joined_on", "active")
     @classmethod
     def required_values_cannot_be_null(cls, value: object) -> object:
         if value is None:
@@ -141,7 +143,9 @@ class MemberUpdate(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def normalize_email(cls, value: str) -> str:
+    def normalize_email(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         value = value.strip().lower()
         if "@" not in value or value.startswith("@") or value.endswith("@"):
             raise ValueError("email must be a valid email address")

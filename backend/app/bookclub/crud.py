@@ -675,6 +675,8 @@ def send_onboarding_email(
     meeting: models.BookClubMeeting,
     member: models.BookClubMember,
 ) -> schemas.OnboardingSendResponse:
+    if not member.email:
+        raise ValueError("This member doesn't have an email on file.")
     rendered = render_onboarding_email(db, meeting, member)
     already_sent_before = member.onboarding_email_sent_at is not None
     sent = email_delivery.send_onboarding_email(
@@ -720,6 +722,8 @@ def send_arrival_email(
     meeting: models.BookClubMeeting,
     member: models.BookClubMember,
 ) -> schemas.OnboardingSendResponse:
+    if not member.email:
+        raise ValueError("This member doesn't have an email on file.")
     rendered = render_arrival_email(db, meeting, member)
     already_sent_before = member.arrival_email_sent_at is not None
     sent = email_delivery.send_onboarding_email(
@@ -784,7 +788,7 @@ def send_reminder_batch(
     rendered = render_reminder_email(db, meeting)
     already_sent_before = meeting.reminder_sent_at is not None
     sent = email_delivery.send_reminder_batch(
-        recipients=[member.email for member in members],
+        recipients=[member.email for member in members if member.email],
         subject=rendered.subject or "",
         body=rendered.body,
         club_name=db.get(models.BookClub, _club_id(db)).name,

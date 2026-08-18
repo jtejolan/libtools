@@ -500,6 +500,10 @@ def send_onboarding_email(meeting_id: int, member_id: int, db: DatabaseSession):
         return crud.send_onboarding_email(db, meeting, member)
     except LookupError as exc:
         raise _not_found(str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
 
 
 @router.post(
@@ -554,6 +558,10 @@ def send_arrival_email(meeting_id: int, member_id: int, db: DatabaseSession):
         return crud.send_arrival_email(db, meeting, member)
     except LookupError as exc:
         raise _not_found(str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
 
 
 @router.post(

@@ -1257,9 +1257,12 @@ const renderMembers = () => {
               (badge) => `<button class="status-pill ${badge.className} jump-badge" type="button" data-jump-to-pending="${member.id}" data-stage="${badge.stage}">${escapeHtml(badge.label)}</button>`,
             )
             .join("");
+          const emailRowHtml = member.email
+            ? `<a class="member-email" href="mailto:${escapeHtml(member.email)}">${escapeHtml(member.email)}</a><button class="copy-email-button" type="button" data-copy-email="${escapeHtml(member.email)}" aria-label="Copy ${escapeHtml(member.name)}'s email address" title="Copy email address"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg></button>`
+            : `<span class="member-email member-email-missing">Email not provided</span>`;
           return `<article class="member-profile-card community-${accessStatus} ${lapsed ? "needs-attention" : ""}">
             <header class="member-profile-heading">
-              <div class="member-cell"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><span class="member-email-row"><a class="member-email" href="mailto:${escapeHtml(member.email)}">${escapeHtml(member.email)}</a><button class="copy-email-button" type="button" data-copy-email="${escapeHtml(member.email)}" aria-label="Copy ${escapeHtml(member.name)}'s email address" title="Copy email address"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg></button></span></div></div>
+              <div class="member-cell"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><span class="member-email-row">${emailRowHtml}</span></div></div>
               <span class="status-pill ${member.active ? "" : "inactive"}">${member.active ? "Active" : "Inactive"}</span>
             </header>
             <div class="community-access-row"><div><span>Community access</span><strong class="community-access-status ${accessStatus}"><i></i>${escapeHtml(accessLabel)}</strong></div>${communityAccess.announcements_enabled ? "" : '<span class="status-pill announcements-off-badge">Announcements off</span>'}</div>
@@ -1290,7 +1293,7 @@ const openFollowupDialog = (memberId, stage) => {
   $("#followup-title").textContent = stage === "arrival"
     ? "Book arrival follow-up"
     : "Welcome email";
-  $("#followup-member").innerHTML = `<span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small></div>`;
+  $("#followup-member").innerHTML = `<span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${member.email ? escapeHtml(member.email) : "Email not provided"}</small></div>`;
   $("#followup-context").textContent = stage === "arrival"
     ? `${member.name}'s book was sent to ${member.destination_branch || "their branch"}. Use this when it arrives to confirm pickup details.`
     : `Welcome ${member.name} and share the book and meeting details for this session.`;
@@ -1298,7 +1301,9 @@ const openFollowupDialog = (memberId, stage) => {
   const copyButton = $("#followup-copy");
   const markSentButton = $("#followup-mark-sent");
   const sendButton = $("#followup-send");
-  copyAddressButton.dataset.copyEmail = member.email;
+  copyAddressButton.dataset.copyEmail = member.email || "";
+  copyAddressButton.disabled = !member.email;
+  sendButton.disabled = !member.email;
   copyButton.dataset.copyRegistrantEmail = memberId;
   copyButton.dataset.stage = stage;
   markSentButton.dataset.markRegistrantSent = memberId;
@@ -1671,7 +1676,7 @@ const renderMemberSearchResults = (container, query, { excludeIds = new Set(), s
   container.hidden = false;
   const resultsHtml = matches
     .map(
-      (member) => `<button class="member-search-result" type="button" data-member-result="${member.id}"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.email)}</small></div></button>`,
+      (member) => `<button class="member-search-result" type="button" data-member-result="${member.id}"><span class="avatar">${escapeHtml(initials(member.name))}</span><div><strong>${escapeHtml(member.name)}</strong><small>${member.email ? escapeHtml(member.email) : "Email not provided"}</small></div></button>`,
     )
     .join("");
   const addNewHtml = showAddNew
@@ -1771,7 +1776,7 @@ $("#member-form").addEventListener("submit", async (event) => {
   }
   const data = {
     name: form.elements.name.value.trim(),
-    email: form.elements.email.value.trim(),
+    email: form.elements.email.value.trim() || null,
     joined_on: form.elements.joined_on.value,
     active: form.elements.active.value === "true",
     is_new_registrant: isNewRegistrant,
@@ -2487,8 +2492,9 @@ $("#open-reminder-dialog").addEventListener("click", () => {
 });
 $("#open-giveaway-dialog").addEventListener("click", openGiveawayDialog);
 $("#copy-reminder-list").addEventListener("click", async () => {
-  const emails = state.roster.map((entry) => entry.member.email);
-  if (!emails.length) return showToast("No one is on this meeting's roster yet.");
+  if (!state.roster.length) return showToast("No one is on this meeting's roster yet.");
+  const emails = state.roster.map((entry) => entry.member.email).filter(Boolean);
+  if (!emails.length) return showToast("No one on this roster has an email on file.");
   await navigator.clipboard.writeText(emails.join("; "));
   showToast("Address list copied.");
 });

@@ -10,9 +10,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/bookclub.css?v=47" />
+    <link rel="stylesheet" href="/static/bookclub.css?v=48" />
     <script src="/static/dom-utils.js?v=1" defer></script>
-    <script src="/static/bookclub.js?v=46" defer></script>
+    <script src="/static/bookclub.js?v=47" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -302,7 +302,7 @@
         <input name="id" type="hidden" />
         <div class="form-grid">
           <label class="field"><span>Name <b>*</b></span><input name="name" required maxlength="200" /></label>
-          <label class="field"><span>Email <b>*</b></span><input name="email" type="email" required maxlength="320" /></label>
+          <label class="field"><span>Email</span><input name="email" type="email" maxlength="320" /></label>
           <label class="field"><span>Date joined <b>*</b></span><input name="joined_on" type="date" required /></label>
           <label class="field"><span>Status</span><select name="active"><option value="true">Active</option><option value="false">Inactive</option></select></label>
           <label class="field"><span>Member type</span><select name="is_new_registrant"><option value="false">Regular member</option><option value="true">New registrant</option></select></label>

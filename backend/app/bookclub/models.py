@@ -74,7 +74,7 @@ class BookClubMember(Base):
         ForeignKey("book_clubs.id", ondelete="CASCADE"), index=True
     )
     name: Mapped[str] = mapped_column(String(200))
-    email: Mapped[str] = mapped_column(String(320), index=True)
+    email: Mapped[str | None] = mapped_column(String(320), index=True)
     # A roster entry is canonical whether or not the reader has a portal
     # login. Linking an account unlocks community features without creating
     # a second, parallel roster population.

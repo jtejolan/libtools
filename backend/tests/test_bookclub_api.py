@@ -138,8 +138,8 @@ class BookClubApiTests(unittest.TestCase):
         entrypoint = self.client.get("/bookclub")
         self.assertEqual(entrypoint.status_code, 200)
         self.assertIn("Book Club Manager", entrypoint.text)
-        self.assertIn('/static/bookclub.js?v=46', entrypoint.text)
-        self.assertIn('/static/bookclub.css?v=47', entrypoint.text)
+        self.assertIn('/static/bookclub.js?v=47', entrypoint.text)
+        self.assertIn('/static/bookclub.css?v=48', entrypoint.text)
         self.assertNotIn('data-view="messages"', entrypoint.text)
         self.assertIn('id="open-reminder-dialog"', entrypoint.text)
         self.assertIn('id="send-book-dialog"', entrypoint.text)
@@ -411,6 +411,60 @@ class BookClubApiTests(unittest.TestCase):
         )
         self.assertEqual(updated.status_code, 200, updated.text)
         self.assertIsNone(updated.json()["destination_branch"])
+
+    def test_member_can_be_created_and_updated_without_an_email(self) -> None:
+        first = self.client.post(
+            "/bookclub/members",
+            json={"name": "No Email One", "joined_on": "2026-08-01"},
+        )
+        self.assertEqual(first.status_code, 201, first.text)
+        self.assertIsNone(first.json()["email"])
+
+        # A second member with no email in the same club must not collide
+        # on the (club_id, email) uniqueness constraint.
+        second = self.client.post(
+            "/bookclub/members",
+            json={"name": "No Email Two", "joined_on": "2026-08-01"},
+        )
+        self.assertEqual(second.status_code, 201, second.text)
+        self.assertIsNone(second.json()["email"])
+
+        # Clearing an existing email via update is also allowed.
+        with_email = self.create_member("Has Email", "has-email@example.com")
+        cleared = self.client.patch(
+            f"/bookclub/members/{with_email['id']}", json={"email": None}
+        )
+        self.assertEqual(cleared.status_code, 200, cleared.text)
+        self.assertIsNone(cleared.json()["email"])
+
+    def test_onboarding_and_arrival_email_send_reject_member_without_email(self) -> None:
+        meeting = self.create_meeting()
+        member = self.client.post(
+            "/bookclub/members",
+            json={
+                "name": "No Email Registrant",
+                "joined_on": "2026-08-01",
+                "is_new_registrant": True,
+                "delivery_method": "transfer",
+                "destination_branch": "Maple Library",
+            },
+        ).json()
+        self.assertIsNone(member["email"])
+        self.client.put(
+            f"/bookclub/meetings/{meeting['id']}/members/{member['id']}", json={}
+        )
+
+        onboarding_send = self.client.post(
+            f"/bookclub/meetings/{meeting['id']}/members/{member['id']}/onboarding-email/send"
+        )
+        self.assertEqual(onboarding_send.status_code, 422)
+        self.assertIn("email", onboarding_send.json()["detail"].lower())
+
+        arrival_send = self.client.post(
+            f"/bookclub/meetings/{meeting['id']}/members/{member['id']}/arrival-email/send"
+        )
+        self.assertEqual(arrival_send.status_code, 422)
+        self.assertIn("email", arrival_send.json()["detail"].lower())
 
     def test_templates_are_editable_renderable_and_restorable(self) -> None:
         templates = self.client.get("/bookclub/templates")
@@ -912,6 +966,23 @@ class BookClubApiTests(unittest.TestCase):
             json={"member_ids": [999999]},
         )
         self.assertEqual(invalid_send.status_code, 422)
+
+    def test_reminder_send_skips_members_without_an_email_on_file(self) -> None:
+        emailed = self.create_member("Has Email", "has-email-batch@example.com")
+        no_email = self.client.post(
+            "/bookclub/members",
+            json={"name": "No Email", "joined_on": "2026-08-01"},
+        ).json()
+        self.assertIsNone(no_email["email"])
+        meeting = self.create_meeting()
+        self.client.put(f"/bookclub/meetings/{meeting['id']}/members/{emailed['id']}", json={})
+        self.client.put(f"/bookclub/meetings/{meeting['id']}/members/{no_email['id']}", json={})
+
+        send = self.client.post(
+            f"/bookclub/meetings/{meeting['id']}/reminder/send",
+            json={"member_ids": [emailed["id"], no_email["id"]]},
+        )
+        self.assertEqual(send.status_code, 200, send.text)
 
     def test_reminder_mark_sent_records_timestamp_without_calling_send(self) -> None:
         alex = self.create_member("Alex Reader", "alex-marksent@example.com")

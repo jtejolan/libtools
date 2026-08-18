@@ -667,7 +667,7 @@ def send_broadcast(
         token = issue_unsubscribe_token(member.id)
         unsubscribe_url = f"{base_url}/unsubscribe?token={token}"
         if participant_email_delivery.send_broadcast_email(
-            recipient=member.email,
+            recipient=member.email or recipient.email,
             subject=rendered.subject or template.name,
             body=rendered.body,
             unsubscribe_url=unsubscribe_url,

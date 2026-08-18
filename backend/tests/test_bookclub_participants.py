@@ -157,7 +157,7 @@ class BookClubParticipantApiTests(unittest.TestCase):
     def test_public_page_includes_invitation_design_and_calendar_ui(self) -> None:
         page = self.client.get("/clubs/sci-fi-book-club")
         self.assertEqual(page.status_code, 200, page.text)
-        self.assertIn('/static/public-club.css?v=7', page.text)
+        self.assertIn('/static/public-club.css?v=8', page.text)
         self.assertIn('/static/public-club.js?v=7', page.text)
         self.assertIn('id="account-benefits"', page.text)
         self.assertIn('id="meeting-details"', page.text)

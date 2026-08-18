@@ -95,7 +95,7 @@ from `backend/` — see root `CLAUDE.md` for full commands.
 |---|---|---|
 | `backend/alembic.ini` | Alembic config | `docs/backend/shared.md` |
 | `backend/alembic/env.py` | Migration environment, points at `Base.metadata`/`DATABASE_URL` | `docs/backend/shared.md` |
-| `backend/alembic/versions/*.py` (7 files) | Migration scripts, head is `f06fece22726` | `docs/backend/shared.md` |
+| `backend/alembic/versions/*.py` (23 files) | Migration scripts, head is `b3c8f1a4d276` | `docs/backend/shared.md` |
 | `backend/requirements.txt` | Python dependencies | `docs/dependency-map.md` |
 | `backend/start.sh` | Production entrypoint (Railway volume seeding + uvicorn) | `docs/architecture.md` |
 | `backend/librarytools.db` | Committed dev/seed SQLite database | `docs/backend/shared.md` |

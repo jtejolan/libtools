@@ -664,6 +664,8 @@ footer { padding: 26px 38px; display: flex; justify-content: space-between; gap:
 .member-email-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .member-profile-heading .member-cell .member-email { min-width: 0; overflow: hidden; color: var(--muted); font-size: 11.5px; font-weight: 600; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
 .member-profile-heading .member-cell .member-email:hover { color: var(--orange); text-decoration: underline; text-underline-offset: 2px; }
+.member-profile-heading .member-cell .member-email-missing { font-style: italic; opacity: .65; }
+.member-profile-heading .member-cell .member-email-missing:hover { color: var(--muted); text-decoration: none; }
 .copy-email-button { width: 20px; height: 20px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); background: transparent; font-size: 11px; line-height: 1; cursor: pointer; }
 .copy-email-button svg.icon { width: 12px; height: 12px; transform: translate(-1px, -1px); }
 .copy-email-button:hover { color: var(--forest); border-color: var(--forest); background: rgba(24,59,51,.06); }

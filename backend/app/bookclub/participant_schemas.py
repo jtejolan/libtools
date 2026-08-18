@@ -302,7 +302,7 @@ class AnnouncementResponse(BaseModel):
 class CommunityAccountStatus(BaseModel):
     member_id: int
     name: str
-    email: str
+    email: str | None
     status: str
     rsvp_status: str | None = None
 
@@ -674,5 +674,5 @@ class UnsubscribeRequest(BaseModel):
 
 class UnsubscribeResponse(BaseModel):
     club_name: str
-    email: str
+    email: str | None
     already_unsubscribed: bool
